@@ -1,0 +1,157 @@
+tiny16 ISA
+==========
+
+
+CPU
+---
+
+- 8-bit registers: R0–R7
+- R6:R7 form a 16-bit address:
+  ADDR = (R6 << 8) | R7
+- PC: 16-bit
+- SP: 16-bit
+- Flags: Z, C
+- 1 tick = 1 instruction
+
+
+REGISTERS
+---------
+
+R0–R5 : general purpose (8-bit)
+R6    : address high byte
+R7    : address low byte
+
+PC    : program counter (16-bit)
+SP    : stack pointer (16-bit)
+
+
+FLAGS
+-----
+
+Z = 1 if result == 0
+C = carry (ADD) or borrow (SUB)
+
+Flags updated by:
+- ADD  : Z, C
+- SUB  : Z, C
+- INC  : Z
+- DEC  : Z
+- AND  : Z
+- OR   : Z
+- XOR  : Z
+
+Other instructions do not modify flags.
+
+
+MEMORY
+------
+
+- 16-bit address space
+- 64 KB total (0x0000–0xFFFF), shared by code, data, stack, and MMIO.
+
+Conventional layout:
+0x0000–0x1FFF  code
+0x2000–0x3FFF  data
+0x8000–0xBFFF  stack (down)
+0xC000–0xFFFF  framebuffer + MMIO
+
+
+INSTRUCTION FORMAT
+------------------
+
+All instructions are 3 bytes:
+
+[ opcode ][ arg1 ][ arg2 ]
+
+- Big-endian for 16-bit immediates
+- PC += 3 unless modified by jump
+
+
+INSTRUCTIONS
+------------
+
+0x10  LOADI R, imm8
+      R = imm8
+
+0x11  LOAD R, [ADDR]
+      R = MEM[ADDR]
+
+0x12  STORE R, [ADDR]
+      MEM[ADDR] = R
+
+0x20  ADD R1, R2
+      R1 = (R1 + R2) & 0xFF
+
+0x21  SUB R1, R2
+      R1 = (R1 - R2) & 0xFF
+
+0x22  INC R
+      R = (R + 1) & 0xFF
+
+0x23  DEC R
+      R = (R - 1) & 0xFF
+
+0x24  AND R1, R2
+      R1 = R1 & R2
+
+0x25  OR R1, R2
+      R1 = R1 | R2
+
+0x26  XOR R1, R2
+      R1 = R1 ^ R2
+
+0x30  JMP addr16
+      PC = addr16
+
+0x31  JZ addr16
+      if Z == 1: PC = addr16
+
+0x32  JNZ addr16
+      if Z == 0: PC = addr16
+
+0xFF  HALT
+      stop execution
+
+
+ADDRESSING
+----------
+
+- LOAD / STORE use ADDR = (R6 << 8) | R7
+- arg2 ignored for LOAD / STORE
+- LOAD / STORE do not affect flags
+
+
+MMIO
+----
+
+Framebuffer:
+- Base: 0xC000
+- Size: 128 x 128
+- Format: 1 byte per pixel
+- addr = 0xC000 + (y << 7) + x
+
+Input:
+- 0xE000 : key state
+
+Timer:
+- 0xE200 : ticks low
+- 0xE201 : ticks high
+- incremented every instruction
+
+
+RESET
+-----
+
+PC = 0x0000
+SP = 0xBFFF
+R0–R7 = 0
+Z = 0
+C = 0
+
+
+UNDEFINED
+---------
+
+- Unknown opcode
+- Invalid memory access
+- Undefined MMIO access

@@ -1,0 +1,122 @@
+tiny16 Assembler Specification
+==============================
+
+SOURCE
+------
+
+- One instruction per line
+- Case-insensitive
+- Leading/trailing whitespace ignored
+- Empty lines ignored
+
+COMMENTS
+--------
+
+- `;` starts a comment
+- Everything after `;` is ignored
+
+LABELS
+------
+
+- Defined as `name:`
+- Refer to the address of the next instruction
+- Must be unique
+
+REGISTERS
+---------
+
+- R0–R7
+- Case-insensitive
+- R6:R7 form ADDR for indirect memory access
+- Assembler does not encode ADDR explicitly
+
+NUMBERS
+-------
+
+- Decimal: 42
+- Hex: 0x2A
+- Binary: 0b101010
+- No signed values
+- Labels may be used where numbers are accepted
+
+ENCODING
+
+- Every instruction is exactly 3 bytes
+- Unused operands are encoded as 0x00
+- Format: opcode arg1 arg2
+- 16-bit immediates are big-endian
+
+INSTRUCTIONS
+------------
+
+LOADI R, imm8
+    -> opcode reg imm8
+
+LOAD R, [ADDR]
+STORE R, [ADDR]
+    -> opcode reg 0
+
+ADD R1, R2
+SUB R1, R2
+AND R1, R2
+OR  R1, R2
+XOR R1, R2
+    -> opcode R1 R2
+
+INC R
+DEC R
+    -> opcode R 0
+
+JMP addr16 | label
+JZ  addr16 | label
+JNZ addr16 | label
+    -> opcode hi lo
+
+HALT
+    -> opcode 0 0
+
+ASSEMBLY PASSES
+---------------
+
+Pass 1:
+- Remove comments
+- Collect labels
+- Compute instruction addresses
+
+Pass 2:
+- Encode instructions
+- Resolve labels
+- Emit bytecode
+
+ERRORS
+------
+
+Assembly fails on:
+- Unknown instruction
+- Invalid register
+- Invalid number
+- Immediate out of range
+- Undefined or duplicate label
+
+OUTPUT
+------
+
+- Raw byte array
+- Loaded at address 0x0000
+- No headers or metadata
+
+NON-GOALS
+---------
+
+- No macros
+- No includes
+- No expressions
+- No pseudo-instructions
+- No data directives
+- No linking or relocation
+
+DESIGN RULE
+-----------
+
+- The assembler performs no semantic analysis.
+- It translates text to bytes exactly as defined by the tiny16 ISA.
