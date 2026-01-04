@@ -4,6 +4,10 @@
 
 START:
 MAIN_LOOP:
+    ; framebuffer pointer = 0xC000
+    LOADI R4, 0xC0
+    LOADI R5, 0x00
+
     LOADI R1, 0              ; y = 0
 
 Y_LOOP:
@@ -18,21 +22,28 @@ X_LOOP:
     XOR   R2, R1             ; R2 = x ^ y
 
     ; timer low byte
-    LOADI R6, 0xE2
+    LOADI R6, 0xE2           ; timer address
     LOADI R7, 0x00
     LOAD  R3
+
+    ; restore framebuffer pointer into R6:R7
+    XOR   R6, R6
+    ADD   R6, R4
+    XOR   R7, R7
+    ADD   R7, R5
     XOR   R2, R3
 
     ; -------------------------
-    ; framebuffer address
-    ; addr = 0xC000 + (y<<8) + x
+    ; framebuffer address (R6:R7 already points at next pixel)
     ; -------------------------
-    LOADI R6, 0xC0
-    ADD   R6, R1             ; high byte = 0xC0 + y
-    LOADI R7, 0x00
-    ADD   R7, R0             ; low byte = x
-
     STORE R2
+
+    ; advance framebuffer pointer stored in R4:R5
+    INC   R5
+    JNZ   FB_NEXT
+    INC   R4
+
+FB_NEXT:
 
     ; -------------------------
     ; x++
@@ -46,7 +57,7 @@ X_LOOP:
     ; y++
     ; -------------------------
     INC   R1
-    LOADI R3, 64 ; stop before the high byte overflows the framebuffer base
+    LOADI R3, 128
     SUB   R3, R1
     JNZ   Y_LOOP
 
