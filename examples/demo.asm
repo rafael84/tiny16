@@ -46,7 +46,7 @@ X_LOOP:
     ; y++
     ; -------------------------
     INC   R1
-    LOADI R3, 128
+    LOADI R3, 64 ; stop before the high byte overflows the framebuffer base
     SUB   R3, R1
     JNZ   Y_LOOP
 

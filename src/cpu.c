@@ -70,7 +70,8 @@ bool cpu_step(CPU* cpu, Memory* memory) {
     case OPCODE_STORE: {
         uint16_t addr = cpu_addr16(cpu);
         if (addr >= MEMORY_CODE_BEGIN && addr < MEMORY_CODE_END) {
-            fprintf(stderr, "STORE into code segment: 0x%04X\n", addr);
+            fprintf(stderr, "STORE into code segment: 0x%04X (R6=0x%02X, R7=0x%02X)\n", addr,
+                    cpu->R[6], cpu->R[7]);
             return false;
         }
         memory->bytes[addr] = cpu->R[arg1];
