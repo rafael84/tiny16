@@ -20,7 +20,7 @@ edit-cpu:
 	nvim src/cpu.c '+SpecOpen tiny16-spec.txt'
 
 edit-asm:
-	nvim asm/tiny16.c '+SpecOpen examples/test_03_alu.asm'
+	nvim asm/tiny16.c '+SpecOpen examples/03_alu.asm'
 
 edit-emu:
 	nvim emulator/tiny16.c '+SpecOpen examples/demo.asm'

@@ -1,5 +1,3 @@
-#include "memory.h"
-
 #include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,6 +7,7 @@
 #include <string.h>
 
 #include "binary.h"
+#include "memory.h"
 
 void memory_print_byte(const Memory* memory, int addr) {
     uint8_t byte = memory->bytes[addr];

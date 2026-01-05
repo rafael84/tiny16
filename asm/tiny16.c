@@ -34,7 +34,7 @@ void str_trim(char* str);
 void str_to_upper(char* str);
 long str_to_long(const char* str);
 
-#define BUFFER_SIZE 256
+#define LINE_BUFFER_SIZE 256
 
 #define MAX_LABEL_NAME_LENGTH 256
 #define MAX_LABELS 4096
@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
 
     FILE* file;
     char* filename;
-    char buffer[BUFFER_SIZE];
+    char buffer[LINE_BUFFER_SIZE];
 
     int pc = 0;
 
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
         //
 
         int line_no = 0;
-        while (fgets(buffer, BUFFER_SIZE, file) != NULL) {
+        while (fgets(buffer, LINE_BUFFER_SIZE, file) != NULL) {
             line_no++;
 
             char* line_buffer = buffer;
@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
         pc = 0;
         fseek(file, 0L, SEEK_SET);
         line_no = 0;
-        while (fgets(buffer, BUFFER_SIZE, file) != NULL) {
+        while (fgets(buffer, LINE_BUFFER_SIZE, file) != NULL) {
             line_no++;
 
             char* line_buffer = buffer;
