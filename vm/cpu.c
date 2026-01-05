@@ -10,29 +10,29 @@
 void tiny16_cpu_reset(Tiny16CPU* cpu) {
     cpu->pc = TINY16_MEMORY_CODE_BEGIN;
     cpu->sp = TINY16_MEMORY_STACK_BEGIN;
-    memset(cpu->R, 0, TINY16_TINY16_CPU_REGISTERS);
+    memset(cpu->R, 0, TINY16_CPU_REGISTERS);
     cpu->flags = 0;
 }
 
 void tiny16_cpu_print(const Tiny16CPU* cpu) {
     printf("CPU\n\n");
 
-    for (int i = 0; i < TINY16_TINY16_CPU_REGISTERS; ++i) {
+    for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("  --- R%d ---", i);
     }
     printf("\n");
 
-    for (int i = 0; i < TINY16_TINY16_CPU_REGISTERS; ++i) {
+    for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("  0b" TINY16_BIN8_FMT, TINY16_BIN8(cpu->R[i]));
     }
     printf("\n");
 
-    for (int i = 0; i < TINY16_TINY16_CPU_REGISTERS; ++i) {
+    for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("  0x%08X", cpu->R[i]);
     }
     printf("\n");
 
-    for (int i = 0; i < TINY16_TINY16_CPU_REGISTERS; ++i) {
+    for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("    %08d", cpu->R[i]);
     }
     printf("\n\n");
@@ -198,7 +198,7 @@ bool tiny16_cpu_exec(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t max_steps) {
 #ifdef TINY16_DEBUG_TRACE_CPU
         printf("%-24s\t | C=%d Z=%d |", ops, TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C),
                TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
-        for (uint8_t i = 0; i < TINY16_TINY16_CPU_REGISTERS; ++i) {
+        for (uint8_t i = 0; i < TINY16_CPU_REGISTERS; ++i) {
             printf(" R%d=%02X", i, cpu->R[i]);
         }
         printf("\n");

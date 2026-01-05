@@ -9,10 +9,10 @@
 #define TINY16_VERSION_MAJOR 0
 #define TINY16_VERSION_MINOR 1
 
-#define TINY16_TINY16_CPU_REGISTERS 8
+#define TINY16_CPU_REGISTERS 8
 
 typedef struct {
-    uint8_t R[TINY16_TINY16_CPU_REGISTERS];
+    uint8_t R[TINY16_CPU_REGISTERS];
     uint16_t pc;
     uint16_t sp;
     uint8_t flags;
