@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
     char* filename;
     char buffer[LINE_BUFFER_SIZE];
 
-    int pc = 0;
+    int pc = TINY16_MEMORY_CODE_BEGIN;
 
     for (int i = 0; i < argc; ++i) {
         filename = args_shift(&argc, &argv);
@@ -154,7 +154,7 @@ int main(int argc, char** argv) {
         //
         // pass 2
         //
-        pc = 0;
+        pc = TINY16_MEMORY_CODE_BEGIN;
         fseek(file, 0L, SEEK_SET);
         line_no = 0;
         while (fgets(buffer, LINE_BUFFER_SIZE, file) != NULL) {
