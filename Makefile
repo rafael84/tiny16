@@ -12,7 +12,7 @@ tests: bin vm/*.c vm/*.h tests/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-tests tests/tiny16.c
 	bin/tiny16-tests
 
-asm: bin vm/*.c vm/*.h asm/*.c | bin
+asm: bin vm/*.c vm/*.h asm/*.h asm/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-asm asm/tiny16.c
 
 emulator: bin vm/*.c vm/*.h emulator/*.c | bin
