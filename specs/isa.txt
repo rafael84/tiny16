@@ -50,7 +50,8 @@ MEMORY
 - 64 KB total (0x0000–0xFFFF), shared by code, data, stack, and MMIO.
 
 Conventional layout:
-0x0000–0x1FFF  code
+0x0000-0x000F  reserved
+0x0010–0x1FFF  code
 0x2000–0x3FFF  data
 0x8000–0xBFFF  stack (down)
 0xC000–0xFFFF  framebuffer + MMIO
@@ -142,7 +143,7 @@ Timer:
 RESET
 -----
 
-PC = 0x0000
+PC = 0x0010
 SP = 0xBFFF
 R0–R7 = 0
 Z = 0

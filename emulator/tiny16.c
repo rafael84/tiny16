@@ -20,24 +20,24 @@ int main(int argc, char** argv) {
 
     char* filename = args_shift(&argc, &argv);
 
-    Memory memory = {0};
-    memory_reset(&memory);
-    if (!memory_load_from_file(&memory, filename)) {
+    Tiny16Memory memory = {0};
+    tiny16_memory_reset(&memory);
+    if (!tiny16_memory_load_from_file(&memory, filename)) {
         fprintf(stderr, "could not load program from file\n");
         exit(1);
     }
 
-    CPU cpu = {0};
-    cpu_reset(&cpu);
+    Tiny16CPU cpu = {0};
+    tiny16_cpu_reset(&cpu);
 
-    if (!cpu_exec(&cpu, &memory, MAX_INSTRUCTIONS)) {
-        cpu_print(&cpu);
-        memory_print(&memory, false);
+    if (!tiny16_cpu_exec(&cpu, &memory, MAX_INSTRUCTIONS)) {
+        tiny16_cpu_print(&cpu);
+        tiny16_memory_print(&memory, false);
         return 1;
     }
 
-    cpu_print(&cpu);
-    memory_print(&memory, true);
+    tiny16_cpu_print(&cpu);
+    tiny16_memory_print(&memory, true);
     return 0;
 }
 

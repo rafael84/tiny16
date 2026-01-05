@@ -13,13 +13,13 @@
 #include "cpu.h"
 #include "memory.h"
 
-#define ABORT(fmt)                                                                                 \
+#define TINY16_ASM_ABORT(fmt)                                                                      \
     do {                                                                                           \
         fprintf(stderr, "%s:%d: " fmt "\n", filename, line_no);                                    \
         exit(1);                                                                                   \
     } while (0)
 
-#define ABORTF(fmt, ...)                                                                           \
+#define TINY16_ASM_ABORTF(fmt, ...)                                                                \
     do {                                                                                           \
         fprintf(stderr, "%s:%d: " fmt "\n", filename, line_no, __VA_ARGS__);                       \
         exit(1);                                                                                   \
@@ -54,8 +54,8 @@ typedef struct {
 #define LABEL_NOT_FOUND 0xFFFF
 uint16_t label_addr(AsmContext* ctx, char* name);
 
-OpCode expect_mnemonic(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no);
-uint8_t expect_reg(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no);
+Tiny16OpCode expect_mnemonic(char* str, char** saveptr, char* filename, int line_no);
+uint8_t expect_reg(char* str, char** saveptr, char* filename, int line_no);
 uint16_t expect_imm(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no);
 uint8_t expect_imm8(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no);
 
@@ -109,18 +109,18 @@ int main(int argc, char** argv) {
             int lbl_len = label_length(line_buffer);
             if (lbl_len > 0) {
                 if (lbl_len - 1 >= MAX_LABEL_NAME_LENGTH) {
-                    ABORTF("max label name length exceeded: %d (limit is %d)", lbl_len,
-                           MAX_LABEL_NAME_LENGTH);
+                    TINY16_ASM_ABORTF("max label name length exceeded: %d (limit is %d)", lbl_len,
+                                      MAX_LABEL_NAME_LENGTH);
                 }
 
                 char tmp[MAX_LABEL_NAME_LENGTH];
                 strncpy(tmp, line_buffer, lbl_len - 1);
                 if (label_addr(&ctx, tmp) != LABEL_NOT_FOUND) {
-                    ABORTF("duplicated label: %s", tmp);
+                    TINY16_ASM_ABORTF("duplicated label: %s", tmp);
                 }
 
                 if (ctx.label_count >= MAX_LABELS) {
-                    ABORT("too many labels");
+                    TINY16_ASM_ABORT("too many labels");
                 }
 
                 ctx.labels[ctx.label_count].addr = pc;
@@ -271,29 +271,29 @@ long str_to_long(const char* str) {
 
 static char* token_separator = ", \t";
 
-OpCode expect_mnemonic(AsmContext* _, char* str, char** saveptr, char* filename, int line_no) {
+Tiny16OpCode expect_mnemonic(char* str, char** saveptr, char* filename, int line_no) {
     char* mnemonic = strtok_r(str, token_separator, saveptr);
     if (!mnemonic) {
-        ABORTF("could not parse mnemonic: %s", mnemonic);
+        TINY16_ASM_ABORTF("could not parse mnemonic: %s", mnemonic);
     }
     str_to_upper(mnemonic);
-    OpCode opcode = opcode_from_mnemonic(mnemonic);
-    if (opcode == OPCODE_UNKNOWN) {
-        ABORTF("unknown mnemonic: %s", mnemonic);
+    Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
+    if (opcode == TINY16_OPCODE_UNKNOWN) {
+        TINY16_ASM_ABORTF("unknown mnemonic: %s", mnemonic);
     }
     return opcode;
 }
 
-uint8_t expect_reg(AsmContext* _, char* str, char** saveptr, char* filename, int line_no) {
+uint8_t expect_reg(char* str, char** saveptr, char* filename, int line_no) {
     char* reg = strtok_r(str, token_separator, saveptr);
     if (!reg) {
-        ABORTF("could not parse register: %s", reg);
+        TINY16_ASM_ABORTF("could not parse register: %s", reg);
     }
     if (strlen(reg) != 2) {
-        ABORTF("invalid register: %s", reg);
+        TINY16_ASM_ABORTF("invalid register: %s", reg);
     }
     if (reg[0] != 'R' || (reg[1] < '0' || reg[1] > '7')) {
-        ABORTF("register not found, %s", reg);
+        TINY16_ASM_ABORTF("register not found, %s", reg);
     }
     return (uint8_t)(reg[1] - '0');
 }
@@ -301,21 +301,21 @@ uint8_t expect_reg(AsmContext* _, char* str, char** saveptr, char* filename, int
 uint16_t expect_imm(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no) {
     char* imm = strtok_r(str, token_separator, saveptr);
     if (!imm) {
-        ABORTF("immediate expected, found: %s", imm);
+        TINY16_ASM_ABORTF("immediate expected, found: %s", imm);
     }
     if (isalpha(*imm)) {
         uint16_t addr = label_addr(ctx, imm);
         if (addr == LABEL_NOT_FOUND) {
-            ABORTF("label %s not found", imm);
+            TINY16_ASM_ABORTF("label %s not found", imm);
         }
         return addr;
     }
     long val = str_to_long(imm);
     if (errno) {
-        ABORTF("invalid immediate: %s", imm);
+        TINY16_ASM_ABORTF("invalid immediate: %s", imm);
     }
     if (val < 0 || val > UINT16_MAX) {
-        ABORTF("immediate out of bounds: %ld", val);
+        TINY16_ASM_ABORTF("immediate out of bounds: %ld", val);
     }
     return (uint16_t)val;
 }
@@ -323,59 +323,59 @@ uint16_t expect_imm(AsmContext* ctx, char* str, char** saveptr, char* filename, 
 uint8_t expect_imm8(AsmContext* ctx, char* str, char** saveptr, char* filename, int line_no) {
     uint16_t imm = expect_imm(ctx, str, saveptr, filename, line_no);
     if (imm > UINT8_MAX) {
-        ABORTF("immediate out of bounds: %" PRIu16, imm);
+        TINY16_ASM_ABORTF("immediate out of bounds: %" PRIu16, imm);
     }
     return (uint8_t)imm;
 }
 
 void output_instruction(AsmContext* ctx, char* filename, int line_no, char* line) {
-    if ((ctx->out_size + 3) > MEMORY_CODE_END) {
-        ABORT("max program size is 64KB");
+    if ((ctx->out_size + 3) > TINY16_MEMORY_CODE_END) {
+        TINY16_ASM_ABORT("max program size is 64KB");
     }
 
     char* saveptr;
-    OpCode opcode = expect_mnemonic(ctx, line, &saveptr, filename, line_no);
+    Tiny16OpCode opcode = expect_mnemonic(line, &saveptr, filename, line_no);
 
     uint8_t bytes[3];
     bytes[0] = opcode;
 
     switch (opcode) {
-    case OPCODE_LOADI:
-        bytes[1] = expect_reg(ctx, NULL, &saveptr, filename, line_no);
+    case TINY16_OPCODE_LOADI:
+        bytes[1] = expect_reg(NULL, &saveptr, filename, line_no);
         bytes[2] = expect_imm8(ctx, NULL, &saveptr, filename, line_no);
         break;
 
-    case OPCODE_ADD:
-    case OPCODE_SUB:
-    case OPCODE_AND:
-    case OPCODE_OR:
-    case OPCODE_XOR:
-        bytes[1] = expect_reg(ctx, NULL, &saveptr, filename, line_no);
-        bytes[2] = expect_reg(ctx, NULL, &saveptr, filename, line_no);
+    case TINY16_OPCODE_ADD:
+    case TINY16_OPCODE_SUB:
+    case TINY16_OPCODE_AND:
+    case TINY16_OPCODE_OR:
+    case TINY16_OPCODE_XOR:
+        bytes[1] = expect_reg(NULL, &saveptr, filename, line_no);
+        bytes[2] = expect_reg(NULL, &saveptr, filename, line_no);
         break;
 
-    case OPCODE_LOAD:
-    case OPCODE_STORE:
-    case OPCODE_INC:
-    case OPCODE_DEC:
-        bytes[1] = expect_reg(ctx, NULL, &saveptr, filename, line_no);
+    case TINY16_OPCODE_LOAD:
+    case TINY16_OPCODE_STORE:
+    case TINY16_OPCODE_INC:
+    case TINY16_OPCODE_DEC:
+        bytes[1] = expect_reg(NULL, &saveptr, filename, line_no);
         bytes[2] = 0;
         break;
 
-    case OPCODE_JMP:
-    case OPCODE_JZ:
-    case OPCODE_JNZ: {
+    case TINY16_OPCODE_JMP:
+    case TINY16_OPCODE_JZ:
+    case TINY16_OPCODE_JNZ: {
         uint16_t addr = expect_imm(ctx, NULL, &saveptr, filename, line_no);
         bytes[1] = (addr >> 8) & 0xFF;
         bytes[2] = addr & 0xFF;
     }; break;
 
-    case OPCODE_HALT:
+    case TINY16_OPCODE_HALT:
         bytes[1] = 0;
         bytes[2] = 0;
         break;
 
-    case OPCODE_UNKNOWN: return;
+    case TINY16_OPCODE_UNKNOWN: return;
     }
 
     if (strtok_r(NULL, token_separator, &saveptr) != NULL) {

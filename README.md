@@ -47,7 +47,7 @@ HALT            ; Stop execution
 ## Project Structure
 
 ```
-├── src/          # VM core (CPU, memory)
+├── vm/           # VM core (CPU, memory)
 ├── asm/          # Assembler implementation
 ├── emulator/     # Emulator/runner
 ├── specs/        # ISA and assembler specs
