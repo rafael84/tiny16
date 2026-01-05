@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     uint8_t signature[16] = {
         'T', '1', '6', 0x00,                                                         // Magic
         TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version (big-endian)
-        ((TINY16_MEMORY_CODE_BEGIN >> 8) | 0xFF), (TINY16_MEMORY_CODE_BEGIN | 0xFF), // Entrypoint addr (big-endian)
+        ((TINY16_MEMORY_CODE_BEGIN >> 8) & 0xFF), (TINY16_MEMORY_CODE_BEGIN & 0xFF), // Entrypoint addr (big-endian)
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                              // Reserved
     };
     // clang-format on
