@@ -19,12 +19,10 @@ emulator: bin vm/*.c vm/*.h emulator/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-emu emulator/tiny16.c
 
 EXAMPLES := $(wildcard examples/*.asm)
-BINS     := $(patsubst examples/%.asm,bin/%.tiny16,$(EXAMPLES))
-
 examples: asm
 	@for F in $(EXAMPLES); do \
 		bin/tiny16-asm $$F bin/$$(basename $$F .asm).tiny16; \
 		done
 
 compile_commands.json:
-	bear -- make
+	bear -- $(MAKE)

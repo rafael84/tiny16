@@ -23,7 +23,7 @@ void tiny16_test_jnz_mirror_test(Tiny16CPU* cpu, Tiny16Memory* memory);
 
 #define TINY16_TEST(fn)                                                                            \
     do {                                                                                           \
-        printf("[TINY16_TEST] %s\n", #fn);                                                         \
+        printf("    [TINY16_TEST] %s\n", #fn);                                                     \
         fn(&cpu, &memory);                                                                         \
     } while (0)
 
