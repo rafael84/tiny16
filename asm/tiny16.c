@@ -79,6 +79,21 @@ int main(int argc, char** argv) {
     }
     argc--;
 
+    // clang-format off
+    uint8_t signature[16] = {
+        'T', '1', '6', 0x00,                                                         // Magic
+        TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version (big-endian)
+        ((TINY16_MEMORY_CODE_BEGIN >> 8) | 0xFF), (TINY16_MEMORY_CODE_BEGIN | 0xFF), // Entrypoint addr (big-endian)
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                              // Reserved
+    };
+    // clang-format on
+
+    ctx.out_size = fwrite(signature, 1, sizeof signature, ctx.out);
+    if (ctx.out_size != 16) {
+        perror("write signature");
+        exit(1);
+    }
+
     FILE* file;
     char* filename;
     char buffer[LINE_BUFFER_SIZE];

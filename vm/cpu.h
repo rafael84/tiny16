@@ -8,10 +8,6 @@
 
 #define TINY16_VERSION_MAJOR 0
 #define TINY16_VERSION_MINOR 1
-#define TINY16_VERSION_PATCH 0
-
-#define TINY16_VERSION_NUMBER                                                                      \
-    (TINY16_VERSION_MAJOR * 1000000 + TINY16_VERSION_MINOR * 1000 + TINY16_VERSION_PATCH)
 
 #define TINY16_TINY16_CPU_REGISTERS 8
 
