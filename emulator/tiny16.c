@@ -8,7 +8,7 @@
 #include "memory.c"
 #include "memory.h"
 
-#define MAX_INSTRUCTIONS 300000
+#define TINY16_EMU_MAX_INSTRUCTIONS 300000
 
 char* args_shift(int* argc, char*** argv);
 
@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     Tiny16CPU cpu = {0};
     tiny16_cpu_reset(&cpu);
 
-    if (!tiny16_cpu_exec(&cpu, &memory, MAX_INSTRUCTIONS)) {
+    if (!tiny16_cpu_exec(&cpu, &memory, TINY16_EMU_MAX_INSTRUCTIONS)) {
         tiny16_cpu_print(&cpu);
         tiny16_memory_print(&memory, false);
         return 1;
