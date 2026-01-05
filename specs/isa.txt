@@ -74,11 +74,11 @@ INSTRUCTIONS
 0x10  LOADI R, imm8
       R = imm8
 
-0x11  LOAD R, [ADDR]
-      R = MEM[ADDR]
+0x11  LOAD R
+      R = MEM[R6:R7]
 
-0x12  STORE R, [ADDR]
-      MEM[ADDR] = R
+0x12  STORE R
+      MEM[R6:R7] = R
 
 0x20  ADD R1, R2
       R1 = (R1 + R2) & 0xFF

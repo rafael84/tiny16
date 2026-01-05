@@ -52,8 +52,8 @@ INSTRUCTIONS
 LOADI R, imm8
     -> opcode reg imm8
 
-LOAD R, [ADDR]
-STORE R, [ADDR]
+LOAD R
+STORE R
     -> opcode reg 0
 
 ADD R1, R2
