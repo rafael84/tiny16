@@ -46,9 +46,9 @@ void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer) {
 
     if (framebuffer) {
         printf("\n  Framebuffer\n");
-        for (int y = 0; y < TINY16_MMIO_FRAMEBUFFER_SIZE_HEIGHT; ++y) {
-            for (int x = 0; x < TINY16_MMIO_FRAMEBUFFER_SIZE_WIDTH; ++x) {
-                uint8_t pixel = memory->bytes[TINY16_MMIO_FRAMEBUFFER_ADDR(x, y)];
+        for (int y = 0; y < TINY16_FRAMEBUFFER_SIZE_HEIGHT; ++y) {
+            for (int x = 0; x < TINY16_FRAMEBUFFER_SIZE_WIDTH; ++x) {
+                uint8_t pixel = memory->bytes[TINY16_FRAMEBUFFER_ADDR(x, y)];
                 if (x == 0) {
                     printf("        ");
                 }

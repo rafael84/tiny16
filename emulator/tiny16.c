@@ -9,14 +9,14 @@
 #include "memory.c"
 #include "memory.h"
 
-#define TINY16_EMU_PIXEL_WIDTH TINY16_MMIO_FRAMEBUFFER_SIZE_WIDTH
-#define TINY16_EMU_PIXEL_HEIGHT TINY16_MMIO_FRAMEBUFFER_SIZE_HEIGHT
+#define TINY16_EMU_PIXEL_WIDTH TINY16_FRAMEBUFFER_SIZE_WIDTH
+#define TINY16_EMU_PIXEL_HEIGHT TINY16_FRAMEBUFFER_SIZE_HEIGHT
 
 #define TINY16_EMU_SCREEN_WIDTH (TINY16_EMU_PIXEL_WIDTH * 8)
 #define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
 
 // #define TINY16_EMU_MAX_INSTRUCTIONS 300000
-#define TINY16_EMU_INSTRUCTIONS_PER_FRAME 100000
+#define TINY16_EMU_TARGET_IPS (60.0f * 100000)
 
 char* args_shift(int* argc, char*** argv);
 
@@ -49,12 +49,20 @@ int main(int argc, char** argv) {
 
     uint64_t tick_counter = 0u;
     uint64_t frame_counter = 0u;
+    float instr_acc = 0.0f;
 
     while (!WindowShouldClose()) {
 
+        if (IsKeyPressed(KEY_ESCAPE))
+            break;
+
+        instr_acc += TINY16_EMU_TARGET_IPS * GetFrameTime();
+        uint32_t instr_this_frame = (uint32_t)instr_acc;
+        instr_acc -= instr_this_frame; // keep fractional part
+
         memory.bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
 
-        for (uint32_t i = 0; i < TINY16_EMU_INSTRUCTIONS_PER_FRAME; ++i) {
+        for (uint32_t i = 0; i < instr_this_frame; ++i) {
             memory.bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
             memory.bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
             if (!tiny16_cpu_step(&cpu, &memory)) {
@@ -64,7 +72,7 @@ int main(int argc, char** argv) {
         }
         frame_counter++;
 
-        tiny16_emu_update_texture(&fb_texture, &memory.bytes[0xC000]);
+        tiny16_emu_update_texture(&fb_texture, &memory.bytes[TINY16_FRAMEBUFFER]);
         BeginDrawing();
         ClearBackground(BLACK);
         DrawTexturePro(fb_texture,                                                           //
@@ -75,19 +83,10 @@ int main(int argc, char** argv) {
                        WHITE                                                                 //
         );
         EndDrawing();
-
-        // if (!tiny16_cpu_exec(&cpu, &memory, TINY16_EMU_MAX_INSTRUCTIONS)) {
-        //     tiny16_cpu_print(&cpu);
-        //     tiny16_memory_print(&memory, false);
-        //     return 1;
-        // }
     }
 
     UnloadTexture(fb_texture);
     CloseWindow();
-
-    // tiny16_cpu_print(&cpu);
-    // tiny16_memory_print(&memory, true);
 
     return 0;
 }

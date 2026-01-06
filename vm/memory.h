@@ -8,7 +8,6 @@
 
 typedef struct {
     uint8_t bytes[TINY16_MEMORY_SIZE];
-    uint16_t rng_state; // LFSR state for random number generation
 } Tiny16Memory;
 
 #define TINY16_MEMORY_CODE_BEGIN 0x0010
@@ -21,14 +20,8 @@ typedef struct {
 #define TINY16_MEMORY_STACK_END 0xBEFF
 
 // MMIO Control Registers
-#define TINY16_MMIO_CONTROL_BASE 0xBF00
 
 // Input (0xBF00-0xBF0F)
-#define TINY16_MMIO_KEYS_STATE 0xBF00
-#define TINY16_MMIO_KEYS_PRESSED 0xBF01
-#define TINY16_MMIO_MOUSE_X 0xBF02
-#define TINY16_MMIO_MOUSE_Y 0xBF03
-#define TINY16_MMIO_MOUSE_BUTTONS 0xBF04
 
 // Timers (0xBF20-0xBF2F)
 #define TINY16_MMIO_TICK_LOW 0xBF20
@@ -36,18 +29,14 @@ typedef struct {
 #define TINY16_MMIO_FRAME_COUNT 0xBF22
 
 // Random (0xBF30-0xBF3F)
-#define TINY16_MMIO_RNG_VALUE 0xBF30
-#define TINY16_MMIO_RNG_SEED_LOW 0xBF31
-#define TINY16_MMIO_RNG_SEED_HIGH 0xBF32
 
 // System (0xBFF0-0xBFFF)
-#define TINY16_MMIO_SYS_CONTROL 0xBFF0
 
 // Framebuffer (0xC000-0xFFFF)
-#define TINY16_MMIO_FRAMEBUFFER 0xC000
-#define TINY16_MMIO_FRAMEBUFFER_SIZE_WIDTH 128
-#define TINY16_MMIO_FRAMEBUFFER_SIZE_HEIGHT 128
-#define TINY16_MMIO_FRAMEBUFFER_ADDR(x, y) (TINY16_MMIO_FRAMEBUFFER + (y << 7u) + x)
+#define TINY16_FRAMEBUFFER 0xC000
+#define TINY16_FRAMEBUFFER_SIZE_WIDTH 128
+#define TINY16_FRAMEBUFFER_SIZE_HEIGHT 128
+#define TINY16_FRAMEBUFFER_ADDR(x, y) (TINY16_FRAMEBUFFER + (y << 7u) + x)
 
 void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer);
 void tiny16_memory_reset(Tiny16Memory* memory);
