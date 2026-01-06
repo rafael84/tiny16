@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <raylib.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,9 +9,18 @@
 #include "memory.c"
 #include "memory.h"
 
-#define TINY16_EMU_MAX_INSTRUCTIONS 300000
+#define TINY16_EMU_PIXEL_WIDTH TINY16_MMIO_FRAMEBUFFER_SIZE_WIDTH
+#define TINY16_EMU_PIXEL_HEIGHT TINY16_MMIO_FRAMEBUFFER_SIZE_HEIGHT
+
+#define TINY16_EMU_SCREEN_WIDTH (TINY16_EMU_PIXEL_WIDTH * 8)
+#define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
+
+// #define TINY16_EMU_MAX_INSTRUCTIONS 300000
+#define TINY16_EMU_INSTRUCTIONS_PER_FRAME 100000
 
 char* args_shift(int* argc, char*** argv);
+
+void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer);
 
 int main(int argc, char** argv) {
     char* program = args_shift(&argc, &argv);
@@ -30,14 +40,55 @@ int main(int argc, char** argv) {
     Tiny16CPU cpu = {0};
     tiny16_cpu_reset(&cpu);
 
-    if (!tiny16_cpu_exec(&cpu, &memory, TINY16_EMU_MAX_INSTRUCTIONS)) {
-        tiny16_cpu_print(&cpu);
-        tiny16_memory_print(&memory, false);
-        return 1;
+    SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+    InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
+    SetTargetFPS(60);
+
+    Texture2D fb_texture =
+        LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
+
+    uint64_t tick_counter = 0u;
+    uint64_t frame_counter = 0u;
+
+    while (!WindowShouldClose()) {
+
+        memory.bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
+
+        for (uint32_t i = 0; i < TINY16_EMU_INSTRUCTIONS_PER_FRAME; ++i) {
+            memory.bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
+            memory.bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
+            if (!tiny16_cpu_step(&cpu, &memory)) {
+                break;
+            }
+            tick_counter++;
+        }
+        frame_counter++;
+
+        tiny16_emu_update_texture(&fb_texture, &memory.bytes[0xC000]);
+        BeginDrawing();
+        ClearBackground(BLACK);
+        DrawTexturePro(fb_texture,                                                           //
+                       (Rectangle){0, 0, TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT},   //
+                       (Rectangle){0, 0, TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT}, //
+                       (Vector2){0, 0},                                                      //
+                       0.0f,                                                                 //
+                       WHITE                                                                 //
+        );
+        EndDrawing();
+
+        // if (!tiny16_cpu_exec(&cpu, &memory, TINY16_EMU_MAX_INSTRUCTIONS)) {
+        //     tiny16_cpu_print(&cpu);
+        //     tiny16_memory_print(&memory, false);
+        //     return 1;
+        // }
     }
 
-    tiny16_cpu_print(&cpu);
-    tiny16_memory_print(&memory, true);
+    UnloadTexture(fb_texture);
+    CloseWindow();
+
+    // tiny16_cpu_print(&cpu);
+    // tiny16_memory_print(&memory, true);
+
     return 0;
 }
 
@@ -45,4 +96,18 @@ char* args_shift(int* argc, char*** argv) {
     assert(*argc > 0 && "argc <= 0");
     --(*argc);
     return *(*argv)++;
+}
+
+void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer) {
+    uint16_t size = TINY16_EMU_PIXEL_WIDTH * TINY16_EMU_PIXEL_HEIGHT;
+    Color pixels[size];
+    for (int i = 0; i < size; ++i) {
+        uint8_t value = framebuffer[i];
+        // RGB332: RRRGGGBB
+        uint8_t r = ((value >> 5) & 0x07) * 36; // 3 bits -> 0-252
+        uint8_t g = ((value >> 2) & 0x07) * 36; // 3 bits -> 0-252
+        uint8_t b = (value & 0x03) * 85;        // 2 bits -> 0-255
+        pixels[i] = (Color){r, g, b, 255};
+    }
+    UpdateTexture(*texture, pixels);
 }

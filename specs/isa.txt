@@ -49,12 +49,14 @@ MEMORY
 - 16-bit address space
 - 64 KB total (0x0000–0xFFFF), shared by code, data, stack, and MMIO.
 
-Conventional layout:
-0x0000-0x000F  reserved
-0x0010–0x1FFF  code
-0x2000–0x3FFF  data
-0x8000–0xBFFF  stack (down)
-0xC000–0xFFFF  framebuffer + MMIO
+Layout:
+0x0000-0x000F  file signature (magic, version, entrypoint)
+0x0010–0x1FFF  code (8176 bytes)
+0x2000–0x3FFF  data (8192 bytes)
+0x4000–0x7FFF  extended / reserved (16KB)
+0x8000–0xBEFF  stack (grows down, ~16KB)
+0xBF00–0xBFFF  MMIO control registers (256 bytes)
+0xC000–0xFFFF  framebuffer (16,384 bytes = 128×128)
 
 
 INSTRUCTION FORMAT
@@ -125,26 +127,41 @@ ADDRESSING
 MMIO
 ----
 
-Framebuffer:
+MMIO Control Registers (0xBF00-0xBFFF):
+
+Input (0xBF00-0xBF0F):
+- 0xBF00 : KEYS_STATE      (R ) gamepad/keyboard state (8 bits)
+- 0xBF01 : KEYS_PRESSED    (R ) edge detection (cleared on read)
+- 0xBF02 : MOUSE_X         (R ) mouse X position (0-127)
+- 0xBF03 : MOUSE_Y         (R ) mouse Y position (0-127)
+- 0xBF04 : MOUSE_BUTTONS   (R ) mouse button state
+
+Timers (0xBF20-0xBF2F):
+- 0xBF20 : TICK_LOW        (R ) CPU instruction counter low byte
+- 0xBF21 : TICK_HIGH       (R ) CPU instruction counter high byte
+- 0xBF22 : FRAME_COUNT     (R ) frame counter (60Hz)
+
+Random (0xBF30-0xBF3F):
+- 0xBF30 : RNG_VALUE       (R ) read random byte
+- 0xBF31 : RNG_SEED_LOW    (W ) set seed low byte
+- 0xBF32 : RNG_SEED_HIGH   (W ) set seed high byte
+
+System (0xBFF0-0xBFFF):
+- 0xBFF0 : SYS_CONTROL     (RW) system control flags
+
+Framebuffer (0xC000-0xFFFF):
 - Base: 0xC000
-- Size: 128 x 128
-- Format: 1 byte per pixel
+- Size: 128 x 128 pixels
+- Format: 1 byte per pixel (RGB332)
 - addr = 0xC000 + (y << 7) + x
-
-Input:
-- 0xE000 : key state
-
-Timer:
-- 0xE200 : ticks low
-- 0xE201 : ticks high
-- incremented every instruction
+- Pure video RAM (no control registers)
 
 
 RESET
 -----
 
 PC = 0x0010
-SP = 0xBFFF
+SP = 0xBEFF
 R0–R7 = 0
 Z = 0
 C = 0

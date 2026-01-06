@@ -9,7 +9,7 @@
 
 void tiny16_cpu_reset(Tiny16CPU* cpu) {
     cpu->pc = TINY16_MEMORY_CODE_BEGIN;
-    cpu->sp = TINY16_MEMORY_STACK_BEGIN;
+    cpu->sp = TINY16_MEMORY_STACK_END;
     memset(cpu->R, 0, TINY16_CPU_REGISTERS);
     cpu->flags = 0;
 }

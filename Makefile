@@ -1,7 +1,11 @@
 .PHONY: all asm tests examples
 
 CC = gcc
-CFLAGS += $(shell cat compile_flags.txt)
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Ivm
+
+CFLAGS_RAYLIB = -I/opt/homebrew/opt/raylib/include \
+				-L/opt/homebrew/opt/raylib/lib \
+				-lraylib
 
 all: tests asm emulator examples
 
@@ -16,7 +20,7 @@ asm: bin vm/*.c vm/*.h asm/*.h asm/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-asm asm/tiny16.c
 
 emulator: bin vm/*.c vm/*.h emulator/*.c | bin
-	$(CC) $(CFLAGS) -o bin/tiny16-emu emulator/tiny16.c
+	$(CC) $(CFLAGS) $(CFLAGS_RAYLIB) -o bin/tiny16-emu emulator/tiny16.c
 
 EXAMPLES := $(wildcard examples/*.asm)
 examples: asm
