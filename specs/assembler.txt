@@ -65,6 +65,8 @@ XOR R1, R2
 
 INC R
 DEC R
+SHL R
+SHR R
     -> opcode R 0
 
 JMP addr16 | label

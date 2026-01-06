@@ -131,6 +131,18 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory) {
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
     }; break;
 
+    case TINY16_OPCODE_SHL: {
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, (cpu->R[arg1] & 0x80) >> 7);
+        cpu->R[arg1] <<= 1u;
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
+    }; break;
+
+    case TINY16_OPCODE_SHR: {
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, cpu->R[arg1] & 0x01);
+        cpu->R[arg1] >>= 1u;
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
+    }; break;
+
     case TINY16_OPCODE_JMP: {
         uint16_t addr = ((uint16_t)arg1 << 8) | arg2;
         cpu->pc = addr;

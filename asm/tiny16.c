@@ -291,6 +291,8 @@ void tiny16_asm_write_instruction(Tiny16AsmContext* ctx, char* filename, int lin
     case TINY16_OPCODE_STORE:
     case TINY16_OPCODE_INC:
     case TINY16_OPCODE_DEC:
+    case TINY16_OPCODE_SHL:
+    case TINY16_OPCODE_SHR:
         bytes[1] = tiny16_asm_expect_reg(NULL, &saveptr, filename, line_no);
         bytes[2] = 0;
         break;

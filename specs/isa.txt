@@ -39,6 +39,8 @@ Flags updated by:
 - AND  : Z
 - OR   : Z
 - XOR  : Z
+- SHL  : Z, C
+- SHR  : Z, C
 
 Other instructions do not modify flags.
 
@@ -106,6 +108,12 @@ INSTRUCTIONS
 
 0x26  XOR R1, R2
       R1 = R1 ^ R2
+
+0x29  SHL R
+      R = R * 2
+
+0x2A  SHR R
+      R = R / 2
 
 0x30  JMP addr16
       PC = addr16
