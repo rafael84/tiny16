@@ -82,6 +82,9 @@ INSTRUCTIONS
 0x12  STORE R
       MEM[R6:R7] = R
 
+0x13  MOV R1, R2
+      R1 = R2
+
 0x20  ADD R1, R2
       R1 = (R1 + R2) & 0xFF
 
@@ -155,6 +158,18 @@ Framebuffer (0xC000-0xFFFF):
 - Format: 1 byte per pixel (RGB332)
 - addr = 0xC000 + (y << 7) + x
 - Pure video RAM (no control registers)
+
+
+EXAMPLES
+--------
+
+Copy register:
+    MOV R1, R0        ; R1 = R0
+
+Read from address 0xBF22:
+    LOADI R6, 0xBF
+    LOADI R7, 0x22
+    LOAD  R0          ; R0 = memory[0xBF22]
 
 
 RESET

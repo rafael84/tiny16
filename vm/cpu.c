@@ -79,6 +79,10 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory) {
         memory->bytes[addr] = cpu->R[arg1];
     }; break;
 
+    case TINY16_OPCODE_MOV: {
+        cpu->R[arg1] = cpu->R[arg2];
+    }; break;
+
     case TINY16_OPCODE_ADD: {
         uint16_t a = cpu->R[arg1];
         uint16_t b = cpu->R[arg2];

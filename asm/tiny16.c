@@ -277,6 +277,7 @@ void tiny16_asm_write_instruction(Tiny16AsmContext* ctx, char* filename, int lin
         bytes[2] = tiny16_asm_expect_imm8(ctx, NULL, &saveptr, filename, line_no);
         break;
 
+    case TINY16_OPCODE_MOV:
     case TINY16_OPCODE_ADD:
     case TINY16_OPCODE_SUB:
     case TINY16_OPCODE_AND:
