@@ -143,6 +143,9 @@ Timers (0xBF20-0xBF2F):
 - 0xBF20 : TICK_LOW        (R ) CPU instruction counter low byte
 - 0xBF21 : TICK_HIGH       (R ) CPU instruction counter high byte
 - 0xBF22 : FRAME_COUNT     (R ) frame counter (60Hz)
+- 0xBF23 : VSYNC           (RW) frame synchronization
+                                Write 1 to signal frame complete (triggers back buffer swap)
+                                Read returns 0 after swap is processed
 
 Random (0xBF30-0xBF3F):
 - 0xBF30 : RNG_VALUE       (R ) read random byte
@@ -170,6 +173,12 @@ Read from address 0xBF22:
     LOADI R6, 0xBF
     LOADI R7, 0x22
     LOAD  R0          ; R0 = memory[0xBF22]
+
+Signal frame complete:
+    LOADI R6, 0xBF
+    LOADI R7, 0x23
+    LOADI R0, 1
+    STORE R0          ; memory[0xBF23] = 1
 
 
 RESET

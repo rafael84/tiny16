@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "cpu.c"
 #include "cpu.h"
@@ -50,6 +51,7 @@ int main(int argc, char** argv) {
     uint64_t tick_counter = 0u;
     uint64_t frame_counter = 0u;
     float instr_acc = 0.0f;
+    uint8_t back_buffer[TINY16_FRAMEBUFFER_SIZE_WIDTH * TINY16_FRAMEBUFFER_SIZE_HEIGHT] = {0};
 
     while (!WindowShouldClose()) {
 
@@ -61,10 +63,17 @@ int main(int argc, char** argv) {
         instr_acc -= instr_this_frame; // keep fractional part
 
         memory.bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
+        memory.bytes[TINY16_MMIO_VSYNC] = 0;
 
         for (uint32_t i = 0; i < instr_this_frame; ++i) {
             memory.bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
             memory.bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
+
+            if (memory.bytes[TINY16_MMIO_VSYNC] == 1) {
+                memcpy(back_buffer, &memory.bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
+                memory.bytes[TINY16_MMIO_VSYNC] = 0;
+            }
+
             if (!tiny16_cpu_step(&cpu, &memory)) {
                 break;
             }
@@ -72,7 +81,8 @@ int main(int argc, char** argv) {
         }
         frame_counter++;
 
-        tiny16_emu_update_texture(&fb_texture, &memory.bytes[TINY16_FRAMEBUFFER]);
+        tiny16_emu_update_texture(&fb_texture, back_buffer);
+
         BeginDrawing();
         ClearBackground(BLACK);
         DrawTexturePro(fb_texture,                                                           //
