@@ -1,7 +1,7 @@
 .PHONY: all asm tests examples
 
 CC = gcc
-CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Ivm
+CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Ivm -Ithirdparty
 
 CFLAGS_RAYLIB = -I/opt/homebrew/opt/raylib/include \
 				-L/opt/homebrew/opt/raylib/lib \
