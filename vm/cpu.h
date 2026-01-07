@@ -18,6 +18,7 @@ typedef struct {
     uint8_t flags;
 } Tiny16CPU;
 
+extern bool tiny16_cpu_tracing;
 void tiny16_cpu_reset(Tiny16CPU* cpu);
 void tiny16_cpu_print(const Tiny16CPU* cpu);
 bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory);

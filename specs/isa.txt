@@ -34,11 +34,11 @@ C = carry (ADD) or borrow (SUB)
 Flags updated by:
 - ADD  : Z, C
 - SUB  : Z, C
-- INC  : Z
-- DEC  : Z
-- AND  : Z
-- OR   : Z
-- XOR  : Z
+- INC  : Z, C (clears C)
+- DEC  : Z, C (clears C)
+- AND  : Z, C (clears C)
+- OR   : Z, C (clears C)
+- XOR  : Z, C (clears C)
 - SHL  : Z, C
 - SHR  : Z, C
 
@@ -115,6 +115,12 @@ INSTRUCTIONS
 0x2A  SHR R
       R = R / 2
 
+0x2C  PUSH R
+      MEM[SP] = R; SP--
+
+0x2D  POP R
+      SP++; R = MEM[SP]
+
 0x30  JMP addr16
       PC = addr16
 
@@ -141,7 +147,7 @@ MMIO
 
 MMIO Control Registers (0xBF00-0xBFFF):
 
-Input (0xBF00-0xBF0F):
+TODO: Input (0xBF00-0xBF0F):
 - 0xBF00 : KEYS_STATE      (R ) gamepad/keyboard state (8 bits)
 - 0xBF01 : KEYS_PRESSED    (R ) edge detection (cleared on read)
 - 0xBF02 : MOUSE_X         (R ) mouse X position (0-127)
@@ -156,12 +162,12 @@ Timers (0xBF20-0xBF2F):
                                 Write 1 to signal frame complete (triggers back buffer swap)
                                 Read returns 0 after swap is processed
 
-Random (0xBF30-0xBF3F):
+TODO: Random (0xBF30-0xBF3F):
 - 0xBF30 : RNG_VALUE       (R ) read random byte
 - 0xBF31 : RNG_SEED_LOW    (W ) set seed low byte
 - 0xBF32 : RNG_SEED_HIGH   (W ) set seed high byte
 
-System (0xBFF0-0xBFFF):
+TODO: System (0xBFF0-0xBFFF):
 - 0xBFF0 : SYS_CONTROL     (RW) system control flags
 
 Framebuffer (0xC000-0xFFFF):
