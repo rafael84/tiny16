@@ -9,7 +9,7 @@ tiny16 is a register-based VM featuring:
 - 8×8-bit general-purpose registers (R0-R7)
 - 64KB address space with memory-mapped I/O
 - Simple 3-byte fixed-length instruction format
-- Custom ISA with 18 instructions
+- Custom ISA with 19 instructions
 - Two-pass assembler
 
 ## Building
@@ -61,7 +61,7 @@ HALT            ; Stop execution
 
 - **Registers:** R0-R5 (general purpose), R6:R7 (form 16-bit ADDR for LOAD/STORE)
 - **Flags:** Z (zero), C (carry)
-- **Instructions:** LOADI, LOAD, STORE, MOV, ADD, SUB, INC, DEC, AND, OR, XOR, SHL, SHR, JMP, JZ, JNZ, HALT
+- **Instructions:** LOADI, LOAD, STORE, MOV, ADD, SUB, INC, DEC, AND, OR, XOR, SHL, SHR, PUSH, POP, JMP, JZ, JNZ, HALT
 - **Memory Layout:**
   - `0x0000-0x000F` File signature (magic, version, entrypoint)
   - `0x0010-0x1FFF` Code (8176 bytes)

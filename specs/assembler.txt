@@ -69,6 +69,10 @@ SHL R
 SHR R
     -> opcode R 0
 
+PUSH R
+POP R
+    -> opcode R 0
+
 JMP addr16 | label
 JZ  addr16 | label
 JNZ addr16 | label
