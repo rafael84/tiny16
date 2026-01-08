@@ -46,15 +46,26 @@ void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer) {
 
     if (framebuffer) {
         printf("\n  Framebuffer\n");
+
+        const char pixel_map[] = " .,:;irsXA253hMHGS#9B&@";
+        int max_idx = sizeof(pixel_map) - 2;
         for (int y = 0; y < TINY16_FRAMEBUFFER_SIZE_HEIGHT; ++y) {
+            printf("        ");
             for (int x = 0; x < TINY16_FRAMEBUFFER_SIZE_WIDTH; ++x) {
                 uint8_t pixel = memory->bytes[TINY16_FRAMEBUFFER_ADDR(x, y)];
-                if (x == 0) {
-                    printf("        ");
-                }
-                printf("%02X", pixel);
+                uint8_t r = ((pixel >> 5) & 0x07) * 255 / 7;
+                uint8_t g = ((pixel >> 2) & 0x07) * 255 / 7;
+                uint8_t b = (pixel & 0x03) * 255 / 3;
+                float lum = ((0.2126f * r) + (0.7152f * g) + (0.0722f * b)) / 255.0f;
+                int idx = (int)(lum * max_idx + 0.5f);
+                if (idx < 0)
+                    idx = 0;
+                if (idx > max_idx)
+                    idx = max_idx;
+                putchar(pixel_map[idx]);
+                putchar(pixel_map[idx]);
             }
-            printf("\n");
+            putchar('\n');
         }
     }
 }
