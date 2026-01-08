@@ -132,7 +132,7 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
             memory->bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
             memory->bytes[TINY16_MMIO_VSYNC] = 0;
 
-            for (uint32_t i = 0; i < instr_this_frame; ++i) {
+            for (uint32_t step = 0; step < instr_this_frame; ++step) {
                 memory->bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
                 memory->bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
 
@@ -141,7 +141,7 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
                     memory->bytes[TINY16_MMIO_VSYNC] = 0;
                 }
 
-                if (!tiny16_cpu_step(cpu, memory)) {
+                if (!tiny16_cpu_step(cpu, memory, step)) {
                     return EXIT_FAILURE;
                 }
                 tick_counter++;

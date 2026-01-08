@@ -21,7 +21,7 @@ typedef struct {
 extern bool tiny16_cpu_tracing;
 void tiny16_cpu_reset(Tiny16CPU* cpu);
 void tiny16_cpu_print(const Tiny16CPU* cpu);
-bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory);
+bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step);
 bool tiny16_cpu_exec(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t max_steps);
 
 #define TINY16_CPU_FLAG_Z 0
