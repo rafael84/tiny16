@@ -89,6 +89,7 @@ int main(int argc, char** argv) {
 
             char tmp[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
             strncpy(tmp, ctx.source_line, label_length - 1);
+            tmp[label_length - 1] = '\0';
             if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND) {
                 TINY16_ASM_ABORTF(&ctx, "duplicated label: %s", tmp);
             }

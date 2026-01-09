@@ -103,6 +103,14 @@ JZ  addr16 | label
 JNZ addr16 | label
     -> opcode hi lo
 
+CALL addr16 | label
+    -> opcode hi lo
+    -> pushes return address and jumps to subroutine
+
+RET
+    -> opcode 0 0
+    -> pops return address and returns from subroutine
+
 HALT
     -> opcode 0 0
 
@@ -172,6 +180,20 @@ Basic program with sections:
     section .data
 
     value: DB 255
+
+Subroutine example:
+
+    section .code
+
+    START:
+        LOADI R0, 5
+        LOADI R1, 3
+        CALL  ADD_FN
+        HALT
+
+    ADD_FN:
+        ADD   R0, R1
+        RET
 
 String data:
 

@@ -40,6 +40,10 @@ void tiny16_test_shift_until_zero(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_stack_memory_access(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_sub_equal_values(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_max_steps_exceeded(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_call_ret_basic(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_call_ret_with_args(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_call_ret_nested(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_call_ret_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memory);
 
 #define TINY16_TEST(fn)                                                                            \
     do {                                                                                           \
@@ -80,6 +84,10 @@ int main(void) {
     TINY16_TEST(tiny16_test_stack_memory_access);
     TINY16_TEST(tiny16_test_sub_equal_values);
     TINY16_TEST(tiny16_test_max_steps_exceeded);
+    TINY16_TEST(tiny16_test_call_ret_basic);
+    TINY16_TEST(tiny16_test_call_ret_with_args);
+    TINY16_TEST(tiny16_test_call_ret_nested);
+    TINY16_TEST(tiny16_test_call_ret_preserves_registers);
     return 0;
 }
 
@@ -383,10 +391,10 @@ void tiny16_test_xor_self_zeroing(Tiny16CPU* cpu, Tiny16Memory* memory) {
 
 void tiny16_test_address_registers_arithmetic(Tiny16CPU* cpu, Tiny16Memory* memory) {
     // Test that R6 and R7 can be used for arithmetic, not just addressing
-    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 10);  // R6 = 10
-                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 5);   // R7 = 5
-                    TINY16_ASM(TINY16_OPCODE_ADD, 6, 7);     // R6 = R6 + R7 = 15
-                    TINY16_ASM(TINY16_OPCODE_SUB, 7, 7);     // R7 = R7 - R7 = 0
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 10); // R6 = 10
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 5);  // R7 = 5
+                    TINY16_ASM(TINY16_OPCODE_ADD, 6, 7);    // R6 = R6 + R7 = 15
+                    TINY16_ASM(TINY16_OPCODE_SUB, 7, 7);    // R7 = R7 - R7 = 0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
     assert(cpu->R[6] == 15);
     assert(cpu->R[7] == 0);
@@ -415,11 +423,11 @@ void tiny16_test_conditional_jumps_not_taken(Tiny16CPU* cpu, Tiny16Memory* memor
     // Test that conditional jumps fall through when condition is false
     // JZ should NOT jump when Z=0
     TINY16_TEST_RUN(
-        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 1);          // R0 = 1
-        /* 1 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);            // R0 = 2, Z=0
-        /* 2 */ TINY16_ASM(TINY16_OPCODE_JZ, 0x00, ADDR16(4));  // should NOT jump (Z=0)
-        /* 3 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x42);       // R1 = 0x42 (executed)
-        /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 1);         // R0 = 1
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);           // R0 = 2, Z=0
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_JZ, 0x00, ADDR16(4)); // should NOT jump (Z=0)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x42);      // R1 = 0x42 (executed)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);          //
     );
     assert(cpu->R[1] == 0x42); // Should have executed line 3
 
@@ -485,16 +493,15 @@ void tiny16_test_shift_until_zero(Tiny16CPU* cpu, Tiny16Memory* memory) {
 
 void tiny16_test_stack_memory_access(Tiny16CPU* cpu, Tiny16Memory* memory) {
     // Test loading and storing at stack segment addresses
-    TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x80); // R6:R7 = 0x8000 (stack begin)
-        TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
-        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xCD); // R0 = 0xCD
-        TINY16_ASM(TINY16_OPCODE_STORE, 0, 0);    // MEM[0x8000] = 0xCD
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x80); // R6:R7 = 0x8000 (stack begin)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xCD); // R0 = 0xCD
+                    TINY16_ASM(TINY16_OPCODE_STORE, 0, 0);    // MEM[0x8000] = 0xCD
 
-        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00); // R0 = 0
-        TINY16_ASM(TINY16_OPCODE_LOAD, 0, 0);     // R0 = MEM[0x8000]
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00); // R0 = 0
+                    TINY16_ASM(TINY16_OPCODE_LOAD, 0, 0);     // R0 = MEM[0x8000]
 
-        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
     assert(cpu->R[0] == 0xCD);
 }
 
@@ -525,4 +532,67 @@ void tiny16_test_max_steps_exceeded(Tiny16CPU* cpu, Tiny16Memory* memory) {
     assert(result);
     // PC should still be at the loop instruction (infinite loop continues)
     assert(cpu->pc == TINY16_MEMORY_CODE_BEGIN);
+}
+
+void tiny16_test_call_ret_basic(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test basic CALL/RET: call a subroutine that increments R0, then return
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 10);          // R0 = 10
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(4)); // call subroutine at 4
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // R0++ (after return)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            //
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // subroutine: R0++
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // return
+    );
+    assert(cpu->R[0] == 12); // 10 + 1 (in subroutine) + 1 (after return)
+}
+
+void tiny16_test_call_ret_with_args(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test CALL/RET with "arguments" passed through registers
+    // Subroutine adds R1 to R0
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 5);           // R0 = 5
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 7);           // R1 = 7
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(5)); // call add_r1_to_r0
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // R0++
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            //
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);             // add_r1_to_r0: R0 += R1
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // return
+    );
+    assert(cpu->R[0] == 13); // 5 + 7 + 1 = 13
+}
+
+void tiny16_test_call_ret_nested(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test nested CALL: main -> func_a -> func_b
+    // func_b increments R0, func_a calls func_b twice
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0);           // R0 = 0
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(4)); // call func_a
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // R0++ (after return)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            //
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(7)); // func_a: call func_b
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(7)); // func_a: call func_b again
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // func_a: return
+        /* 7 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // func_b: R0++
+        /* 8 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // func_b: return
+    );
+    assert(cpu->R[0] == 3); // 0 + 1 (func_b call 1) + 1 (func_b call 2) + 1 (main) = 3
+}
+
+void tiny16_test_call_ret_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test that CALL/RET works correctly when subroutine uses PUSH/POP to preserve registers
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 10);          // R0 = 10
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 20);          // R1 = 20
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_CALL, 0x00, ADDR16(5)); // call subroutine
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);             // R0 += R1 (after return)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            //
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_PUSH, 1, 0);            // subroutine: preserve R1
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 99);          // subroutine: R1 = 99 (temp)
+        /* 7 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);             // subroutine: R0 += 99
+        /* 8 */ TINY16_ASM(TINY16_OPCODE_POP, 1, 0);             // subroutine: restore R1
+        /* 9 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // subroutine: return
+    );
+    assert(cpu->R[0] == 129); // 10 + 99 (in subroutine) + 20 (after return) = 129
+    assert(cpu->R[1] == 20);  // R1 should be preserved
 }

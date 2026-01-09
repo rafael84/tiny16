@@ -1,7 +1,8 @@
-; Bouncing Smiley Demo - Animated sprite with collision detection
+; Bouncing Smiley Demo - Animated sprite with collision detection (with subroutines)
 ;
 ; This demo demonstrates:
 ; - Using .code and .data sections
+; - CALL/RET for subroutines
 ; - Defining sprite data with DB directive
 ; - Reading from data section (0x2000)
 ; - Writing to framebuffer (0xC000)
@@ -29,6 +30,22 @@ START:
     SUB   R0, R1      ; Compare with 0xAA
     JZ    SKIP_INIT   ; Skip if already initialized
 
+    CALL  INIT_SPRITE
+
+SKIP_INIT:
+    CALL  CLEAR_SCREEN
+    CALL  DRAW_SPRITE_ROUTINE
+    CALL  UPDATE_POSITION
+    CALL  WAIT_FRAME_ROUTINE
+    JMP   SKIP_INIT   ; Loop forever
+
+; ============================================================================
+; INIT_SPRITE - Initialize sprite position and velocity
+; Inputs: None
+; Outputs: None
+; Modifies: R0, R6, R7
+; ============================================================================
+INIT_SPRITE:
     ; Set initial position (120, 25) - off-center to avoid diagonal-only bouncing
     LOADI R0, 120
     LOADI R6, 0x20
@@ -49,9 +66,15 @@ START:
     LOADI R0, 0xAA
     LOADI R7, 0x44
     STORE R0          ; initialized = 0xAA
+    RET
 
-SKIP_INIT:
-    ; Clear screen to dark blue (0x03 = RGB332: 000 000 11)
+; ============================================================================
+; CLEAR_SCREEN - Clear framebuffer to dark blue
+; Inputs: None
+; Outputs: None
+; Modifies: R0, R1, R6, R7
+; ============================================================================
+CLEAR_SCREEN:
     LOADI R0, 0x03    ; Dark blue color
     LOADI R6, 0xC0    ; Framebuffer High (0xC000)
     LOADI R7, 0x00    ; Framebuffer Low
@@ -65,7 +88,15 @@ CLEAR_LOOP:
     LOADI R1, 0
     SUB   R1, R6      ; R1 = 0 - R6, sets Z if R6 == 0
     JNZ   CLEAR_LOOP  ; Continue if R6 != 0
+    RET
 
+; ============================================================================
+; DRAW_SPRITE_ROUTINE - Draw 8x8 sprite at current position
+; Inputs: None (reads sprite_x, sprite_y from memory)
+; Outputs: None
+; Modifies: R0, R1, R2, R3, R4, R5, R6, R7
+; ============================================================================
+DRAW_SPRITE_ROUTINE:
     ; Load sprite position from memory into R1, R2
     LOADI R6, 0x20
     LOADI R7, 0x41
@@ -75,14 +106,14 @@ CLEAR_LOOP:
 
     LOADI R0, 0       ; Sprite byte counter (0-63)
 
-DRAW_SPRITE:
+DRAW_SPRITE_LOOP:
     ; Reload start_x from memory for each row
     LOADI R6, 0x20
     LOADI R7, 0x40
     LOAD  R2          ; R2 = start_x
     LOADI R3, 8       ; 8 pixels per row
 
-DRAW_ROW:
+DRAW_SPRITE_ROW:
     ; Read pixel from sprite data (0x2000 + offset)
     LOADI R6, 0x20    ; Data section at 0x2000
     MOV   R7, R0
@@ -136,7 +167,7 @@ DRAW_ROW:
     INC   R0          ; Next sprite byte
     INC   R2          ; Next X position
     DEC   R3          ; Decrement column counter
-    JNZ   DRAW_ROW
+    JNZ   DRAW_SPRITE_ROW
 
     ; Move to next row
     INC   R1          ; Next Y position
@@ -144,9 +175,16 @@ DRAW_ROW:
     ; Check if done (64 bytes = 8 rows * 8 cols)
     LOADI R3, 64
     SUB   R3, R0
-    JNZ   DRAW_SPRITE
+    JNZ   DRAW_SPRITE_LOOP
+    RET
 
-    ; Update sprite position
+; ============================================================================
+; UPDATE_POSITION - Update sprite position with collision detection
+; Inputs: None (reads sprite_x, sprite_y, vel_x, vel_y from memory)
+; Outputs: None (writes back updated values)
+; Modifies: R0, R1, R2, R3, R4, R5, R6, R7
+; ============================================================================
+UPDATE_POSITION:
     ; Load current position and velocities
     LOADI R6, 0x20    ; Data section high byte
     LOADI R7, 0x40
@@ -231,7 +269,15 @@ SAVE_POS:
     STORE R0          ; Save sprite_x
     LOADI R7, 0x41
     STORE R1          ; Save sprite_y
+    RET
 
+; ============================================================================
+; WAIT_FRAME_ROUTINE - Signal frame complete and wait for next frame
+; Inputs: None
+; Outputs: None
+; Modifies: R0, R1, R6, R7
+; ============================================================================
+WAIT_FRAME_ROUTINE:
     ; Signal frame complete (VSYNC)
     LOADI R6, 0xBF
     LOADI R7, 0x23
@@ -239,15 +285,14 @@ SAVE_POS:
     STORE R0
 
     ; Wait for next frame
-WAIT_FRAME:
+WAIT_FRAME_LOOP:
     LOADI R6, 0xBF
     LOADI R7, 0x22    ; FRAME_COUNT
     LOAD  R0
     SUB   R0, R1      ; Compare with last frame count
-    JZ    WAIT_FRAME  ; Wait until frame changes
+    JZ    WAIT_FRAME_LOOP  ; Wait until frame changes
     MOV   R1, R0      ; Update last frame count
-
-    JMP   START       ; Loop forever
+    RET
 
 section .data
 

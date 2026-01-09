@@ -118,17 +118,40 @@ INSTRUCTIONS
 0x2C  PUSH R
       MEM[SP] = R; SP--
 
+      Push register onto stack.
+
 0x2D  POP R
       SP++; R = MEM[SP]
+
+      Pop from stack into register.
 
 0x30  JMP addr16
       PC = addr16
 
+      Unconditional jump to address.
+
 0x31  JZ addr16
       if Z == 1: PC = addr16
 
+      Jump to address if zero flag is set.
+
 0x32  JNZ addr16
       if Z == 0: PC = addr16
+
+      Jump to address if zero flag is clear.
+
+0x40  CALL addr16
+      PUSH16(PC); PC = addr16
+
+      Call subroutine at address. Pushes return address (PC after CALL)
+      onto stack (16-bit, big-endian: high byte first, then low byte).
+      Use RET to return from subroutine.
+
+0x41  RET
+      POP16(PC)
+
+      Return from subroutine. Pops 16-bit return address from stack
+      and jumps to it. Must match a previous CALL instruction.
 
 0xFF  HALT
       stop execution
@@ -194,6 +217,43 @@ Signal frame complete:
     LOADI R7, 0x23
     LOADI R0, 1
     STORE R0          ; memory[0xBF23] = 1
+
+Call a subroutine:
+    LOADI R0, 5
+    LOADI R1, 3
+    CALL  ADD_FN      ; Call function at ADD_FN
+    HALT
+
+ADD_FN:
+    ADD   R0, R1      ; R0 = R0 + R1
+    RET               ; Return to caller
+
+Nested subroutine calls:
+    CALL  OUTER       ; Call outer function
+    HALT
+
+OUTER:
+    LOADI R0, 10
+    CALL  INNER       ; Nested call
+    RET
+
+INNER:
+    INC   R0          ; R0 = 11
+    RET
+
+Preserve registers in subroutine:
+    LOADI R0, 5
+    LOADI R1, 10
+    CALL  FUNC
+    ADD   R0, R1      ; R1 still = 10
+    HALT
+
+FUNC:
+    PUSH  R1          ; Save R1
+    LOADI R1, 99      ; Use R1 temporarily
+    ADD   R0, R1      ; R0 = 5 + 99 = 104
+    POP   R1          ; Restore R1 = 10
+    RET
 
 
 RESET

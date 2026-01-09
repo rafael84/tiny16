@@ -9,8 +9,9 @@ tiny16 is a register-based VM featuring:
 - 8×8-bit general-purpose registers (R0-R7)
 - 64KB address space with memory-mapped I/O
 - Simple 3-byte fixed-length instruction format
-- Custom ISA with 19 instructions
+- Custom ISA with 21 instructions
 - Two-pass assembler
+- Subroutine support with CALL/RET
 
 ## Building
 
@@ -38,12 +39,27 @@ bin/tiny16-emu bin/demo.tiny16
 ## Quick Example
 
 ```asm
+; Simple arithmetic
 LOADI R0, 42    ; Load immediate value
 LOADI R1, 10    ; Load another value
 ADD R0, R1      ; R0 = R0 + R1 (R0 = 52)
 SHL R0          ; R0 = R0 * 2 (R0 = 104)
 MOV R2, R0      ; Copy R0 to R2
 HALT            ; Stop execution
+```
+
+**Subroutine example:**
+
+```asm
+START:
+    LOADI R0, 5
+    LOADI R1, 3
+    CALL  ADD_NUMBERS    ; Call subroutine
+    HALT
+
+ADD_NUMBERS:
+    ADD   R0, R1         ; R0 = R0 + R1
+    RET                  ; Return to caller
 ```
 
 ## Project Structure
@@ -61,7 +77,7 @@ HALT            ; Stop execution
 
 - **Registers:** R0-R5 (general purpose), R6:R7 (form 16-bit ADDR for LOAD/STORE)
 - **Flags:** Z (zero), C (carry)
-- **Instructions:** LOADI, LOAD, STORE, MOV, ADD, SUB, INC, DEC, AND, OR, XOR, SHL, SHR, PUSH, POP, JMP, JZ, JNZ, HALT
+- **Instructions:** LOADI, LOAD, STORE, MOV, ADD, SUB, INC, DEC, AND, OR, XOR, SHL, SHR, PUSH, POP, JMP, JZ, JNZ, CALL, RET, HALT
 - **Memory Layout:**
   - `0x0000-0x000F` File signature (magic, version, entrypoint)
   - `0x0010-0x1FFF` Code (8176 bytes)

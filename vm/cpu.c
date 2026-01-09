@@ -50,6 +50,42 @@ inline static uint16_t tiny16_cpu_addr16(const Tiny16CPU* cpu) {
     return ((uint16_t)cpu->R[6] << 8) | cpu->R[7];
 }
 
+#define TINY16_CPU_PUSH(cpu, memory, value8)                                                       \
+    do {                                                                                           \
+        uint16_t addr = cpu->sp - 1;                                                               \
+        if (addr < TINY16_MEMORY_STACK_BEGIN) {                                                    \
+            fprintf(stderr, "[CRITICAL] Stack overflow: 0x%04X (valid range is 0x%02X-0x%02X)\n",  \
+                    addr, TINY16_MEMORY_STACK_BEGIN, TINY16_MEMORY_STACK_END);                     \
+            return false;                                                                          \
+        }                                                                                          \
+        memory->bytes[cpu->sp--] = (value8);                                                       \
+    } while (0)
+
+#define TINY16_CPU_POP(cpu, memory, out8)                                                          \
+    do {                                                                                           \
+        uint16_t addr = cpu->sp + 1;                                                               \
+        if (addr > TINY16_MEMORY_STACK_END) {                                                      \
+            fprintf(stderr, "[CRITICAL] Stack underflow: 0x%04X (valid range is 0x%02X-0x%02X)\n", \
+                    addr, TINY16_MEMORY_STACK_BEGIN, TINY16_MEMORY_STACK_END);                     \
+            return false;                                                                          \
+        }                                                                                          \
+        out8 = memory->bytes[++cpu->sp];                                                           \
+    } while (0)
+
+#define TINY16_CPU_PUSH16(cpu, memory, value16)                                                    \
+    do {                                                                                           \
+        TINY16_CPU_PUSH(cpu, memory, (value16 >> 8));                                              \
+        TINY16_CPU_PUSH(cpu, memory, (value16 & 0xFF));                                            \
+    } while (0)
+
+#define TINY16_CPU_POP16(cpu, memory, out16)                                                       \
+    do {                                                                                           \
+        uint8_t lo, hi;                                                                            \
+        TINY16_CPU_POP(cpu, memory, lo);                                                           \
+        TINY16_CPU_POP(cpu, memory, hi);                                                           \
+        out16 = ((uint16_t)hi << 8) | lo;                                                          \
+    } while (0)
+
 #define TINY16_CPU_TRACE_BUFFER_SIZE 40
 static char tiny16_cpu_trace_buffer[TINY16_CPU_TRACE_BUFFER_SIZE];
 
@@ -90,10 +126,12 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         case TINY16_OPCODE_JMP:
         case TINY16_OPCODE_JZ:
         case TINY16_OPCODE_JNZ:
+        case TINY16_OPCODE_CALL:
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "0x%04X",
                      ((arg1 << 8) | arg2));
             break;
-        case TINY16_OPCODE_HALT: break;
+        case TINY16_OPCODE_RET:
+        case TINY16_OPCODE_HALT: tiny16_cpu_trace_buffer[0] = '\0'; break;
         default:
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, R%d", arg1, arg2);
         }
@@ -119,7 +157,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
             return false;
         }
         memory->bytes[addr] = cpu->R[arg1];
-    }; break;
+    } break;
 
     case TINY16_OPCODE_MOV: cpu->R[arg1] = cpu->R[arg2]; break;
 
@@ -130,7 +168,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         cpu->R[arg1] = res & UINT8_MAX;
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, res > 0xFF);
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
-    }; break;
+    } break;
 
     case TINY16_OPCODE_SUB: {
         uint16_t a = cpu->R[arg1];
@@ -139,7 +177,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         cpu->R[arg1] = res & UINT8_MAX;
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, a < b);
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
-    }; break;
+    } break;
 
     case TINY16_OPCODE_INC:
         cpu->R[arg1] = (cpu->R[arg1] + 1) & 0xFF;
@@ -183,25 +221,9 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
         break;
 
-    case TINY16_OPCODE_PUSH: {
-        uint16_t addr = cpu->sp - 1;
-        if (addr < TINY16_MEMORY_STACK_BEGIN) {
-            fprintf(stderr, "[CRITICAL] Stack overflow: 0x%04X (valid range is 0x%02X-0x%02X)\n",
-                    addr, TINY16_MEMORY_STACK_BEGIN, TINY16_MEMORY_STACK_END);
-            return false;
-        }
-        memory->bytes[cpu->sp--] = cpu->R[arg1];
-    }; break;
+    case TINY16_OPCODE_PUSH: TINY16_CPU_PUSH(cpu, memory, cpu->R[arg1]); break;
 
-    case TINY16_OPCODE_POP: {
-        uint16_t addr = cpu->sp + 1;
-        if (addr > TINY16_MEMORY_STACK_END) {
-            fprintf(stderr, "[CRITICAL] Stack underflow: 0x%04X (valid range is 0x%02X-0x%02X)\n",
-                    addr, TINY16_MEMORY_STACK_BEGIN, TINY16_MEMORY_STACK_END);
-            return false;
-        }
-        cpu->R[arg1] = memory->bytes[++cpu->sp];
-    }; break;
+    case TINY16_OPCODE_POP: TINY16_CPU_POP(cpu, memory, cpu->R[arg1]); break;
 
     case TINY16_OPCODE_JMP: cpu->pc = ((uint16_t)arg1 << 8) | arg2; break;
 
@@ -216,6 +238,18 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
             cpu->pc = ((uint16_t)arg1 << 8) | arg2;
         }
         break;
+
+    case TINY16_OPCODE_CALL: {
+        uint16_t ret = cpu->pc;
+        TINY16_CPU_PUSH16(cpu, memory, ret);
+        cpu->pc = ((uint16_t)arg1 << 8) | arg2;
+    } break;
+
+    case TINY16_OPCODE_RET: {
+        uint16_t ret;
+        TINY16_CPU_POP16(cpu, memory, ret);
+        cpu->pc = ret;
+    } break;
 
     case TINY16_OPCODE_HALT: return false; break;
 

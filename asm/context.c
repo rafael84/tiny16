@@ -131,12 +131,14 @@ void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx) {
 
     case TINY16_OPCODE_JMP:
     case TINY16_OPCODE_JZ:
-    case TINY16_OPCODE_JNZ: {
+    case TINY16_OPCODE_JNZ:
+    case TINY16_OPCODE_CALL: {
         uint16_t addr = tiny16_asm_ctx_parse_imm(ctx, NULL, &saveptr);
         bytes[1] = (addr >> 8) & 0xFF;
         bytes[2] = addr & 0xFF;
     }; break;
 
+    case TINY16_OPCODE_RET:
     case TINY16_OPCODE_HALT:
         bytes[1] = 0;
         bytes[2] = 0;
