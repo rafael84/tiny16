@@ -157,6 +157,7 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
                        0.0f,                                                                 //
                        WHITE                                                                 //
         );
+        DrawFPS(10, 10);
         EndDrawing();
     }
 

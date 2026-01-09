@@ -39,12 +39,37 @@ NUMBERS
 - No signed values
 - Labels may be used where numbers are accepted
 
+SECTIONS
+--------
+
+- section .code : instructions go here
+- section .data : data definitions go here
+- Default section is .code if not specified
+- Labels in each section resolve to their respective memory addresses
+
+DATA DIRECTIVES
+---------------
+
+DB (Define Byte)
+    - Used in .data section
+    - Can contain numbers (decimal/hex) or strings
+    - Strings are double-quoted: "hello"
+    - Escape sequences: \n \t \r \\ \" \0
+    - Multiple values separated by commas
+
+Examples:
+    msg: DB "Hello World\0"
+    values: DB 1, 2, 3, 0xFF
+    mixed: DB "A", 65, 0x41
+
 ENCODING
+--------
 
 - Every instruction is exactly 3 bytes
 - Unused operands are encoded as 0x00
 - Format: opcode arg1 arg2
-- 16-bit immediates are big-endian
+- 16-bit immediates (JMP/JZ/JNZ) are big-endian: [high byte][low byte]
+- DB directive bytes are written directly to data section
 
 INSTRUCTIONS
 ------------
@@ -81,18 +106,28 @@ JNZ addr16 | label
 HALT
     -> opcode 0 0
 
+DB value1, value2, ...
+    -> (data section only)
+    -> writes bytes directly to data section
+
 ASSEMBLY PASSES
 ---------------
 
 Pass 1:
 - Remove comments
-- Collect labels
-- Compute instruction addresses
+- Track section directives
+- Collect labels (both code and data labels)
+- Compute instruction addresses (code at 0x0010+, data at 0x2000+)
+- Parse DB directives and accumulate data bytes
 
 Pass 2:
-- Encode instructions
-- Resolve labels
+- Encode instructions in code section
+- Resolve labels to addresses
 - Emit bytecode
+- Output file signature (16 bytes)
+- Output code section
+- Pad to data section boundary (0x2000)
+- Output data section if present
 
 ERRORS
 ------
@@ -107,9 +142,50 @@ Assembly fails on:
 OUTPUT
 ------
 
-- Raw byte array
-- Loaded at address 0x0000
-- No headers or metadata
+Binary file with the following structure:
+
+File Signature (16 bytes at 0x0000-0x000F):
+- Bytes 0-3:   Magic number ('T', '1', '6', 0x00)
+- Bytes 4-5:   Version (major, minor)
+- Bytes 6-7:   Entrypoint address (big-endian, typically 0x0010)
+- Bytes 8-15:  Reserved (zeros)
+
+Code Section (starts at 0x0010):
+- Instructions encoded as 3-byte sequences
+- Ends at 0x1FFF (max 8176 bytes)
+
+Data Section (starts at 0x2000):
+- Padded with zeros from end of code to 0x2000
+- DB directives output here
+- Ends at 0x3FFF (max 8192 bytes)
+
+EXAMPLES
+--------
+
+Basic program with sections:
+
+    section .code
+
+    LOADI R0, 42
+    HALT
+
+    section .data
+
+    value: DB 255
+
+String data:
+
+    section .data
+
+    msg:    DB "Hello World\0"
+    count:  DB 12
+
+Mixed data types:
+
+    section .data
+
+    header: DB 0xFF, 0xFE, "ID"
+    values: DB 1, 2, 3, 4
 
 NON-GOALS
 ---------

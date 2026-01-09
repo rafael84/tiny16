@@ -1,48 +1,273 @@
-START:
-    ; 1. Read base color offset from low timer bits
-    LOADI R6, 0xBF
-    LOADI R7, 0x20
-    LOAD  R0          ; R0 = Timer value (base color)
+; Bouncing Smiley Demo - Animated sprite with collision detection
+;
+; This demo demonstrates:
+; - Using .code and .data sections
+; - Defining sprite data with DB directive
+; - Reading from data section (0x2000)
+; - Writing to framebuffer (0xC000)
+; - RGB332 color format (0xFC = yellow, 0x03 = dark blue)
+; - Address calculation for 128x128 display
+; - Animation with velocity and boundary checking
+; - Stack operations (PUSH/POP) for register preservation
+;
+; Memory layout:
+; 0x2000: sprite data (64 bytes)
+; 0x2040: sprite_x (1 byte)
+; 0x2041: sprite_y (1 byte)
+; 0x2042: vel_x (1 byte, signed: 0=negative, 1=positive)
+; 0x2043: vel_y (1 byte, signed: 0=negative, 1=positive)
+; 0x2044: initialized (1 byte, 0xAA when initialized)
 
-    ; 2. Initialize Framebuffer Pointer
+section .code
+
+START:
+    ; Initialize sprite position and velocity (first time only)
+    LOADI R6, 0x20
+    LOADI R7, 0x44
+    LOAD  R0          ; Check init flag
+    LOADI R1, 0xAA
+    SUB   R0, R1      ; Compare with 0xAA
+    JZ    SKIP_INIT   ; Skip if already initialized
+
+    ; Set initial position (120, 25) - off-center to avoid diagonal-only bouncing
+    LOADI R0, 120
+    LOADI R6, 0x20
+    LOADI R7, 0x40
+    STORE R0          ; sprite_x = 120
+    LOADI R0, 25
+    LOADI R7, 0x41
+    STORE R0          ; sprite_y = 25
+
+    ; Set initial velocity (moving down-right)
+    LOADI R0, 1
+    LOADI R7, 0x42
+    STORE R0          ; vel_x = 1 (positive)
+    LOADI R7, 0x43
+    STORE R0          ; vel_y = 1 (positive)
+
+    ; Mark as initialized
+    LOADI R0, 0xAA
+    LOADI R7, 0x44
+    STORE R0          ; initialized = 0xAA
+
+SKIP_INIT:
+    ; Clear screen to dark blue (0x03 = RGB332: 000 000 11)
+    LOADI R0, 0x03    ; Dark blue color
     LOADI R6, 0xC0    ; Framebuffer High (0xC000)
     LOADI R7, 0x00    ; Framebuffer Low
 
-DRAW_LOOP:
-    ; --- Generate Pixel Color using SHR ---
-    ; We take the lower 8 bits of the address (R7),
-    ; which corresponds roughly to the X position.
-    MOV   R1, R7
-    SHR   R1          ; R1 = X / 2
-    SHR   R1          ; R1 = X / 4
-    ADD   R1, R0      ; Add timer offset for animation
-
-    ; Write to screen
-    STORE R1
-
-    ; 3. Increment Pointer
+CLEAR_LOOP:
+    STORE R0
     INC   R7
-    JNZ   DRAW_LOOP   ; If R7 didn't wrap to 0, keep filling
-    INC   R6          ; If R7 wrapped, increment High byte (R6)
+    JNZ   CLEAR_LOOP
+    INC   R6          ; Increment high byte when low byte wraps
+    ; Check if we've wrapped back to 0x00 (cleared full framebuffer 0xC000-0xFFFF)
+    LOADI R1, 0
+    SUB   R1, R6      ; R1 = 0 - R6, sets Z if R6 == 0
+    JNZ   CLEAR_LOOP  ; Continue if R6 != 0
 
-    ; Check if we finished the 16KB framebuffer (reaches 0xFF+1)
-    LOADI R3, 0xFF
+    ; Load sprite position from memory into R1, R2
+    LOADI R6, 0x20
+    LOADI R7, 0x41
+    LOAD  R1          ; R1 = sprite_y (current Y)
+    LOADI R7, 0x40
+    LOAD  R2          ; R2 = sprite_x (will be reset each row)
+
+    LOADI R0, 0       ; Sprite byte counter (0-63)
+
+DRAW_SPRITE:
+    ; Reload start_x from memory for each row
+    LOADI R6, 0x20
+    LOADI R7, 0x40
+    LOAD  R2          ; R2 = start_x
+    LOADI R3, 8       ; 8 pixels per row
+
+DRAW_ROW:
+    ; Read pixel from sprite data (0x2000 + offset)
+    LOADI R6, 0x20    ; Data section at 0x2000
+    MOV   R7, R0
+    LOAD  R4          ; R4 = pixel color
+
+    ; Calculate framebuffer address: 0xC000 + (Y << 7) + X
+    ; Since Y * 128 can exceed 255, we need to calculate the high and low bytes
+    ; Y=60, X=60: offset = 60*128 + 60 = 7680 + 60 = 7740 = 0x1E3C
+
+    ; Save current state
+    PUSH  R0
+    PUSH  R1
+    PUSH  R2
+    PUSH  R3
+    PUSH  R4
+
+    ; Calculate framebuffer address using R5, R6, R7 as temps
+    ; R5 = Y >> 1 (for high byte)
+    MOV   R5, R1
+    SHR   R5          ; R5 = Y / 2
+
+    ; R6 = low byte of (Y * 128)
+    MOV   R6, R1
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6          ; R6 = (Y << 7) & 0xFF
+
+    ; Add X to low byte
+    ADD   R6, R2      ; R6 = low byte of offset
+
+    ; Set framebuffer pointer
+    MOV   R7, R6      ; R7 = low byte
+    LOADI R6, 0xC0
+    ADD   R6, R5      ; R6 = 0xC0 + (Y >> 1)
+
+    ; Restore and write pixel
+    POP   R4
+    STORE R4          ; Write to framebuffer
+
+    ; Restore registers
+    POP   R3
+    POP   R2
+    POP   R1
+    POP   R0
+
+    ; Move to next pixel
+    INC   R0          ; Next sprite byte
+    INC   R2          ; Next X position
+    DEC   R3          ; Decrement column counter
+    JNZ   DRAW_ROW
+
+    ; Move to next row
+    INC   R1          ; Next Y position
+
+    ; Check if done (64 bytes = 8 rows * 8 cols)
+    LOADI R3, 64
+    SUB   R3, R0
+    JNZ   DRAW_SPRITE
+
+    ; Update sprite position
+    ; Load current position and velocities
+    LOADI R6, 0x20    ; Data section high byte
+    LOADI R7, 0x40
+    LOAD  R0          ; R0 = sprite_x
+    LOADI R7, 0x41
+    LOAD  R1          ; R1 = sprite_y
+    LOADI R7, 0x42
+    LOAD  R2          ; R2 = vel_x (1=positive, 0=negative)
+    LOADI R7, 0x43
+    LOAD  R3          ; R3 = vel_y
+
+    ; Update X position (R2 = vel_x: 1=right, 0=left)
+    MOV   R4, R2
+    LOADI R5, 0
+    SUB   R4, R5      ; R4 = R2 - 0, sets Z if R2 == 0
+    JZ    MOVE_X_LEFT
+
+    ; Moving right - check if already at right edge
+    MOV   R4, R0
+    LOADI R5, 120
+    SUB   R4, R5      ; Check if X >= 120
+    JZ    BOUNCE_X
+    INC   R0          ; Move right
+    JMP   UPDATE_Y
+
+MOVE_X_LEFT:
+    ; Moving left - check if already at left edge
+    MOV   R4, R0
+    LOADI R5, 0
+    SUB   R4, R5      ; Check if X == 0
+    JZ    BOUNCE_X
+    DEC   R0          ; Move left
+    JMP   UPDATE_Y
+
+BOUNCE_X:
+    ; Reverse X velocity (toggle between 0 and 1)
+    LOADI R4, 1
+    SUB   R4, R2
+    MOV   R2, R4
+    LOADI R6, 0x20
+    LOADI R7, 0x42
+    STORE R2          ; Save new vel_x
+    JMP   UPDATE_Y    ; Continue to Y update
+
+UPDATE_Y:
+    ; Update Y position (R3 = vel_y: 1=down, 0=up)
     MOV   R4, R3
-    SUB   R4, R6      ; Compare R6 to 0xFF
-    JNZ   DRAW_LOOP   ; If R6 < 0xFF, keep drawing
+    LOADI R5, 0
+    SUB   R4, R5      ; R4 = R3 - 0, sets Z if R3 == 0
+    JZ    MOVE_Y_UP
 
-    ; 4. Signal frame complete (VSYNC swap)
+    ; Moving down - check if already at bottom edge
+    MOV   R4, R1
+    LOADI R5, 120
+    SUB   R4, R5      ; Check if Y >= 120
+    JZ    BOUNCE_Y
+    INC   R1          ; Move down
+    JMP   SAVE_POS
+
+MOVE_Y_UP:
+    ; Moving up - check if already at top edge
+    MOV   R4, R1
+    LOADI R5, 0
+    SUB   R4, R5      ; Check if Y == 0
+    JZ    BOUNCE_Y
+    DEC   R1          ; Move up
+    JMP   SAVE_POS
+
+BOUNCE_Y:
+    ; Reverse Y velocity (toggle between 0 and 1)
+    LOADI R4, 1
+    SUB   R4, R3
+    MOV   R3, R4
+    LOADI R6, 0x20
+    LOADI R7, 0x43
+    STORE R3          ; Save new vel_y
+
+SAVE_POS:
+    ; Save new position
+    LOADI R6, 0x20
+    LOADI R7, 0x40
+    STORE R0          ; Save sprite_x
+    LOADI R7, 0x41
+    STORE R1          ; Save sprite_y
+
+    ; Signal frame complete (VSYNC)
     LOADI R6, 0xBF
     LOADI R7, 0x23
-    LOADI R1, 1
-    STORE R1
+    LOADI R0, 1
+    STORE R0
 
-    ; 5. Wait for VSync
+    ; Wait for next frame
 WAIT_FRAME:
+    LOADI R6, 0xBF
     LOADI R7, 0x22    ; FRAME_COUNT
-    LOAD  R1
-    SUB   R1, R2      ; R2 holds last frame count
-    JZ    WAIT_FRAME
-    MOV   R2, R1      ; Update last frame count
+    LOAD  R0
+    SUB   R0, R1      ; Compare with last frame count
+    JZ    WAIT_FRAME  ; Wait until frame changes
+    MOV   R1, R0      ; Update last frame count
 
-    JMP   START       ; Repeat
+    JMP   START       ; Loop forever
+
+section .data
+
+; 8x8 sprite data (smiley face in RGB332 format)
+; RGB332: RRRGGGBB
+; 0x00 = black (00000000)
+; 0xFC = yellow (11111100 = full red + full green)
+sprite_data:
+    DB 0x03, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0x03
+    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
+    DB 0xFC, 0x00, 0xFC, 0xFC, 0xFC, 0xFC, 0x00, 0xFC
+    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
+    DB 0xFC, 0x00, 0xFC, 0xFC, 0xFC, 0xFC, 0x00, 0xFC
+    DB 0xFC, 0xFC, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFC
+    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
+    DB 0x03, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0x03
+
+; Animation state (at 0x2040)
+sprite_x:      DB 0     ; X position
+sprite_y:      DB 0     ; Y position
+vel_x:         DB 0     ; X velocity (1=right, 0=left)
+vel_y:         DB 0     ; Y velocity (1=down, 0=up)
+initialized:   DB 0     ; Initialization flag (0xAA when initialized)
