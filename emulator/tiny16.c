@@ -36,10 +36,10 @@
 #include "easyargs.h"
 // clang-format on
 
+static args_t args;
+
 int tiny16_emu_cli(Tiny16CPU* cpu, Tiny16Memory* memory);
 int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory);
-
-static args_t args;
 
 int main(int argc, char** argv) {
     args = make_default_args();
@@ -135,15 +135,12 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
             for (uint32_t step = 0; step < instr_this_frame; ++step) {
                 memory->bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
                 memory->bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
-
                 if (memory->bytes[TINY16_MMIO_VSYNC] == 1) {
                     memcpy(back_buffer, &memory->bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
                     memory->bytes[TINY16_MMIO_VSYNC] = 0;
                 }
-
-                if (!tiny16_cpu_step(cpu, memory, step)) {
+                if (!tiny16_cpu_step(cpu, memory, step))
                     return EXIT_FAILURE;
-                }
                 tick_counter++;
             }
             frame_counter++;

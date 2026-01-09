@@ -7,7 +7,12 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
+#include "args.c"
+#include "args.h"
+#include "context.c"
+#include "context.h"
 #include "cpu.c"
 #include "cpu.h"
 #include "memory.c"
@@ -15,66 +20,22 @@
 #include "strings.c"
 #include "strings.h"
 
-#define TINY16_ASM_ABORT(fmt)                                                                      \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%d: " fmt "\n", filename, line_no);                                    \
-        exit(1);                                                                                   \
-    } while (0)
-
-#define TINY16_ASM_ABORTF(fmt, ...)                                                                \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%d: " fmt "\n", filename, line_no, __VA_ARGS__);                       \
-        exit(1);                                                                                   \
-    } while (0)
-
-char* args_shift(int* argc, char*** argv);
-
 #define TINY16_ASM_LINE_BUFFER_SIZE 256
 
-#define TINY16_ASM_MAX_LABEL_NAME_LENGTH 256
-#define TINY16_ASM_MAX_LABELS 4096
-
-typedef struct {
-    char name[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
-    uint16_t addr;
-} Tiny16Asm;
-
-typedef struct {
-    Tiny16Asm labels[TINY16_ASM_MAX_LABELS];
-    int label_count;
-    FILE* out;
-    size_t out_size;
-} Tiny16AsmContext;
-
-#define TINY16_ASM_LABEL_NOT_FOUND 0xFFFF
-uint16_t tiny16_asm_context_label_addr(Tiny16AsmContext* ctx, char* name);
-
-Tiny16OpCode tiny16_asm_expect_mnemonic(char* str, char** saveptr, char* filename, int line_no);
-
-uint8_t tiny16_asm_expect_reg(char* str, char** saveptr, char* filename, int line_no);
-
-uint16_t tiny16_asm_expect_imm(Tiny16AsmContext* ctx, char* str, char** saveptr, char* filename,
-                               int line_no);
-
-uint8_t tiny16_asm_expect_imm8(Tiny16AsmContext* ctx, char* str, char** saveptr, char* filename,
-                               int line_no);
-
-void tiny16_asm_write_instruction(Tiny16AsmContext* ctx, char* filename, int line_no, char* line);
-
 int main(int argc, char** argv) {
-    char* program = args_shift(&argc, &argv);
+    make_and_parse_args(argc, argv);
 
-    if (argc < 2) {
-        fprintf(stderr, "Usage:\n\t%s <file.asm>... <output.tiny16>\n", program);
-    }
+    Tiny16AsmContext ctx = {
+        .current_section = SECTION_CODE,
+        .code_pc = TINY16_MEMORY_CODE_BEGIN,
+        .data_pc = TINY16_MEMORY_DATA_BEGIN,
+    };
 
-    Tiny16AsmContext ctx = {0};
-    ctx.out = fopen(argv[argc - 1], "wb");
-    if (ctx.out == NULL) {
+    ctx.output_file = fopen(args.output_filename, "wb");
+    if (ctx.output_file == NULL) {
         perror("could not open output file");
         return EXIT_FAILURE;
     }
-    argc--;
 
     // clang-format off
     uint8_t signature[16] = {
@@ -85,254 +46,153 @@ int main(int argc, char** argv) {
     };
     // clang-format on
 
-    ctx.out_size = fwrite(signature, 1, sizeof signature, ctx.out);
-    if (ctx.out_size != 16) {
+    ctx.output_file_size = fwrite(signature, 1, sizeof signature, ctx.output_file);
+    if (ctx.output_file_size != 16) {
         perror("write signature");
-        exit(1);
+        return EXIT_FAILURE;
     }
 
-    FILE* file;
-    char* filename;
     char buffer[TINY16_ASM_LINE_BUFFER_SIZE];
 
-    int pc = TINY16_MEMORY_CODE_BEGIN;
+    ctx.source_file = fopen(args.source_filename, "r");
+    if (ctx.source_file == NULL) {
+        perror("could not open input file");
+        return EXIT_FAILURE;
+    }
 
-    for (int i = 0; i < argc; ++i) {
-        filename = args_shift(&argc, &argv);
-        file = fopen(filename, "r");
-        if (file == NULL) {
-            perror("could not open input file");
-            return EXIT_FAILURE;
+    //
+    // pass 1
+    //
+
+    ctx.source_line_no = 0;
+    while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
+        ctx.source_line_no++;
+
+        ctx.source_line = buffer;
+        tiny16_asm_str_strip_comment(ctx.source_line);
+        tiny16_asm_str_trim_left(ctx.source_line);
+        if (strlen(ctx.source_line) == 0)
+            continue;
+
+        tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
+        if (section != SECTION_UNKNOWN) {
+            ctx.current_section = section;
+            continue;
         }
 
-        //
-        // pass 1
-        //
-
-        int line_no = 0;
-        while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, file) != NULL) {
-            line_no++;
-
-            char* line_buffer = buffer;
-            tiny16_asm_str_strip_comment(line_buffer);
-            tiny16_asm_str_trim_left(line_buffer);
-            if (strlen(line_buffer) == 0)
-                continue;
-            int lbl_len = tiny16_asm_label_length(line_buffer);
-            if (lbl_len > 0) {
-                if (lbl_len - 1 >= TINY16_ASM_MAX_LABEL_NAME_LENGTH) {
-                    TINY16_ASM_ABORTF("max label name length exceeded: %d (limit is %d)", lbl_len,
-                                      TINY16_ASM_MAX_LABEL_NAME_LENGTH);
-                }
-
-                char tmp[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
-                strncpy(tmp, line_buffer, lbl_len - 1);
-                if (tiny16_asm_context_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND) {
-                    TINY16_ASM_ABORTF("duplicated label: %s", tmp);
-                }
-
-                if (ctx.label_count >= TINY16_ASM_MAX_LABELS) {
-                    TINY16_ASM_ABORT("too many labels");
-                }
-
-                ctx.labels[ctx.label_count].addr = pc;
-
-                strncpy(ctx.labels[ctx.label_count].name, line_buffer, lbl_len - 1);
-                ctx.labels[ctx.label_count].name[lbl_len - 1] = '\0';
-                ctx.label_count++;
-                line_buffer += lbl_len;
-                tiny16_asm_str_trim_left(line_buffer);
-                if (strlen(line_buffer) == 0)
-                    continue;
+        int label_length = tiny16_asm_label_length(ctx.source_line);
+        if (label_length > 0) {
+            if (label_length - 1 >= TINY16_ASM_MAX_LABEL_NAME_LENGTH) {
+                TINY16_ASM_ABORTF(&ctx, "max label name length exceeded: %d (limit is %d)",
+                                  label_length, TINY16_ASM_MAX_LABEL_NAME_LENGTH);
             }
-            pc += 3;
-        }
 
-        //
-        // pass 2
-        //
-        pc = TINY16_MEMORY_CODE_BEGIN;
-        fseek(file, 0L, SEEK_SET);
-        line_no = 0;
-        while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, file) != NULL) {
-            line_no++;
-
-            char* line_buffer = buffer;
-
-            tiny16_asm_str_strip_comment(line_buffer);
-            tiny16_asm_str_trim_left(line_buffer);
-
-            if (strlen(line_buffer) == 0)
-                continue;
-
-            int lbl_len = tiny16_asm_label_length(line_buffer);
-            if (lbl_len > 0) {
-                line_buffer += lbl_len;
-                tiny16_asm_str_trim_left(line_buffer);
-                if (strlen(line_buffer) == 0)
-                    continue;
+            char tmp[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
+            strncpy(tmp, ctx.source_line, label_length - 1);
+            if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND) {
+                TINY16_ASM_ABORTF(&ctx, "duplicated label: %s", tmp);
             }
-            tiny16_asm_str_trim_right(line_buffer);
-            tiny16_asm_write_instruction(&ctx, filename, line_no, line_buffer);
-            pc += 3;
+
+            if (ctx.label_count >= TINY16_ASM_MAX_LABELS) {
+                TINY16_ASM_ABORT(&ctx, "too many labels");
+            }
+
+            switch (ctx.current_section) {
+            case SECTION_CODE: ctx.labels[ctx.label_count].addr = ctx.code_pc; break;
+            case SECTION_DATA: ctx.labels[ctx.label_count].addr = ctx.data_pc; break;
+            default: assert(0 && "unreachable"); break;
+            }
+
+            strncpy(ctx.labels[ctx.label_count].name, ctx.source_line, label_length - 1);
+            ctx.labels[ctx.label_count].name[label_length - 1] = '\0';
+            ctx.label_count++;
+
+            ctx.source_line += label_length;
+            tiny16_asm_str_trim_left(ctx.source_line);
+            if (strlen(ctx.source_line) == 0)
+                continue;
         }
 
-        fclose(file);
-        if (errno) {
-            perror("could not close input file");
-            return EXIT_FAILURE;
+        switch (ctx.current_section) {
+        case SECTION_UNKNOWN: assert(0 && "unreachable"); break;
+        case SECTION_CODE: ctx.code_pc += 3; break;
+        case SECTION_DATA: {
+            char *rest, *mnemonic = strtok_r(ctx.source_line, " ", &rest);
+            if (!mnemonic) {
+                TINY16_ASM_ABORTF(&ctx, "could not parse instruction: %s", mnemonic);
+            }
+            ctx.source_line = rest;
+            if (strncasecmp(mnemonic, "DB", 2) == 0) {
+                tiny16_asm_str_trim_left(ctx.source_line);
+                tiny16_asm_ctx_parse_db(&ctx);
+            } else {
+                TINY16_ASM_ABORTF(&ctx, "unknown instruction: %s", mnemonic);
+            }
+
+        }; break;
         }
     }
 
-    fclose(ctx.out);
+    //
+    // pass 2
+    //
+
+    ctx.current_section = SECTION_CODE;
+    ctx.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    ctx.data_pc = TINY16_MEMORY_DATA_BEGIN;
+    fseek(ctx.source_file, 0L, SEEK_SET);
+    ctx.source_line_no = 0;
+
+    while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
+        ctx.source_line_no++;
+
+        ctx.source_line = buffer;
+        tiny16_asm_str_strip_comment(ctx.source_line);
+        tiny16_asm_str_trim_left(ctx.source_line);
+        if (strlen(ctx.source_line) == 0)
+            continue;
+
+        tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
+        if (section != SECTION_UNKNOWN) {
+            ctx.current_section = section;
+            continue;
+        }
+
+        int label_length = tiny16_asm_label_length(ctx.source_line);
+        if (label_length > 0) {
+            ctx.source_line += label_length;
+            tiny16_asm_str_trim_left(ctx.source_line);
+            if (strlen(ctx.source_line) == 0)
+                continue;
+        }
+        tiny16_asm_str_trim_right(ctx.source_line);
+
+        switch (ctx.current_section) {
+        case SECTION_UNKNOWN: assert(0 && "unreachable"); break;
+        case SECTION_CODE: {
+            tiny16_asm_ctx_emit_code(&ctx);
+            if (ctx.current_section == SECTION_CODE) {
+                ctx.code_pc += 3;
+            }
+        }; break;
+        case SECTION_DATA: break; // ignore, already parsed in pass 1
+        }
+    }
+
+    if (ctx.data_size > 0)
+        tiny16_asm_ctx_emit_data(&ctx);
+
+    fclose(ctx.source_file);
+    if (errno) {
+        perror("could not close input file");
+        return EXIT_FAILURE;
+    }
+
+    fclose(ctx.output_file);
     if (errno) {
         perror("could not close output file");
         return EXIT_FAILURE;
     }
 
     return 0;
-}
-
-char* args_shift(int* argc, char*** argv) {
-    assert(*argc > 0 && "argc <= 0");
-    --(*argc);
-    return *(*argv)++;
-}
-
-static char* token_separator = ", \t";
-
-Tiny16OpCode tiny16_asm_expect_mnemonic(char* str, char** saveptr, char* filename, int line_no) {
-    char* mnemonic = strtok_r(str, token_separator, saveptr);
-    if (!mnemonic) {
-        TINY16_ASM_ABORTF("could not parse mnemonic: %s", mnemonic);
-    }
-    tiny16_asm_str_to_upper(mnemonic);
-    Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
-    if (opcode == TINY16_OPCODE_UNKNOWN) {
-        TINY16_ASM_ABORTF("unknown mnemonic: %s", mnemonic);
-    }
-    return opcode;
-}
-
-uint8_t tiny16_asm_expect_reg(char* str, char** saveptr, char* filename, int line_no) {
-    char* reg = strtok_r(str, token_separator, saveptr);
-    if (!reg) {
-        TINY16_ASM_ABORTF("could not parse register: %s", reg);
-    }
-    if (strlen(reg) != 2) {
-        TINY16_ASM_ABORTF("invalid register: %s", reg);
-    }
-    if (reg[0] != 'R' || (reg[1] < '0' || reg[1] > '7')) {
-        TINY16_ASM_ABORTF("register not found, %s", reg);
-    }
-    return (uint8_t)(reg[1] - '0');
-}
-
-uint16_t tiny16_asm_expect_imm(Tiny16AsmContext* ctx, char* str, char** saveptr, char* filename,
-                               int line_no) {
-    char* imm = strtok_r(str, token_separator, saveptr);
-    if (!imm) {
-        TINY16_ASM_ABORTF("immediate expected, found: %s", imm);
-    }
-    if (isalpha(*imm)) {
-        uint16_t addr = tiny16_asm_context_label_addr(ctx, imm);
-        if (addr == TINY16_ASM_LABEL_NOT_FOUND) {
-            TINY16_ASM_ABORTF("label %s not found", imm);
-        }
-        return addr;
-    }
-    long val = tiny16_asm_str_to_long(imm);
-    if (errno) {
-        TINY16_ASM_ABORTF("invalid immediate: %s", imm);
-    }
-    if (val < 0 || val > UINT16_MAX) {
-        TINY16_ASM_ABORTF("immediate out of bounds: %ld", val);
-    }
-    return (uint16_t)val;
-}
-
-uint8_t tiny16_asm_expect_imm8(Tiny16AsmContext* ctx, char* str, char** saveptr, char* filename,
-                               int line_no) {
-    uint16_t imm = tiny16_asm_expect_imm(ctx, str, saveptr, filename, line_no);
-    if (imm > UINT8_MAX) {
-        TINY16_ASM_ABORTF("immediate out of bounds: %" PRIu16, imm);
-    }
-    return (uint8_t)imm;
-}
-
-void tiny16_asm_write_instruction(Tiny16AsmContext* ctx, char* filename, int line_no, char* line) {
-    if ((ctx->out_size + 3) > TINY16_MEMORY_CODE_END) {
-        TINY16_ASM_ABORT("max program size is 64KB");
-    }
-
-    char* saveptr;
-    Tiny16OpCode opcode = tiny16_asm_expect_mnemonic(line, &saveptr, filename, line_no);
-
-    uint8_t bytes[3];
-    bytes[0] = opcode;
-
-    switch (opcode) {
-    case TINY16_OPCODE_LOADI:
-        bytes[1] = tiny16_asm_expect_reg(NULL, &saveptr, filename, line_no);
-        bytes[2] = tiny16_asm_expect_imm8(ctx, NULL, &saveptr, filename, line_no);
-        break;
-
-    case TINY16_OPCODE_MOV:
-    case TINY16_OPCODE_ADD:
-    case TINY16_OPCODE_SUB:
-    case TINY16_OPCODE_AND:
-    case TINY16_OPCODE_OR:
-    case TINY16_OPCODE_XOR:
-        bytes[1] = tiny16_asm_expect_reg(NULL, &saveptr, filename, line_no);
-        bytes[2] = tiny16_asm_expect_reg(NULL, &saveptr, filename, line_no);
-        break;
-
-    case TINY16_OPCODE_LOAD:
-    case TINY16_OPCODE_STORE:
-    case TINY16_OPCODE_INC:
-    case TINY16_OPCODE_DEC:
-    case TINY16_OPCODE_SHL:
-    case TINY16_OPCODE_SHR:
-    case TINY16_OPCODE_PUSH:
-    case TINY16_OPCODE_POP:
-        bytes[1] = tiny16_asm_expect_reg(NULL, &saveptr, filename, line_no);
-        bytes[2] = 0;
-        break;
-
-    case TINY16_OPCODE_JMP:
-    case TINY16_OPCODE_JZ:
-    case TINY16_OPCODE_JNZ: {
-        uint16_t addr = tiny16_asm_expect_imm(ctx, NULL, &saveptr, filename, line_no);
-        bytes[1] = (addr >> 8) & 0xFF;
-        bytes[2] = addr & 0xFF;
-    }; break;
-
-    case TINY16_OPCODE_HALT:
-        bytes[1] = 0;
-        bytes[2] = 0;
-        break;
-
-    case TINY16_OPCODE_UNKNOWN: return;
-    }
-
-    if (strtok_r(NULL, token_separator, &saveptr) != NULL) {
-        fprintf(stderr, "%s:%d: too many operands\n", filename, line_no);
-        exit(1);
-    }
-
-    size_t n = fwrite(bytes, 1, 3, ctx->out);
-    if (n != 3) {
-        perror("write");
-        exit(1);
-    }
-
-    ctx->out_size += 3;
-}
-
-uint16_t tiny16_asm_context_label_addr(Tiny16AsmContext* ctx, char* name) {
-    for (int i = 0; i < ctx->label_count; ++i) {
-        if (strcmp(ctx->labels[i].name, name) == 0)
-            return ctx->labels[i].addr;
-    }
-    return TINY16_ASM_LABEL_NOT_FOUND;
 }

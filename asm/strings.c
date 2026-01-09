@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "context.h"
 #include "strings.h"
 
 void tiny16_asm_str_strip_comment(char* str) {
@@ -37,13 +38,6 @@ void tiny16_asm_str_trim(char* str) {
     tiny16_asm_str_trim_right(str);
 }
 
-void tiny16_asm_str_to_upper(char* str) {
-    while (*str != '\0') {
-        *str = toupper(*str);
-        str++;
-    }
-}
-
 bool tiny16_asm_is_valid_label_prefix(char* str) {
     return (str && (isalpha(str[0]) || str[0] == '_' || str[0] == '.'));
 }
@@ -63,6 +57,21 @@ int tiny16_asm_label_length(char* str) {
         return i + 1;
     }
     return 0;
+}
+
+tiny16_asm_section_t tiny16_asm_section(char* str) {
+    if (strncasecmp("section", str, 7) == 0) {
+        str += 7;
+        while (*str && isspace((unsigned char)*str))
+            str++;
+        if (*str != '\0') {
+            if (strncmp(str, ".code", 5) == 0)
+                return SECTION_CODE;
+            if (strncmp(str, ".data", 5) == 0)
+                return SECTION_DATA;
+        }
+    }
+    return SECTION_UNKNOWN;
 }
 
 long tiny16_asm_str_to_long(const char* str) {
@@ -86,4 +95,8 @@ long tiny16_asm_str_to_long(const char* str) {
     if (errno)
         return 0;
     return val;
+}
+
+bool tiny16_asm_str_has_prefix(const char* pre, const char* str) {
+    return (strncmp(pre, str, strlen(pre)) == 0);
 }

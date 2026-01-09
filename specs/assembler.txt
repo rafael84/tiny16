@@ -118,7 +118,6 @@ NON-GOALS
 - No includes
 - No expressions
 - No pseudo-instructions
-- No data directives
 - No linking or relocation
 
 DESIGN RULE

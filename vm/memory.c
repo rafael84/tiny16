@@ -83,7 +83,7 @@ size_t tiny16_memory_load_from_file(Tiny16Memory* memory, char* filename) {
     size_t filelen = ftell(file);
     rewind(file);
 
-    if (filelen > (TINY16_MEMORY_CODE_END - TINY16_MEMORY_CODE_BEGIN)) {
+    if (filelen > TINY16_MEMORY_STACK_END) {
         fclose(file);
         fprintf(stderr, "program too large\n");
         exit(1);

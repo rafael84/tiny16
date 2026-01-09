@@ -254,7 +254,7 @@ const char* tiny16_mnemonic_from_opcode(Tiny16OpCode opcode) {
 
 Tiny16OpCode tiny16_opcode_from_mnemonic(const char* mnemonic) {
     for (size_t i = 0; i < TINY16_OPCODE_COUNT; ++i) {
-        if (strcmp(mnemonic, opcode_table[i].name) == 0) {
+        if (strcasecmp(mnemonic, opcode_table[i].name) == 0) {
             return opcode_table[i].opcode;
         }
     }
