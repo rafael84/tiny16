@@ -10,7 +10,7 @@ START:
     LOADI R7, 0x10
     LOAD  R0          ; Check init flag
     LOADI R1, 0xAA
-    SUB   R0, R1
+    CMP   R0, R1      ; Compare with 0xAA
     JZ    SKIP_INIT
 
     ; Set initial position (center)
@@ -49,7 +49,7 @@ CLEAR_SCREEN:
         JNZ   CLEAR_LOOP
         INC   R6
         LOADI R1, 0
-        SUB   R1, R6
+        CMP   R6, R1      ; Sets Z if R6 == 0
         JNZ   CLEAR_LOOP
         RET
 
@@ -72,10 +72,9 @@ READ_INPUT:
     LOADI R4, 0x40
     AND   R3, R4
     JZ    CHECK_DOWN
-    ; Move up
-    MOV   R3, R2
+    ; Move up (check if at top edge)
     LOADI R4, 0
-    SUB   R3, R4
+    CMP   R2, R4      ; Check if Y == 0
     JZ    CHECK_DOWN
     DEC   R2
 
@@ -85,10 +84,9 @@ CHECK_DOWN:
     LOADI R4, 0x80
     AND   R3, R4
     JZ    CHECK_LEFT
-    ; Move down
-    MOV   R3, R2
+    ; Move down (check if at bottom edge)
     LOADI R4, 119
-    SUB   R3, R4
+    CMP   R2, R4      ; Check if Y == 119
     JZ    CHECK_LEFT
     INC   R2
 
@@ -98,10 +96,9 @@ CHECK_LEFT:
     LOADI R4, 0x20
     AND   R3, R4
     JZ    CHECK_RIGHT
-    ; Move left
-    MOV   R3, R1
+    ; Move left (check if at left edge)
     LOADI R4, 0
-    SUB   R3, R4
+    CMP   R1, R4      ; Check if X == 0
     JZ    CHECK_RIGHT
     DEC   R1
 
@@ -111,10 +108,9 @@ CHECK_RIGHT:
     LOADI R4, 0x10
     AND   R3, R4
     JZ    CHECK_BUTTON_A
-    ; Move right
-    MOV   R3, R1
+    ; Move right (check if at right edge)
     LOADI R4, 119
-    SUB   R3, R4
+    CMP   R1, R4      ; Check if X == 119
     JZ    CHECK_BUTTON_A
     INC   R1
 

@@ -34,11 +34,14 @@ C = carry (ADD) or borrow (SUB)
 Flags updated by:
 - ADD  : Z, C
 - SUB  : Z, C
+- ADC  : Z, C
+- SBC  : Z, C
 - INC  : Z, C (clears C)
 - DEC  : Z, C (clears C)
 - AND  : Z, C (clears C)
 - OR   : Z, C (clears C)
 - XOR  : Z, C (clears C)
+- CMP  : Z, C
 - SHL  : Z, C
 - SHR  : Z, C
 
@@ -77,94 +80,189 @@ INSTRUCTIONS
 ------------
 
 0x10  LOADI R, imm8
+      Load immediate 8-bit value into register.
       R = imm8
+      Does not affect flags.
 
 0x11  LOAD R
-      R = MEM[R6:R7]
+      Load byte from memory at address formed by R6:R7.
+      R = MEM[ADDR], where ADDR = (R6 << 8) | R7
+      Does not affect flags.
+      Special: Reading from 0xBF01 (KEYS_PRESSED) clears it after read.
 
 0x12  STORE R
-      MEM[R6:R7] = R
+      Store register value to memory at address formed by R6:R7.
+      MEM[ADDR] = R, where ADDR = (R6 << 8) | R7
+      Does not affect flags.
+      Cannot write to code segment (0x0010-0x1FFF).
 
 0x13  MOV R1, R2
+      Copy value from one register to another.
       R1 = R2
+      Does not affect flags.
+      R2 remains unchanged.
 
 0x20  ADD R1, R2
+      Add two registers, store result in first register.
       R1 = (R1 + R2) & 0xFF
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Sets C=1 if addition overflows (result > 255), C=0 otherwise.
+      R2 remains unchanged.
 
 0x21  SUB R1, R2
+      Subtract second register from first, store result in first register.
       R1 = (R1 - R2) & 0xFF
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Sets C=1 if borrow occurs (R1 < R2), C=0 otherwise.
+      R2 remains unchanged.
 
 0x22  INC R
+      Increment register by 1.
       R = (R + 1) & 0xFF
+      Sets Z=1 if result is zero (wraparound from 255), Z=0 otherwise.
+      Always clears C flag (C=0).
 
 0x23  DEC R
+      Decrement register by 1.
       R = (R - 1) & 0xFF
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Always clears C flag (C=0).
 
 0x24  AND R1, R2
+      Bitwise AND two registers, store result in first register.
       R1 = R1 & R2
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Always clears C flag (C=0).
+      R2 remains unchanged.
 
 0x25  OR R1, R2
+      Bitwise OR two registers, store result in first register.
       R1 = R1 | R2
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Always clears C flag (C=0).
+      R2 remains unchanged.
 
 0x26  XOR R1, R2
+      Bitwise XOR two registers, store result in first register.
       R1 = R1 ^ R2
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Always clears C flag (C=0).
+      R2 remains unchanged.
+      Note: XOR R, R is a common idiom to zero a register.
+
+0x27  CMP R1, R2
+      Compare R1 and R2 by computing R1 - R2, set flags, but don't store result.
+      Sets Z=1 if R1 == R2 (result is zero)
+      Sets C=1 if R1 < R2 (borrow occurred)
+      Sets C=0, Z=0 if R1 > R2
+      Does not modify R1 or R2.
+
+0x28  ADC R1, R2
+      Add with carry - adds two registers plus carry flag, store result in first register.
+      R1 = (R1 + R2 + C) & 0xFF
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Sets C=1 if addition overflows (result > 255), C=0 otherwise.
+      R2 remains unchanged.
+      Useful for multi-byte addition by chaining operations.
 
 0x29  SHL R
-      R = R * 2
+      Shift left logical (multiply by 2).
+      Shifts all bits left by 1 position, bit 0 becomes 0.
+      R = (R << 1) & 0xFF
+      Sets C=1 if bit 7 was set before shift (bit shifted out), C=0 otherwise.
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Equivalent to multiplying by 2 (with overflow).
 
 0x2A  SHR R
-      R = R / 2
+      Shift right logical (divide by 2).
+      Shifts all bits right by 1 position, bit 7 becomes 0.
+      R = R >> 1
+      Sets C=1 if bit 0 was set before shift (bit shifted out), C=0 otherwise.
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Equivalent to integer division by 2 (rounding down).
+
+0x2B  SBC R1, R2
+      Subtract with carry (borrow) - subtracts second register and carry flag from first.
+      R1 = (R1 - R2 - C) & 0xFF
+      Sets Z=1 if result is zero, Z=0 otherwise.
+      Sets C=1 if borrow occurs (R1 < R2 + C), C=0 otherwise.
+      R2 remains unchanged.
+      Useful for multi-byte subtraction by chaining operations.
 
 0x2C  PUSH R
-      MEM[SP] = R; SP--
-
-      Push register onto stack.
+      Push register value onto stack.
+      MEM[SP] = R; SP = SP - 1
+      Stores register at current stack pointer, then decrements SP.
+      Does not affect flags.
+      Stack overflow occurs if SP goes below 0x8000.
 
 0x2D  POP R
-      SP++; R = MEM[SP]
-
-      Pop from stack into register.
+      Pop value from stack into register.
+      SP = SP + 1; R = MEM[SP]
+      Increments SP first, then loads value into register.
+      Does not affect flags.
+      Stack underflow occurs if SP goes above 0xBEFF.
 
 0x30  JMP addr16
-      PC = addr16
-
       Unconditional jump to address.
+      PC = addr16
+      Always jumps to the specified 16-bit address.
+      Does not affect flags or stack.
 
 0x31  JZ addr16
+      Jump if zero flag is set.
       if Z == 1: PC = addr16
-
-      Jump to address if zero flag is set.
+      Jumps to address if last arithmetic/logic operation resulted in zero.
+      If Z == 0, continues to next instruction.
+      Does not affect flags.
 
 0x32  JNZ addr16
+      Jump if zero flag is clear.
       if Z == 0: PC = addr16
-
-      Jump to address if zero flag is clear.
+      Jumps to address if last arithmetic/logic operation did not result in zero.
+      If Z == 1, continues to next instruction.
+      Does not affect flags.
 
 0x33  JC addr16
+      Jump if carry flag is set.
       if C == 1: PC = addr16
-
-      Jump to address if carry flag is set.
+      Jumps to address if last operation set carry flag (overflow or borrow).
+      Useful for multi-byte arithmetic and unsigned comparisons (less than).
+      If C == 0, continues to next instruction.
+      Does not affect flags.
 
 0x34  JNC addr16
+      Jump if carry flag is clear.
       if C == 0: PC = addr16
-
-      Jump to address if carry flag is clear.
+      Jumps to address if last operation cleared carry flag (no overflow/borrow).
+      Useful for multi-byte arithmetic and unsigned comparisons (greater/equal).
+      If C == 1, continues to next instruction.
+      Does not affect flags.
 
 0x40  CALL addr16
-      PUSH16(PC); PC = addr16
-
-      Call subroutine at address. Pushes return address (PC after CALL)
-      onto stack (16-bit, big-endian: high byte first, then low byte).
+      Call subroutine at address.
+      Pushes return address onto stack, then jumps to subroutine.
+      PUSH16(PC_next); PC = addr16
+      Return address (PC after CALL instruction) is pushed as 16-bit value:
+      high byte first, then low byte (big-endian).
+      Decrements SP by 2.
+      Does not affect flags.
       Use RET to return from subroutine.
 
 0x41  RET
+      Return from subroutine.
+      Pops 16-bit return address from stack and jumps to it.
       POP16(PC)
-
-      Return from subroutine. Pops 16-bit return address from stack
-      and jumps to it. Must match a previous CALL instruction.
+      Restores PC from stack (16-bit, big-endian).
+      Increments SP by 2.
+      Does not affect flags.
+      Must match a previous CALL instruction.
 
 0xFF  HALT
-      stop execution
+      Stop program execution.
+      Terminates the program and returns control to emulator.
+      Does not affect flags.
+      CPU will not execute any further instructions.
 
 
 ADDRESSING
@@ -219,6 +317,14 @@ Framebuffer (0xC000-0xFFFF):
 EXAMPLES
 --------
 
+Simple arithmetic:
+    LOADI R0, 42      ; Load immediate value
+    LOADI R1, 10      ; Load another value
+    ADD   R0, R1      ; R0 = R0 + R1 (R0 = 52)
+    SHL   R0          ; R0 = R0 * 2 (R0 = 104)
+    MOV   R2, R0      ; Copy R0 to R2
+    HALT              ; Stop execution
+
 Copy register:
     MOV R1, R0        ; R1 = R0
 
@@ -251,12 +357,41 @@ Read button press (edge detection):
     JZ    NOT_A       ; Jump if A not pressed this frame
     ; ... handle A press (fires once) ...
 
-Read mouse position:
+Read mouse position and button:
     LOADI R6, 0xBF
     LOADI R7, 0x02
     LOAD  R0          ; R0 = mouse X (0-127)
     LOADI R7, 0x03
     LOAD  R1          ; R1 = mouse Y (0-127)
+    LOADI R7, 0x04
+    LOAD  R2          ; R2 = mouse buttons
+    LOADI R3, 0x01    ; bit 0 = left button
+    AND   R2, R3
+    JZ    NOT_CLICKED ; Jump if not clicked
+    ; ... handle mouse click at (R0, R1) ...
+
+Compare two values and branch:
+    LOADI R0, 42
+    LOADI R1, 30
+    CMP   R0, R1      ; Compare R0 - R1, set Z and C flags
+    JZ    EQUAL       ; If Z=1: R0 == R1
+    JC    LESS        ; If C=1: R0 < R1 (borrow occurred)
+    ; Otherwise: R0 > R1 (fall through)
+
+GREATER:
+    LOADI R2, 100     ; R0 > R1
+    JMP   END
+
+LESS:
+    LOADI R2, 0       ; R0 < R1
+    JMP   END
+
+EQUAL:
+    LOADI R2, 50      ; R0 == R1
+    JMP   END
+
+END:
+    HALT
 
 Multi-byte addition using carry:
     LOADI R0, 200     ; Low byte first value
@@ -270,6 +405,26 @@ NO_CARRY:
     LOADI R2, 0       ; High byte gets 0
 DONE:
     ; R2:R0 now holds 16-bit result
+
+Multi-byte addition using ADC (cleaner):
+    ; Add two 16-bit numbers: R6:R7 = 0x01FF, R0:R1 = 0x0002
+    LOADI R6, 0x01    ; High byte first value
+    LOADI R7, 0xFF    ; Low byte first value
+    LOADI R0, 0x00    ; High byte second value
+    LOADI R1, 0x02    ; Low byte second value
+    ADD   R7, R1      ; Add low bytes, sets C if overflow
+    ADC   R6, R0      ; Add high bytes + carry
+    ; R6:R7 now holds 0x0201 (513)
+
+Multi-byte subtraction using SBC:
+    ; Subtract two 16-bit numbers: R6:R7 = 0x0201, R0:R1 = 0x00FF
+    LOADI R6, 0x02    ; High byte first value
+    LOADI R7, 0x01    ; Low byte first value
+    LOADI R0, 0x00    ; High byte second value
+    LOADI R1, 0xFF    ; Low byte second value
+    SUB   R7, R1      ; Subtract low bytes, sets C if borrow
+    SBC   R6, R0      ; Subtract high bytes - borrow
+    ; R6:R7 now holds 0x0102 (258)
 
 Call a subroutine:
     LOADI R0, 5

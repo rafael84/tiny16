@@ -48,6 +48,19 @@ void tiny16_test_jc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_jc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_jnc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_jnc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_cmp_equal(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_cmp_greater(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_cmp_less(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_cmp_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_cmp_branching(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_adc_no_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_adc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_adc_multibyte(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_adc_overflow(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_sbc_no_borrow(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_sbc_with_borrow(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_sbc_multibyte(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_sbc_underflow(Tiny16CPU* cpu, Tiny16Memory* memory);
 
 #define TINY16_TEST(fn)                                                                            \
     do {                                                                                           \
@@ -96,6 +109,19 @@ int main(void) {
     TINY16_TEST(tiny16_test_jc_without_carry);
     TINY16_TEST(tiny16_test_jnc_with_carry);
     TINY16_TEST(tiny16_test_jnc_without_carry);
+    TINY16_TEST(tiny16_test_cmp_equal);
+    TINY16_TEST(tiny16_test_cmp_greater);
+    TINY16_TEST(tiny16_test_cmp_less);
+    TINY16_TEST(tiny16_test_cmp_preserves_registers);
+    TINY16_TEST(tiny16_test_cmp_branching);
+    TINY16_TEST(tiny16_test_adc_no_carry);
+    TINY16_TEST(tiny16_test_adc_with_carry);
+    TINY16_TEST(tiny16_test_adc_multibyte);
+    TINY16_TEST(tiny16_test_adc_overflow);
+    TINY16_TEST(tiny16_test_sbc_no_borrow);
+    TINY16_TEST(tiny16_test_sbc_with_borrow);
+    TINY16_TEST(tiny16_test_sbc_multibyte);
+    TINY16_TEST(tiny16_test_sbc_underflow);
     return 0;
 }
 
@@ -608,16 +634,16 @@ void tiny16_test_call_ret_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memo
 void tiny16_test_jc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
     // Test JC jumps when carry is set (ADD overflow)
     TINY16_TEST_RUN(
-        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 200);        // R0 = 200
-        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100);        // R1 = 100
-        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);            // R0 = 44, C = 1 (overflow)
-        /* 3 */ TINY16_ASM(TINY16_OPCODE_JC, 0x00, ADDR16(5));  // should jump (C = 1)
-        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);         // should NOT execute
-        /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // R2 = 42 (after jump)
-        /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 200);       // R0 = 200
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100);       // R1 = 100
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);           // R0 = 44, C = 1 (overflow)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JC, 0x00, ADDR16(5)); // should jump (C = 1)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);        // should NOT execute
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);        // R2 = 42 (after jump)
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);          //
     );
-    assert(cpu->R[0] == 44);  // 200 + 100 = 300 & 0xFF = 44
-    assert(cpu->R[2] == 42);  // Should have jumped, so R2 = 42, not 99
+    assert(cpu->R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
+    assert(cpu->R[2] == 42); // Should have jumped, so R2 = 42, not 99
     assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
 }
 
@@ -633,8 +659,8 @@ void tiny16_test_jc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
         /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
         /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(cpu->R[0] == 80);  // 50 + 30 = 80
-    assert(cpu->R[2] == 99);  // Should NOT have jumped, so R2 = 99
+    assert(cpu->R[0] == 80); // 50 + 30 = 80
+    assert(cpu->R[2] == 99); // Should NOT have jumped, so R2 = 99
     assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
 }
 
@@ -650,8 +676,8 @@ void tiny16_test_jnc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
         /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
         /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(cpu->R[0] == 44);  // 200 + 100 = 300 & 0xFF = 44
-    assert(cpu->R[2] == 99);  // Should NOT have jumped, so R2 = 99
+    assert(cpu->R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
+    assert(cpu->R[2] == 99); // Should NOT have jumped, so R2 = 99
     assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
 }
 
@@ -666,7 +692,202 @@ void tiny16_test_jnc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
         /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // R2 = 42 (after jump)
         /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(cpu->R[0] == 80);  // 50 + 30 = 80
-    assert(cpu->R[2] == 42);  // Should have jumped, so R2 = 42, not 99
+    assert(cpu->R[0] == 80); // 50 + 30 = 80
+    assert(cpu->R[2] == 42); // Should have jumped, so R2 = 42, not 99
     assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_cmp_equal(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test CMP with equal values: should set Z=1, C=0
+    // CMP does not modify the registers
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 42); // R0 = 42
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 42); // R1 = 42
+                    TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);    // compare R0 - R1
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 42); // R0 should be unchanged
+    assert(cpu->R[1] == 42); // R1 should be unchanged
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));  // Z = 1 (equal)
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
+}
+
+void tiny16_test_cmp_greater(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test CMP when first operand is greater: should set Z=0, C=0
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 100); // R0 = 100
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 50);  // R1 = 50
+                    TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);     // compare R0 - R1
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 100); // R0 should be unchanged
+    assert(cpu->R[1] == 50);  // R1 should be unchanged
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
+}
+
+void tiny16_test_cmp_less(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test CMP when first operand is less: should set Z=0, C=1
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 30);  // R0 = 30
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100); // R1 = 100
+                    TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);     // compare R0 - R1
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 30);  // R0 should be unchanged
+    assert(cpu->R[1] == 100); // R1 should be unchanged
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));  // C = 1 (borrow occurred)
+}
+
+void tiny16_test_cmp_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test that CMP preserves all registers including edge cases
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0);    // R0 = 0
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 255);  // R1 = 255
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 128);  // R2 = 128
+                    TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);      // compare R0 - R1
+                    TINY16_ASM(TINY16_OPCODE_CMP, 1, 2);      // compare R1 - R2
+                    TINY16_ASM(TINY16_OPCODE_CMP, 2, 0);      // compare R2 - R0
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 0);   // R0 unchanged
+    assert(cpu->R[1] == 255); // R1 unchanged
+    assert(cpu->R[2] == 128); // R2 unchanged
+}
+
+void tiny16_test_cmp_branching(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test CMP with conditional branching (like example 14_cmp.asm)
+    // Compare R0=12 with R1=10, should branch to "greater"
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 12);          // R0 = 12
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 10);          // R1 = 10
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);             // compare R0 - R1
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JZ, 0x00, ADDR16(9));   // if Z=1 (equal), jump to equal
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_JC, 0x00, ADDR16(11));  // if C=1 (less), jump to less
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 100);         // greater: R2 = 100
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(13)); // jump to end
+        /* 7 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 50);          // equal: R2 = 50 (should NOT execute)
+        /* 8 */ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(13)); // jump to end
+        /* 9 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 50);          // equal: R2 = 50 (should NOT execute)
+        /* 10*/ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(13)); // jump to end
+        /* 11*/ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0);           // less: R2 = 0 (should NOT execute)
+        /* 12*/ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(13)); // jump to end
+        /* 13*/ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            // end
+    );
+    assert(cpu->R[0] == 12);  // R0 unchanged
+    assert(cpu->R[1] == 10);  // R1 unchanged
+    assert(cpu->R[2] == 100); // Took the "greater" path
+}
+
+void tiny16_test_adc_no_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test ADC with carry flag clear (C=0)
+    // ADC should behave like ADD when C=0
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 10);  // R0 = 10
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 20);  // R1 = 20
+                    TINY16_ASM(TINY16_OPCODE_ADC, 0, 1);     // R0 = 10 + 20 + 0 = 30
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 30);
+    assert(cpu->R[1] == 20); // R1 unchanged
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_adc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test ADC with carry flag set (C=1)
+    // First ADD sets carry, then ADC uses it
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 200); // R0 = 200
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100); // R1 = 100
+                    TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);     // R0 = 44 (overflow), C=1
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 10);  // R2 = 10
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 20);  // R3 = 20
+                    TINY16_ASM(TINY16_OPCODE_ADC, 2, 3);     // R2 = 10 + 20 + 1 = 31
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 44);  // 200 + 100 = 300 & 0xFF = 44
+    assert(cpu->R[2] == 31);  // 10 + 20 + 1 (carry) = 31
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C)); // No carry from last ADC
+}
+
+void tiny16_test_adc_multibyte(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test 16-bit addition using ADD + ADC
+    // Add R6:R7 = 0x01FF (511) + R0:R1 = 0x0002 (2) = 0x0201 (513)
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x01);  // R6 = 0x01 (high byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0xFF);  // R7 = 0xFF (low byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00);  // R0 = 0x00 (high byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x02);  // R1 = 0x02 (low byte)
+                    TINY16_ASM(TINY16_OPCODE_ADD, 7, 1);       // R7 = 0xFF + 0x02 = 0x01, C=1
+                    TINY16_ASM(TINY16_OPCODE_ADC, 6, 0);       // R6 = 0x01 + 0x00 + 1 = 0x02
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[6] == 0x02); // High byte result
+    assert(cpu->R[7] == 0x01); // Low byte result
+    // R6:R7 = 0x0201 (513)
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_adc_overflow(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test ADC with overflow (sets carry flag)
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 250); // R0 = 250
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 10);  // R1 = 10
+                    TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);     // R0 = 4, C=1 (overflow)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 250); // R2 = 250
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 5);   // R3 = 5
+                    TINY16_ASM(TINY16_OPCODE_ADC, 2, 3);     // R2 = 250 + 5 + 1 = 0, C=1
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[2] == 0);  // 250 + 5 + 1 = 256 & 0xFF = 0
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));  // Result is zero
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));  // Overflow occurred
+}
+
+void tiny16_test_sbc_no_borrow(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test SBC with carry flag clear (C=0, no borrow)
+    // SBC should behave like SUB when C=0
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 50);  // R0 = 50
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 20);  // R1 = 20
+                    TINY16_ASM(TINY16_OPCODE_SBC, 0, 1);     // R0 = 50 - 20 - 0 = 30
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 30);
+    assert(cpu->R[1] == 20); // R1 unchanged
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_sbc_with_borrow(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test SBC with carry flag set (C=1, borrow)
+    // First SUB sets carry (borrow), then SBC uses it
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 5);   // R0 = 5
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 10);  // R1 = 10
+                    TINY16_ASM(TINY16_OPCODE_SUB, 0, 1);     // R0 = 251, C=1 (borrow)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 50);  // R2 = 50
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 20);  // R3 = 20
+                    TINY16_ASM(TINY16_OPCODE_SBC, 2, 3);     // R2 = 50 - 20 - 1 = 29
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[0] == 251); // 5 - 10 = -5 & 0xFF = 251
+    assert(cpu->R[2] == 29);  // 50 - 20 - 1 (borrow) = 29
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C)); // No borrow from last SBC
+}
+
+void tiny16_test_sbc_multibyte(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test 16-bit subtraction using SUB + SBC
+    // Subtract R6:R7 = 0x0201 (513) - R0:R1 = 0x00FF (255) = 0x0102 (258)
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x02);  // R6 = 0x02 (high byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x01);  // R7 = 0x01 (low byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00);  // R0 = 0x00 (high byte)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0xFF);  // R1 = 0xFF (low byte)
+                    TINY16_ASM(TINY16_OPCODE_SUB, 7, 1);       // R7 = 0x01 - 0xFF = 0x02, C=1
+                    TINY16_ASM(TINY16_OPCODE_SBC, 6, 0);       // R6 = 0x02 - 0x00 - 1 = 0x01
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[6] == 0x01); // High byte result
+    assert(cpu->R[7] == 0x02); // Low byte result
+    // R6:R7 = 0x0102 (258)
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_sbc_underflow(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test SBC with underflow (sets carry flag)
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 10);  // R0 = 10
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 5);   // R1 = 5
+                    TINY16_ASM(TINY16_OPCODE_SUB, 0, 1);     // R0 = 5, C=0 (no borrow)
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 5);   // R2 = 5
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 10);  // R3 = 10
+                    TINY16_ASM(TINY16_OPCODE_SBC, 2, 3);     // R2 = 5 - 10 - 0 = 251, C=1
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(cpu->R[2] == 251); // 5 - 10 = -5 & 0xFF = 251
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_Z));
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C)); // Underflow (borrow) occurred
 }

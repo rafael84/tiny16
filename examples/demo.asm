@@ -86,7 +86,7 @@ CLEAR_LOOP:
     INC   R6          ; Increment high byte when low byte wraps
     ; Check if we've wrapped back to 0x00 (cleared full framebuffer 0xC000-0xFFFF)
     LOADI R1, 0
-    SUB   R1, R6      ; R1 = 0 - R6, sets Z if R6 == 0
+    CMP   R6, R1      ; Sets Z if R6 == 0
     JNZ   CLEAR_LOOP  ; Continue if R6 != 0
     RET
 
@@ -104,7 +104,7 @@ DRAW_SPRITE_ROUTINE:
     LOADI R7, 0x40
     LOAD  R2          ; R2 = sprite_x (will be reset each row)
 
-    LOADI R0, 0       ; Sprite byte counter (0-63)
+    XOR   R0, R0      ; Sprite byte counter (0-63)
 
 DRAW_SPRITE_LOOP:
     ; Reload start_x from memory for each row
@@ -174,7 +174,7 @@ DRAW_SPRITE_ROW:
 
     ; Check if done (64 bytes = 8 rows * 8 cols)
     LOADI R3, 64
-    SUB   R3, R0
+    CMP   R0, R3      ; Sets Z if R0 == 64
     JNZ   DRAW_SPRITE_LOOP
     RET
 
@@ -197,9 +197,8 @@ UPDATE_POSITION:
     LOAD  R3          ; R3 = vel_y
 
     ; Update X position (R2 = vel_x: 1=right, 0=left)
-    MOV   R4, R2
     LOADI R5, 0
-    SUB   R4, R5      ; R4 = R2 - 0, sets Z if R2 == 0
+    CMP   R2, R5      ; Sets Z if R2 == 0
     JZ    MOVE_X_LEFT
 
     ; Moving right - check if already at right edge
@@ -212,9 +211,8 @@ UPDATE_POSITION:
 
 MOVE_X_LEFT:
     ; Moving left - check if already at left edge
-    MOV   R4, R0
     LOADI R5, 0
-    SUB   R4, R5      ; Check if X == 0
+    CMP   R0, R5      ; Check if X == 0
     JZ    BOUNCE_X
     DEC   R0          ; Move left
     JMP   UPDATE_Y
@@ -231,9 +229,8 @@ BOUNCE_X:
 
 UPDATE_Y:
     ; Update Y position (R3 = vel_y: 1=down, 0=up)
-    MOV   R4, R3
     LOADI R5, 0
-    SUB   R4, R5      ; R4 = R3 - 0, sets Z if R3 == 0
+    CMP   R3, R5      ; Sets Z if R3 == 0
     JZ    MOVE_Y_UP
 
     ; Moving down - check if already at bottom edge
@@ -246,9 +243,8 @@ UPDATE_Y:
 
 MOVE_Y_UP:
     ; Moving up - check if already at top edge
-    MOV   R4, R1
     LOADI R5, 0
-    SUB   R4, R5      ; Check if Y == 0
+    CMP   R1, R5      ; Check if Y == 0
     JZ    BOUNCE_Y
     DEC   R1          ; Move up
     JMP   SAVE_POS

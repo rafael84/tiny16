@@ -95,6 +95,9 @@ void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx) {
     case TINY16_OPCODE_AND:
     case TINY16_OPCODE_OR:
     case TINY16_OPCODE_XOR:
+    case TINY16_OPCODE_CMP:
+    case TINY16_OPCODE_ADC:
+    case TINY16_OPCODE_SBC:
         bytes[1] = tiny16_asm_ctx_parse_reg(ctx, NULL, &saveptr);
         bytes[2] = tiny16_asm_ctx_parse_reg(ctx, NULL, &saveptr);
         break;

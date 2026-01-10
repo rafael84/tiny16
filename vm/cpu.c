@@ -184,12 +184,30 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
     } break;
 
+    case TINY16_OPCODE_ADC: {
+        uint16_t a = cpu->R[arg1];
+        uint16_t b = cpu->R[arg2];
+        uint16_t res = a + b + TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C);
+        cpu->R[arg1] = res & UINT8_MAX;
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, res > 0xFF);
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
+    } break;
+
     case TINY16_OPCODE_SUB: {
         uint16_t a = cpu->R[arg1];
         uint16_t b = cpu->R[arg2];
         uint16_t res = a - b;
         cpu->R[arg1] = res & UINT8_MAX;
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, a < b);
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
+    } break;
+
+    case TINY16_OPCODE_SBC: {
+        uint16_t a = cpu->R[arg1];
+        uint16_t b = cpu->R[arg2];
+        uint16_t res = a - b - TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C);
+        cpu->R[arg1] = res & UINT8_MAX;
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, res > 0xFF);
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
     } break;
 
@@ -222,6 +240,14 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, 0);
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
         break;
+
+    case TINY16_OPCODE_CMP: {
+        uint16_t a = cpu->R[arg1];
+        uint16_t b = cpu->R[arg2];
+        uint16_t tmp = (a - b) & 0xFF;
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, a < b);
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, tmp == 0);
+    } break;
 
     case TINY16_OPCODE_SHL:
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, (cpu->R[arg1] & 0x80) >> 7);
