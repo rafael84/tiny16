@@ -318,150 +318,142 @@ EXAMPLES
 --------
 
 Simple arithmetic:
-    LOADI R0, 42      ; Load immediate value
-    LOADI R1, 10      ; Load another value
-    ADD   R0, R1      ; R0 = R0 + R1 (R0 = 52)
-    SHL   R0          ; R0 = R0 * 2 (R0 = 104)
-    MOV   R2, R0      ; Copy R0 to R2
-    HALT              ; Stop execution
+        LOADI R0, 42      ; Load immediate value
+        LOADI R1, 10      ; Load another value
+        ADD   R0, R1      ; R0 = R0 + R1 (R0 = 52)
+        SHL   R0          ; R0 = R0 * 2 (R0 = 104)
+        MOV   R2, R0      ; Copy R0 to R2
+        HALT              ; Stop execution
 
 Copy register:
-    MOV R1, R0        ; R1 = R0
+        MOV R1, R0        ; R1 = R0
 
 Read from address 0xBF22:
-    LOADI R6, 0xBF
-    LOADI R7, 0x22
-    LOAD  R0          ; R0 = memory[0xBF22]
+        LOADI R6, 0xBF
+        LOADI R7, 0x22
+        LOAD  R0          ; R0 = memory[0xBF22]
 
 Signal frame complete:
-    LOADI R6, 0xBF
-    LOADI R7, 0x23
-    LOADI R0, 1
-    STORE R0          ; memory[0xBF23] = 1
+        LOADI R6, 0xBF
+        LOADI R7, 0x23
+        LOADI R0, 1
+        STORE R0          ; memory[0xBF23] = 1
 
 Read keyboard input:
-    LOADI R6, 0xBF
-    LOADI R7, 0x00
-    LOAD  R0          ; R0 = KEYS_STATE
-    LOADI R1, 0x40    ; bit 6 = Up
-    AND   R0, R1      ; Check if Up is pressed
-    JZ    NOT_UP      ; Jump if Up not pressed
-    ; ... handle Up press ...
+        LOADI R6, 0xBF
+        LOADI R7, 0x00
+        LOAD  R0          ; R0 = KEYS_STATE
+        LOADI R1, 0x40    ; bit 6 = Up
+        AND   R0, R1      ; Check if Up is pressed
+        JZ    NOT_UP      ; Jump if Up not pressed
+        ; ... handle Up press ...
 
 Read button press (edge detection):
-    LOADI R6, 0xBF
-    LOADI R7, 0x01
-    LOAD  R0          ; R0 = KEYS_PRESSED (auto-clears on read)
-    LOADI R1, 0x04    ; bit 2 = A button
-    AND   R0, R1      ; Check if A was just pressed
-    JZ    NOT_A       ; Jump if A not pressed this frame
-    ; ... handle A press (fires once) ...
+        LOADI R6, 0xBF
+        LOADI R7, 0x01
+        LOAD  R0          ; R0 = KEYS_PRESSED (auto-clears on read)
+        LOADI R1, 0x04    ; bit 2 = A button
+        AND   R0, R1      ; Check if A was just pressed
+        JZ    NOT_A       ; Jump if A not pressed this frame
+        ; ... handle A press (fires once) ...
 
 Read mouse position and button:
-    LOADI R6, 0xBF
-    LOADI R7, 0x02
-    LOAD  R0          ; R0 = mouse X (0-127)
-    LOADI R7, 0x03
-    LOAD  R1          ; R1 = mouse Y (0-127)
-    LOADI R7, 0x04
-    LOAD  R2          ; R2 = mouse buttons
-    LOADI R3, 0x01    ; bit 0 = left button
-    AND   R2, R3
-    JZ    NOT_CLICKED ; Jump if not clicked
-    ; ... handle mouse click at (R0, R1) ...
+        LOADI R6, 0xBF
+        LOADI R7, 0x02
+        LOAD  R0          ; R0 = mouse X (0-127)
+        LOADI R7, 0x03
+        LOAD  R1          ; R1 = mouse Y (0-127)
+        LOADI R7, 0x04
+        LOAD  R2          ; R2 = mouse buttons
+        LOADI R3, 0x01    ; bit 0 = left button
+        AND   R2, R3
+        JZ    NOT_CLICKED ; Jump if not clicked
+        ; ... handle mouse click at (R0, R1) ...
 
 Compare two values and branch:
-    LOADI R0, 42
-    LOADI R1, 30
-    CMP   R0, R1      ; Compare R0 - R1, set Z and C flags
-    JZ    EQUAL       ; If Z=1: R0 == R1
-    JC    LESS        ; If C=1: R0 < R1 (borrow occurred)
-    ; Otherwise: R0 > R1 (fall through)
-
-GREATER:
-    LOADI R2, 100     ; R0 > R1
-    JMP   END
-
-LESS:
-    LOADI R2, 0       ; R0 < R1
-    JMP   END
-
-EQUAL:
-    LOADI R2, 50      ; R0 == R1
-    JMP   END
-
-END:
-    HALT
+        LOADI R0, 42
+        LOADI R1, 30
+        CMP   R0, R1      ; Compare R0 - R1, set Z and C flags
+        JZ    EQUAL       ; If Z=1: R0 == R1
+        JC    LESS        ; If C=1: R0 < R1 (borrow occurred)
+        ; Otherwise: R0 > R1 (fall through)
+    GREATER:
+        LOADI R2, 100     ; R0 > R1
+        JMP   END
+    LESS:
+        LOADI R2, 0       ; R0 < R1
+        JMP   END
+    EQUAL:
+        LOADI R2, 50      ; R0 == R1
+        JMP   END
+    END:
+        HALT
 
 Multi-byte addition using carry:
-    LOADI R0, 200     ; Low byte first value
-    LOADI R1, 100     ; Low byte second value
-    ADD   R0, R1      ; R0 = low byte result, sets C if overflow
-    JNC   NO_CARRY
-    ; Handle carry
-    LOADI R2, 1       ; High byte gets +1
-    JMP   DONE
-NO_CARRY:
-    LOADI R2, 0       ; High byte gets 0
-DONE:
-    ; R2:R0 now holds 16-bit result
+        LOADI R0, 200     ; Low byte first value
+        LOADI R1, 100     ; Low byte second value
+        ADD   R0, R1      ; R0 = low byte result, sets C if overflow
+        JNC   NO_CARRY
+        ; Handle carry
+        LOADI R2, 1       ; High byte gets +1
+        JMP   DONE
+    NO_CARRY:
+        LOADI R2, 0       ; High byte gets 0
+    DONE:
+        ; R2:R0 now holds 16-bit result
 
 Multi-byte addition using ADC (cleaner):
-    ; Add two 16-bit numbers: R6:R7 = 0x01FF, R0:R1 = 0x0002
-    LOADI R6, 0x01    ; High byte first value
-    LOADI R7, 0xFF    ; Low byte first value
-    LOADI R0, 0x00    ; High byte second value
-    LOADI R1, 0x02    ; Low byte second value
-    ADD   R7, R1      ; Add low bytes, sets C if overflow
-    ADC   R6, R0      ; Add high bytes + carry
-    ; R6:R7 now holds 0x0201 (513)
+        ; Add two 16-bit numbers: R6:R7 = 0x01FF, R0:R1 = 0x0002
+        LOADI R6, 0x01    ; High byte first value
+        LOADI R7, 0xFF    ; Low byte first value
+        LOADI R0, 0x00    ; High byte second value
+        LOADI R1, 0x02    ; Low byte second value
+        ADD   R7, R1      ; Add low bytes, sets C if overflow
+        ADC   R6, R0      ; Add high bytes + carry
+        ; R6:R7 now holds 0x0201 (513)
 
 Multi-byte subtraction using SBC:
-    ; Subtract two 16-bit numbers: R6:R7 = 0x0201, R0:R1 = 0x00FF
-    LOADI R6, 0x02    ; High byte first value
-    LOADI R7, 0x01    ; Low byte first value
-    LOADI R0, 0x00    ; High byte second value
-    LOADI R1, 0xFF    ; Low byte second value
-    SUB   R7, R1      ; Subtract low bytes, sets C if borrow
-    SBC   R6, R0      ; Subtract high bytes - borrow
-    ; R6:R7 now holds 0x0102 (258)
+        ; Subtract two 16-bit numbers: R6:R7 = 0x0201, R0:R1 = 0x00FF
+        LOADI R6, 0x02    ; High byte first value
+        LOADI R7, 0x01    ; Low byte first value
+        LOADI R0, 0x00    ; High byte second value
+        LOADI R1, 0xFF    ; Low byte second value
+        SUB   R7, R1      ; Subtract low bytes, sets C if borrow
+        SBC   R6, R0      ; Subtract high bytes - borrow
+        ; R6:R7 now holds 0x0102 (258)
 
 Call a subroutine:
-    LOADI R0, 5
-    LOADI R1, 3
-    CALL  ADD_FN      ; Call function at ADD_FN
-    HALT
-
-ADD_FN:
-    ADD   R0, R1      ; R0 = R0 + R1
-    RET               ; Return to caller
+        LOADI R0, 5
+        LOADI R1, 3
+        CALL  ADD_FN      ; Call function at ADD_FN
+        HALT
+    ADD_FN:
+        ADD   R0, R1      ; R0 = R0 + R1
+        RET               ; Return to caller
 
 Nested subroutine calls:
-    CALL  OUTER       ; Call outer function
-    HALT
-
-OUTER:
-    LOADI R0, 10
-    CALL  INNER       ; Nested call
-    RET
-
-INNER:
-    INC   R0          ; R0 = 11
-    RET
+        CALL  OUTER       ; Call outer function
+        HALT
+    OUTER:
+        LOADI R0, 10
+        CALL  INNER       ; Nested call
+        RET
+    INNER:
+        INC   R0          ; R0 = 11
+        RET
 
 Preserve registers in subroutine:
-    LOADI R0, 5
-    LOADI R1, 10
-    CALL  FUNC
-    ADD   R0, R1      ; R1 still = 10
-    HALT
-
-FUNC:
-    PUSH  R1          ; Save R1
-    LOADI R1, 99      ; Use R1 temporarily
-    ADD   R0, R1      ; R0 = 5 + 99 = 104
-    POP   R1          ; Restore R1 = 10
-    RET
+        LOADI R0, 5
+        LOADI R1, 10
+        CALL  FUNC
+        ADD   R0, R1      ; R1 still = 10
+        HALT
+    FUNC:
+        PUSH  R1          ; Save R1
+        LOADI R1, 99      ; Use R1 temporarily
+        ADD   R0, R1      ; R0 = 5 + 99 = 104
+        POP   R1          ; Restore R1 = 10
+        RET
 
 
 RESET
