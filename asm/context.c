@@ -45,11 +45,11 @@ Tiny16OpCode tiny16_asm_ctx_parse_mnemonic(Tiny16AsmContext* ctx, char* str, cha
 
 uint8_t tiny16_asm_ctx_parse_reg(Tiny16AsmContext* ctx, char* str, char** saveptr) {
     char* reg = strtok_r(str, token_separator, saveptr);
-    if (!reg) TINY16_ASM_ABORTF(ctx, "could not parse register: %s", reg);
+    if (!reg) TINY16_ASM_ABORT(ctx, "missing register arg");
     if (strlen(reg) != 2) TINY16_ASM_ABORTF(ctx, "invalid register: %s", reg);
+    reg[0] = toupper(reg[0]);
     if (reg[0] != 'R' || (reg[1] < '0' || reg[1] > '7'))
         TINY16_ASM_ABORTF(ctx, "register not found, %s", reg);
-
     return (uint8_t)(reg[1] - '0');
 }
 
