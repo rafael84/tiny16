@@ -1,0 +1,407 @@
+Exercise Solutions
+==================
+
+Try to solve them yourself first!
+
+
+LEVEL 1: BASIC OPERATIONS
+--------------------------
+
+Exercise 1: Double a Number
+
+    section .code
+
+    LOADI R0, 5      ; Load 5 into R0
+    ADD   R0, R0     ; R0 = R0 + R0 = 10
+    HALT
+
+
+Exercise 2: Triple a Number
+
+    section .code
+
+    LOADI R0, 7      ; Load 7 into R0
+    MOV   R1, R0     ; Copy R0 to R1 (R1 = 7)
+    ADD   R0, R0     ; R0 = R0 + R0 = 14
+    ADD   R0, R1     ; R0 = R0 + R1 = 21
+    HALT
+
+
+Exercise 3: Compute 2^3
+
+    section .code
+
+    LOADI R0, 1      ; Start with 1
+    SHL   R0         ; R0 = 2
+    SHL   R0         ; R0 = 4
+    SHL   R0         ; R0 = 8
+    HALT
+
+
+Exercise 4: Swap Two Registers
+
+    section .code
+
+    LOADI R0, 10     ; R0 = 10
+    LOADI R1, 20     ; R1 = 20
+    MOV   R2, R0     ; R2 = R0 = 10 (temp)
+    MOV   R0, R1     ; R0 = R1 = 20
+    MOV   R1, R2     ; R1 = R2 = 10
+    HALT
+
+
+Exercise 5: Clear a Register
+
+    section .code
+
+    LOADI R0, 42     ; Load any value
+    XOR   R0, R0     ; R0 = R0 XOR R0 = 0
+    HALT
+
+
+LEVEL 2: LOOPS & CONDITIONALS
+------------------------------
+
+Exercise 6: Count to 10
+
+    section .code
+
+    LOADI R0, 0      ; Counter starts at 0
+    LOADI R1, 10     ; Target value
+
+    loop:
+        INC   R0     ; Increment counter
+        SUB   R1, R0 ; Check if R1 - R0 == 0
+        JNZ   loop   ; Continue if not equal
+
+    HALT
+
+
+Exercise 7: Sum N Numbers (Sum 1+2+3+4+5)
+
+    section .code
+
+    LOADI R0, 0      ; Sum accumulator
+    LOADI R1, 1      ; Counter (start at 1)
+    LOADI R2, 5      ; N = 5 (sum from 1 to 5)
+
+    loop:
+        ADD   R0, R1     ; Add counter to sum
+        INC   R1         ; Increment counter
+        MOV   R3, R1     ; Copy counter
+        SUB   R3, R2     ; Check if counter > N
+        JZ    done       ; If equal to N+1, we're done
+        JMP   loop
+
+    done:
+        HALT             ; Result in R0 (should be 15)
+
+
+Exercise 8: Find Maximum (Find max of 10, 25, 15)
+
+    section .code
+
+    LOADI R0, 10     ; First number
+    LOADI R1, 25     ; Second number
+    LOADI R2, 15     ; Third number
+
+    ; Compare R0 and R1
+    MOV   R3, R1
+    SUB   R3, R0     ; R3 = R1 - R0
+    JC    r1_larger  ; If carry (R1 < R0), R0 is larger
+    MOV   R0, R1     ; Otherwise R1 is larger
+
+    r1_larger:
+    ; Compare R0 (current max) and R2
+    MOV   R3, R2
+    SUB   R3, R0     ; R3 = R2 - R0
+    JC    done       ; If carry (R2 < R0), R0 is max
+    MOV   R0, R2     ; Otherwise R2 is max
+
+    done:
+        HALT         ; Result in R0 (should be 25)
+
+
+Exercise 9: Factorial (Compute 5!)
+
+    section .code
+
+    LOADI R0, 5      ; N = 5
+    LOADI R1, 1      ; Result = 1
+    LOADI R2, 1      ; Counter = 1
+
+    loop:
+        MOV   R3, R2     ; Copy counter
+        SUB   R3, R0     ; Check if counter > N
+        JZ    done       ; If counter == N, we're done
+
+        INC   R2         ; Increment counter
+
+        ; Multiply R1 by R2
+        MOV   R3, R1     ; Save R1
+        LOADI R4, 0      ; Result accumulator
+        MOV   R5, R2     ; Copy R2 for loop count
+
+        mult_loop:
+            ADD   R4, R3     ; Add R1 to result
+            DEC   R5         ; Decrement counter
+            JNZ   mult_loop
+
+        MOV   R1, R4     ; Store result back in R1
+        JMP   loop
+
+    done:
+        MOV   R0, R1     ; Move result to R0
+        HALT             ; Result in R0 (should be 120)
+
+
+Exercise 10: Power Function (Compute 2^5)
+
+    section .code
+
+    LOADI R0, 2      ; Base = 2
+    LOADI R1, 5      ; Exponent = 5
+    LOADI R2, 1      ; Result = 1
+
+    loop:
+        ; Check if exponent is 0 (OR sets Z flag without changing value)
+        OR    R1, R1
+        JZ    done
+
+        ; Multiply R2 by R0
+        MOV   R3, R2     ; Save current result
+        LOADI R4, 0      ; Accumulator
+        MOV   R5, R0     ; Copy base for loop count
+
+        mult_loop:
+            ADD   R4, R3     ; Add R2 to result
+            DEC   R5         ; Decrement counter (sets Z flag)
+            JNZ   mult_loop
+
+        MOV   R2, R4     ; Store result back in R2
+        DEC   R1         ; Decrement exponent (sets Z flag)
+        JMP   loop
+
+    done:
+        MOV   R0, R2     ; Move result to R0
+        HALT             ; Result in R0 (should be 32)
+
+
+LEVEL 3: MEMORY & ARRAYS
+--------------------------
+
+Exercise 11: Array Sum (Sum array of 5 elements)
+
+    section .code
+
+    ; Array at 0x2000: [10, 20, 30, 40, 50]
+    LOADI R0, 0      ; Sum accumulator
+    LOADI R1, 5      ; Array length
+    LOADI R6, 0x20   ; Array address high
+    LOADI R7, 0x00   ; Array address low
+
+    loop:
+        LOAD  R2         ; Read array element
+        ADD   R0, R2     ; Add to sum
+        INC   R7         ; Next address
+        DEC   R1         ; Decrement counter
+        JNZ   loop
+
+    HALT                 ; Result in R0 (should be 150)
+
+    section .data
+
+    db 10, 20, 30, 40, 50
+
+
+Exercise 12: Array Copy (Copy 5 elements)
+
+    section .code
+
+    LOADI R0, 5      ; Array length
+    LOADI R6, 0x20   ; Source address high
+    LOADI R7, 0x00   ; Source address low
+    LOADI R4, 0x21   ; Dest address high
+    LOADI R5, 0x00   ; Dest address low
+
+    loop:
+        LOAD  R1         ; Read from source (R6:R7)
+        MOV   R6, R4     ; Switch to dest address
+        MOV   R7, R5
+        STORE R1         ; Write to dest
+
+        ; Restore source address and increment both
+        LOADI R6, 0x20
+        INC   R7
+        MOV   R4, R6
+        MOV   R5, R7
+        INC   R5
+
+        DEC   R0         ; Decrement counter
+        JNZ   loop
+
+    HALT
+
+    section .data
+
+    db 10, 20, 30, 40, 50
+
+
+Exercise 13: Find Element (Find 30 in array)
+
+    section .code
+
+    ; Array at 0x2000: [10, 20, 30, 40, 50]
+    LOADI R0, 0      ; Index counter
+    LOADI R1, 5      ; Array length
+    LOADI R2, 30     ; Search value
+    LOADI R6, 0x20   ; Array address high
+    LOADI R7, 0x00   ; Array address low
+
+    loop:
+        LOAD  R3         ; Read array element
+        MOV   R4, R3
+        SUB   R4, R2     ; Compare with search value
+        JZ    found      ; Found it!
+
+        INC   R7         ; Next address
+        INC   R0         ; Increment index
+        DEC   R1         ; Decrement counter
+        JNZ   loop
+
+        LOADI R0, 0xFF   ; Not found (-1)
+
+    found:
+        HALT             ; Result in R0 (index = 2)
+
+    section .data
+
+    db 10, 20, 30, 40, 50
+
+
+LEVEL 4: MMIO & HARDWARE
+-------------------------
+
+Exercise 14: Read Input State
+
+    section .code
+
+    LOADI R6, 0xBF   ; High byte of KEYS_STATE
+    LOADI R7, 0x00   ; Low byte
+    LOAD  R0         ; R0 = current key state
+    LOADI R1, 0x40   ; Mask for Up key (bit 6)
+    AND   R0, R1     ; Isolate Up bit
+    HALT
+
+
+Exercise 15: Read Mouse Position
+
+    section .code
+
+    LOADI R6, 0xBF   ; High byte of MMIO
+    LOADI R7, 0x02   ; MOUSE_X address
+    LOAD  R0         ; R0 = mouse X (0-127)
+    LOADI R7, 0x03   ; MOUSE_Y address
+    LOAD  R1         ; R1 = mouse Y (0-127)
+    HALT
+
+
+Exercise 16: Draw a Pixel
+
+    section .code
+
+    ; Address = 0xC000 + (10 << 7) + 10 = 0xC50A
+    LOADI R6, 0xC5   ; High byte
+    LOADI R7, 0x0A   ; Low byte
+    LOADI R0, 0xFF   ; White color
+    STORE R0         ; Draw pixel
+    HALT
+
+
+Exercise 17: Draw Horizontal Line
+
+    section .code
+
+    ; Start address = 0xC000 + (30 << 7) + 20 = 0xCF14
+    LOADI R6, 0xCF   ; High byte
+    LOADI R7, 0x14   ; Low byte
+    LOADI R0, 0xFF   ; White color
+    LOADI R1, 10     ; Pixel count
+
+    loop:
+        STORE R0     ; Draw pixel
+        INC   R7     ; Next X position
+        DEC   R1     ; Decrement counter
+        JNZ   loop   ; Continue if not done
+
+    HALT
+
+
+Exercise 18: Animated Pixel (Move pixel with arrow keys)
+
+    section .code
+
+    main_loop:
+        ; Read current position from memory or start at center
+        LOADI R6, 0x20   ; Storage address high
+        LOADI R7, 0x00   ; X position storage
+        LOAD  R0         ; Load current X (default 64)
+        LOADI R7, 0x01   ; Y position storage
+        LOAD  R1         ; Load current Y (default 64)
+
+        ; Read keyboard input
+        LOADI R6, 0xBF   ; MMIO base
+        LOADI R7, 0x00   ; KEYS_STATE
+        LOAD  R2         ; R2 = key state
+
+        ; Check Right key (bit 4)
+        MOV   R3, R2
+        LOADI R4, 0x10
+        AND   R3, R4
+        JZ    check_left
+        INC   R0         ; Move right
+
+    check_left:
+        MOV   R3, R2
+        LOADI R4, 0x20
+        AND   R3, R4
+        JZ    check_down
+        DEC   R0         ; Move left
+
+    check_down:
+        MOV   R3, R2
+        LOADI R4, 0x80
+        AND   R3, R4
+        JZ    check_up
+        INC   R1         ; Move down
+
+    check_up:
+        MOV   R3, R2
+        LOADI R4, 0x40
+        AND   R3, R4
+        JZ    draw
+        DEC   R1         ; Move up
+
+    draw:
+        ; Calculate framebuffer address: 0xC000 + (Y << 7) + X
+        ; Simplified: use current position
+        LOADI R6, 0xC0
+        MOV   R7, R0
+        LOADI R4, 0xFF   ; White color
+        STORE R4         ; Draw pixel
+
+        ; Save position
+        LOADI R6, 0x20
+        LOADI R7, 0x00
+        STORE R0         ; Save X
+        LOADI R7, 0x01
+        STORE R1         ; Save Y
+
+        JMP   main_loop  ; Infinite loop
+
+    section .data
+
+    db 64, 64            ; Initial X, Y position (center)
+
+
+All exercises complete! Keep practicing and exploring the Tiny16 ISA!
