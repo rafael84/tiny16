@@ -9,24 +9,18 @@
 
 void tiny16_asm_str_strip_comment(char* str) {
     char* cut = strchr(str, ';');
-    if (cut) {
-        *cut = '\0';
-    }
+    if (cut) *cut = '\0';
 }
 
 void tiny16_asm_str_trim_left(char* str) {
     char* start = str;
-    while (isspace((unsigned char)*start)) {
+    while (isspace((unsigned char)*start))
         start++;
-    }
-    if (start != str) {
-        memmove(str, start, strlen(start) + 1);
-    }
+    if (start != str) memmove(str, start, strlen(start) + 1);
 }
 
 void tiny16_asm_str_trim_right(char* str) {
-    if (*str == '\0')
-        return;
+    if (*str == '\0') return;
     char* end = str + strlen(str) - 1;
     while (end > str && isspace((unsigned char)*end))
         end--;
@@ -45,17 +39,12 @@ bool tiny16_asm_is_valid_label_prefix(char* str) {
 int tiny16_asm_label_length(char* str) {
     int len = strlen(str);
     int i;
-    if (!(tiny16_asm_is_valid_label_prefix(str))) {
-        return 0;
-    }
+    if (!(tiny16_asm_is_valid_label_prefix(str))) return 0;
     for (i = 1; i < len; ++i) {
         bool valid = isalpha(str[i]) || isdigit(str[i]) || str[i] == '.' || str[i] == '_';
-        if (!valid)
-            break;
+        if (!valid) break;
     }
-    if (i > 0 && i < len && str[i] == ':') {
-        return i + 1;
-    }
+    if (i > 0 && i < len && str[i] == ':') return i + 1;
     return 0;
 }
 
@@ -65,10 +54,8 @@ tiny16_asm_section_t tiny16_asm_section(char* str) {
         while (*str && isspace((unsigned char)*str))
             str++;
         if (*str != '\0') {
-            if (strncmp(str, ".code", 5) == 0)
-                return SECTION_CODE;
-            if (strncmp(str, ".data", 5) == 0)
-                return SECTION_DATA;
+            if (strncmp(str, ".code", 5) == 0) return SECTION_CODE;
+            if (strncmp(str, ".data", 5) == 0) return SECTION_DATA;
         }
     }
     return SECTION_UNKNOWN;
@@ -86,14 +73,16 @@ long tiny16_asm_str_to_long(const char* str) {
             str += 2;
             base = 16;
             break;
-        case '\0': break;
-        default: errno = EINVAL; return 0;
+        case '\0':
+            break;
+        default:
+            errno = EINVAL;
+            return 0;
         }
     }
     errno = 0;
     long val = strtol(str, NULL, base);
-    if (errno)
-        return 0;
+    if (errno) return 0;
     return val;
 }
 

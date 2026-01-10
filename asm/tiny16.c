@@ -71,8 +71,7 @@ int main(int argc, char** argv) {
         ctx.source_line = buffer;
         tiny16_asm_str_strip_comment(ctx.source_line);
         tiny16_asm_str_trim_left(ctx.source_line);
-        if (strlen(ctx.source_line) == 0)
-            continue;
+        if (strlen(ctx.source_line) == 0) continue;
 
         tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
         if (section != SECTION_UNKNOWN) {
@@ -90,18 +89,21 @@ int main(int argc, char** argv) {
             char tmp[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
             strncpy(tmp, ctx.source_line, label_length - 1);
             tmp[label_length - 1] = '\0';
-            if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND) {
+            if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND)
                 TINY16_ASM_ABORTF(&ctx, "duplicated label: %s", tmp);
-            }
 
-            if (ctx.label_count >= TINY16_ASM_MAX_LABELS) {
-                TINY16_ASM_ABORT(&ctx, "too many labels");
-            }
+            if (ctx.label_count >= TINY16_ASM_MAX_LABELS) TINY16_ASM_ABORT(&ctx, "too many labels");
 
             switch (ctx.current_section) {
-            case SECTION_CODE: ctx.labels[ctx.label_count].addr = ctx.code_pc; break;
-            case SECTION_DATA: ctx.labels[ctx.label_count].addr = ctx.data_pc; break;
-            default: assert(0 && "unreachable"); break;
+            case SECTION_CODE:
+                ctx.labels[ctx.label_count].addr = ctx.code_pc;
+                break;
+            case SECTION_DATA:
+                ctx.labels[ctx.label_count].addr = ctx.data_pc;
+                break;
+            default:
+                assert(0 && "unreachable");
+                break;
             }
 
             strncpy(ctx.labels[ctx.label_count].name, ctx.source_line, label_length - 1);
@@ -110,18 +112,19 @@ int main(int argc, char** argv) {
 
             ctx.source_line += label_length;
             tiny16_asm_str_trim_left(ctx.source_line);
-            if (strlen(ctx.source_line) == 0)
-                continue;
+            if (strlen(ctx.source_line) == 0) continue;
         }
 
         switch (ctx.current_section) {
-        case SECTION_UNKNOWN: assert(0 && "unreachable"); break;
-        case SECTION_CODE: ctx.code_pc += 3; break;
+        case SECTION_UNKNOWN:
+            assert(0 && "unreachable");
+            break;
+        case SECTION_CODE:
+            ctx.code_pc += 3;
+            break;
         case SECTION_DATA: {
             char *rest, *mnemonic = strtok_r(ctx.source_line, " ", &rest);
-            if (!mnemonic) {
-                TINY16_ASM_ABORTF(&ctx, "could not parse instruction: %s", mnemonic);
-            }
+            if (!mnemonic) TINY16_ASM_ABORTF(&ctx, "could not parse instruction: %s", mnemonic);
             ctx.source_line = rest;
             if (strncasecmp(mnemonic, "DB", 2) == 0) {
                 tiny16_asm_str_trim_left(ctx.source_line);
@@ -150,8 +153,7 @@ int main(int argc, char** argv) {
         ctx.source_line = buffer;
         tiny16_asm_str_strip_comment(ctx.source_line);
         tiny16_asm_str_trim_left(ctx.source_line);
-        if (strlen(ctx.source_line) == 0)
-            continue;
+        if (strlen(ctx.source_line) == 0) continue;
 
         tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
         if (section != SECTION_UNKNOWN) {
@@ -163,25 +165,24 @@ int main(int argc, char** argv) {
         if (label_length > 0) {
             ctx.source_line += label_length;
             tiny16_asm_str_trim_left(ctx.source_line);
-            if (strlen(ctx.source_line) == 0)
-                continue;
+            if (strlen(ctx.source_line) == 0) continue;
         }
         tiny16_asm_str_trim_right(ctx.source_line);
 
         switch (ctx.current_section) {
-        case SECTION_UNKNOWN: assert(0 && "unreachable"); break;
+        case SECTION_UNKNOWN:
+            assert(0 && "unreachable");
+            break;
         case SECTION_CODE: {
             tiny16_asm_ctx_emit_code(&ctx);
-            if (ctx.current_section == SECTION_CODE) {
-                ctx.code_pc += 3;
-            }
+            if (ctx.current_section == SECTION_CODE) ctx.code_pc += 3;
         }; break;
-        case SECTION_DATA: break; // ignore, already parsed in pass 1
+        case SECTION_DATA:
+            break; // ignore, already parsed in pass 1
         }
     }
 
-    if (ctx.data_size > 0)
-        tiny16_asm_ctx_emit_data(&ctx);
+    if (ctx.data_size > 0) tiny16_asm_ctx_emit_data(&ctx);
 
     fclose(ctx.source_file);
     if (errno) {

@@ -9,7 +9,7 @@
 #include "memory.h"
 
 #define TINY16_ASM_MAX_LABEL_NAME_LENGTH 256
-#define TINY16_ASM_MAX_LABELS 4096
+#define TINY16_ASM_MAX_LABELS            4096
 
 typedef struct {
     char name[TINY16_ASM_MAX_LABEL_NAME_LENGTH];

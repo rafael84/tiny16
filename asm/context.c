@@ -26,8 +26,7 @@
 
 uint16_t tiny16_asm_ctx_label_addr(Tiny16AsmContext* ctx, char* name) {
     for (int i = 0; i < ctx->label_count; ++i) {
-        if (strcmp(ctx->labels[i].name, name) == 0)
-            return ctx->labels[i].addr;
+        if (strcmp(ctx->labels[i].name, name) == 0) return ctx->labels[i].addr;
     }
     return TINY16_ASM_LABEL_NOT_FOUND;
 }
@@ -36,64 +35,47 @@ static char* token_separator = ", \t";
 
 Tiny16OpCode tiny16_asm_ctx_parse_mnemonic(Tiny16AsmContext* ctx, char* str, char** saveptr) {
     char* mnemonic = strtok_r(str, token_separator, saveptr);
-    if (!mnemonic) {
-        TINY16_ASM_ABORTF(ctx, "could not parse mnemonic: %s", mnemonic);
-    }
+    if (!mnemonic) TINY16_ASM_ABORTF(ctx, "could not parse mnemonic: %s", mnemonic);
+
     Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
-    if (opcode == TINY16_OPCODE_UNKNOWN) {
-        TINY16_ASM_ABORTF(ctx, "unknown mnemonic: %s", mnemonic);
-    }
+    if (opcode == TINY16_OPCODE_UNKNOWN) TINY16_ASM_ABORTF(ctx, "unknown mnemonic: %s", mnemonic);
+
     return opcode;
 }
 
 uint8_t tiny16_asm_ctx_parse_reg(Tiny16AsmContext* ctx, char* str, char** saveptr) {
     char* reg = strtok_r(str, token_separator, saveptr);
-    if (!reg) {
-        TINY16_ASM_ABORTF(ctx, "could not parse register: %s", reg);
-    }
-    if (strlen(reg) != 2) {
-        TINY16_ASM_ABORTF(ctx, "invalid register: %s", reg);
-    }
-    if (reg[0] != 'R' || (reg[1] < '0' || reg[1] > '7')) {
+    if (!reg) TINY16_ASM_ABORTF(ctx, "could not parse register: %s", reg);
+    if (strlen(reg) != 2) TINY16_ASM_ABORTF(ctx, "invalid register: %s", reg);
+    if (reg[0] != 'R' || (reg[1] < '0' || reg[1] > '7'))
         TINY16_ASM_ABORTF(ctx, "register not found, %s", reg);
-    }
+
     return (uint8_t)(reg[1] - '0');
 }
 
 uint16_t tiny16_asm_ctx_parse_imm(Tiny16AsmContext* ctx, char* str, char** saveptr) {
     char* imm = strtok_r(str, token_separator, saveptr);
-    if (!imm) {
-        TINY16_ASM_ABORTF(ctx, "immediate expected, found: %s", imm);
-    }
+    if (!imm) TINY16_ASM_ABORTF(ctx, "immediate expected, found: %s", imm);
     if (isalpha(*imm)) {
         uint16_t addr = tiny16_asm_ctx_label_addr(ctx, imm);
-        if (addr == TINY16_ASM_LABEL_NOT_FOUND) {
-            TINY16_ASM_ABORTF(ctx, "label %s not found", imm);
-        }
+        if (addr == TINY16_ASM_LABEL_NOT_FOUND) TINY16_ASM_ABORTF(ctx, "label %s not found", imm);
         return addr;
     }
     long val = tiny16_asm_str_to_long(imm);
-    if (errno) {
-        TINY16_ASM_ABORTF(ctx, "invalid immediate: %s", imm);
-    }
-    if (val < 0 || val > UINT16_MAX) {
-        TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %ld", val);
-    }
+    if (errno) TINY16_ASM_ABORTF(ctx, "invalid immediate: %s", imm);
+    if (val < 0 || val > UINT16_MAX) TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %ld", val);
     return (uint16_t)val;
 }
 
 uint8_t tiny16_asm_ctx_parse_imm8(Tiny16AsmContext* ctx, char* str, char** saveptr) {
     uint16_t imm = tiny16_asm_ctx_parse_imm(ctx, str, saveptr);
-    if (imm > UINT8_MAX) {
-        TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %" PRIu16, imm);
-    }
+    if (imm > UINT8_MAX) TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %" PRIu16, imm);
     return (uint8_t)imm;
 }
 
 void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx) {
-    if ((ctx->output_file_size + 3) > TINY16_MEMORY_CODE_END) {
+    if ((ctx->output_file_size + 3) > TINY16_MEMORY_CODE_END)
         TINY16_ASM_ABORT(ctx, "max program size is 64KB"); // TODO review this
-    }
 
     char* saveptr;
     Tiny16OpCode opcode = tiny16_asm_ctx_parse_mnemonic(ctx, ctx->source_line, &saveptr);
@@ -132,6 +114,8 @@ void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx) {
     case TINY16_OPCODE_JMP:
     case TINY16_OPCODE_JZ:
     case TINY16_OPCODE_JNZ:
+    case TINY16_OPCODE_JC:
+    case TINY16_OPCODE_JNC:
     case TINY16_OPCODE_CALL: {
         uint16_t addr = tiny16_asm_ctx_parse_imm(ctx, NULL, &saveptr);
         bytes[1] = (addr >> 8) & 0xFF;
@@ -144,12 +128,12 @@ void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx) {
         bytes[2] = 0;
         break;
 
-    case TINY16_OPCODE_UNKNOWN: return;
+    case TINY16_OPCODE_UNKNOWN:
+        return;
     }
 
-    if (strtok_r(NULL, token_separator, &saveptr) != NULL) {
+    if (strtok_r(NULL, token_separator, &saveptr) != NULL)
         TINY16_ASM_ABORT(ctx, "too many operands");
-    }
 
     size_t n = fwrite(bytes, 1, 3, ctx->output_file);
     if (n != 3) {
@@ -166,8 +150,7 @@ void tiny16_asm_ctx_parse_db(Tiny16AsmContext* ctx) {
         while (*ctx->source_line && (isspace(*ctx->source_line) || *ctx->source_line == ',')) {
             ctx->source_line++;
         }
-        if (!*ctx->source_line)
-            break;
+        if (!*ctx->source_line) break;
 
         // parse quoted string
         if (*ctx->source_line == '"') {
@@ -179,13 +162,27 @@ void tiny16_asm_ctx_parse_db(Tiny16AsmContext* ctx) {
                         // Process escape sequences
                         char escaped;
                         switch (*ctx->source_line) {
-                        case 'n': escaped = '\n'; break;
-                        case 't': escaped = '\t'; break;
-                        case 'r': escaped = '\r'; break;
-                        case '\\': escaped = '\\'; break;
-                        case '"': escaped = '"'; break;
-                        case '0': escaped = '\0'; break;
-                        default: escaped = *ctx->source_line; break;
+                        case 'n':
+                            escaped = '\n';
+                            break;
+                        case 't':
+                            escaped = '\t';
+                            break;
+                        case 'r':
+                            escaped = '\r';
+                            break;
+                        case '\\':
+                            escaped = '\\';
+                            break;
+                        case '"':
+                            escaped = '"';
+                            break;
+                        case '0':
+                            escaped = '\0';
+                            break;
+                        default:
+                            escaped = *ctx->source_line;
+                            break;
                         }
                         ctx->data_buffer[ctx->data_size++] = escaped;
                         ctx->source_line++;

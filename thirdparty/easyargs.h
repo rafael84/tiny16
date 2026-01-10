@@ -100,7 +100,7 @@ static const int BOOLEAN_ARG_COUNT = 0;
 // ARG_T STRUCT
 #define REQUIRED_ARG(type, name, ...) type name;
 #define OPTIONAL_ARG(type, name, ...) type name;
-#define BOOLEAN_ARG(name, ...) _Bool name;
+#define BOOLEAN_ARG(name, ...)        _Bool name;
 // Stores argument values
 typedef struct {
 #ifdef REQUIRED_ARGS
@@ -120,9 +120,9 @@ typedef struct {
 // Build an args_t struct with assigned default values
 static inline args_t make_default_args(void) {
     args_t args = {
-#define REQUIRED_ARG(type, name, ...) .name = (type)0,
+#define REQUIRED_ARG(type, name, ...)          .name = (type)0,
 #define OPTIONAL_ARG(type, name, default, ...) .name = default,
-#define BOOLEAN_ARG(name, ...) .name = 0,
+#define BOOLEAN_ARG(name, ...)                 .name = 0,
 
 #ifdef REQUIRED_ARGS
         REQUIRED_ARGS
@@ -243,8 +243,7 @@ static inline void print_help(char* exec_alias) {
 #define REQUIRED_ARG(type, name, label, ...)                                                       \
     {                                                                                              \
         int len = strlen(label) + 2;                                                               \
-        if (len > max_width)                                                                       \
-            max_width = len;                                                                       \
+        if (len > max_width) max_width = len;                                                      \
     }
     REQUIRED_ARGS
 #undef REQUIRED_ARG
@@ -254,8 +253,7 @@ static inline void print_help(char* exec_alias) {
 #define OPTIONAL_ARG(type, name, default, flag, label, ...)                                        \
     {                                                                                              \
         int len = strlen(flag) + 1 + strlen(label) + 2;                                            \
-        if (len > max_width)                                                                       \
-            max_width = len;                                                                       \
+        if (len > max_width) max_width = len;                                                      \
     }
     OPTIONAL_ARGS
 #undef OPTIONAL_ARG
@@ -265,8 +263,7 @@ static inline void print_help(char* exec_alias) {
 #define BOOLEAN_ARG(name, flag, ...)                                                               \
     {                                                                                              \
         int len = strlen(flag);                                                                    \
-        if (len > max_width)                                                                       \
-            max_width = len;                                                                       \
+        if (len > max_width) max_width = len;                                                      \
     }
     BOOLEAN_ARGS
 #undef BOOLEAN_ARG

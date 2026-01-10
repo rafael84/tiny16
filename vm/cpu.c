@@ -126,12 +126,16 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         case TINY16_OPCODE_JMP:
         case TINY16_OPCODE_JZ:
         case TINY16_OPCODE_JNZ:
+        case TINY16_OPCODE_JC:
+        case TINY16_OPCODE_JNC:
         case TINY16_OPCODE_CALL:
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "0x%04X",
                      ((arg1 << 8) | arg2));
             break;
         case TINY16_OPCODE_RET:
-        case TINY16_OPCODE_HALT: tiny16_cpu_trace_buffer[0] = '\0'; break;
+        case TINY16_OPCODE_HALT:
+            tiny16_cpu_trace_buffer[0] = '\0';
+            break;
         default:
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, R%d", arg1, arg2);
         }
@@ -145,9 +149,17 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
     uint8_t arg2 = memory->bytes[cpu->pc++];
 
     switch (opcode) {
-    case TINY16_OPCODE_LOADI: cpu->R[arg1] = arg2; break;
+    case TINY16_OPCODE_LOADI:
+        cpu->R[arg1] = arg2;
+        break;
 
-    case TINY16_OPCODE_LOAD: cpu->R[arg1] = memory->bytes[tiny16_cpu_addr16(cpu)]; break;
+    case TINY16_OPCODE_LOAD: {
+        uint16_t addr = tiny16_cpu_addr16(cpu);
+        cpu->R[arg1] = memory->bytes[addr];
+        if (addr == TINY16_MMIO_KEYS_PRESSED) {
+            memory->bytes[TINY16_MMIO_KEYS_PRESSED] = 0;
+        }
+    }; break;
 
     case TINY16_OPCODE_STORE: {
         uint16_t addr = tiny16_cpu_addr16(cpu);
@@ -159,7 +171,9 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         memory->bytes[addr] = cpu->R[arg1];
     } break;
 
-    case TINY16_OPCODE_MOV: cpu->R[arg1] = cpu->R[arg2]; break;
+    case TINY16_OPCODE_MOV:
+        cpu->R[arg1] = cpu->R[arg2];
+        break;
 
     case TINY16_OPCODE_ADD: {
         uint16_t a = cpu->R[arg1];
@@ -221,11 +235,17 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
         break;
 
-    case TINY16_OPCODE_PUSH: TINY16_CPU_PUSH(cpu, memory, cpu->R[arg1]); break;
+    case TINY16_OPCODE_PUSH:
+        TINY16_CPU_PUSH(cpu, memory, cpu->R[arg1]);
+        break;
 
-    case TINY16_OPCODE_POP: TINY16_CPU_POP(cpu, memory, cpu->R[arg1]); break;
+    case TINY16_OPCODE_POP:
+        TINY16_CPU_POP(cpu, memory, cpu->R[arg1]);
+        break;
 
-    case TINY16_OPCODE_JMP: cpu->pc = ((uint16_t)arg1 << 8) | arg2; break;
+    case TINY16_OPCODE_JMP:
+        cpu->pc = ((uint16_t)arg1 << 8) | arg2;
+        break;
 
     case TINY16_OPCODE_JZ:
         if (cpu->flags & (1u << TINY16_CPU_FLAG_Z)) {
@@ -235,6 +255,18 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
 
     case TINY16_OPCODE_JNZ:
         if (!(cpu->flags & (1u << TINY16_CPU_FLAG_Z))) {
+            cpu->pc = ((uint16_t)arg1 << 8) | arg2;
+        }
+        break;
+
+    case TINY16_OPCODE_JC:
+        if (cpu->flags & (1u << TINY16_CPU_FLAG_C)) {
+            cpu->pc = ((uint16_t)arg1 << 8) | arg2;
+        }
+        break;
+
+    case TINY16_OPCODE_JNC:
+        if (!(cpu->flags & (1u << TINY16_CPU_FLAG_C))) {
             cpu->pc = ((uint16_t)arg1 << 8) | arg2;
         }
         break;
@@ -251,9 +283,13 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t step) {
         cpu->pc = ret;
     } break;
 
-    case TINY16_OPCODE_HALT: return false; break;
+    case TINY16_OPCODE_HALT:
+        return false;
+        break;
 
-    default: fprintf(stderr, "[CRITICAL] Opcode not found: %X\n", opcode); return false;
+    default:
+        fprintf(stderr, "[CRITICAL] Opcode not found: %X\n", opcode);
+        return false;
     }
 
     if (tiny16_cpu_tracing) {

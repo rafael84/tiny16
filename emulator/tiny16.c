@@ -11,10 +11,10 @@
 #include "memory.c"
 #include "memory.h"
 
-#define TINY16_EMU_PIXEL_WIDTH TINY16_FRAMEBUFFER_SIZE_WIDTH
+#define TINY16_EMU_PIXEL_WIDTH  TINY16_FRAMEBUFFER_SIZE_WIDTH
 #define TINY16_EMU_PIXEL_HEIGHT TINY16_FRAMEBUFFER_SIZE_HEIGHT
 
-#define TINY16_EMU_SCREEN_WIDTH (TINY16_EMU_PIXEL_WIDTH * 8)
+#define TINY16_EMU_SCREEN_WIDTH  (TINY16_EMU_PIXEL_WIDTH * 8)
 #define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
 
 #define TINY16_EMU_TARGET_IPS (60.0f * 100000)
@@ -101,6 +101,48 @@ void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer) {
     UpdateTexture(*texture, pixels);
 }
 
+void tiny16_emu_update_input(Tiny16Memory* memory) {
+    static uint8_t prev_keys = 0;
+    uint8_t keys = 0;
+
+    // keyboard: Down, Up, Left, Right, B, A, Start, Select
+    if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S)) keys |= 0x80;  // bit 7
+    if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W)) keys |= 0x40;    // bit 6
+    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) keys |= 0x20;  // bit 5
+    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) keys |= 0x10; // bit 4
+    if (IsKeyDown(KEY_X) || IsKeyDown(KEY_K)) keys |= 0x08;     // bit 3
+    if (IsKeyDown(KEY_C) || IsKeyDown(KEY_J)) keys |= 0x04;     // bit 2
+    if (IsKeyDown(KEY_ENTER)) keys |= 0x02;                     // bit 1
+    if (IsKeyDown(KEY_SPACE)) keys |= 0x01;                     // bit 0
+    memory->bytes[TINY16_MMIO_KEYS_STATE] = keys;
+
+    uint8_t pressed = keys & ~prev_keys;                // edge detection
+    memory->bytes[TINY16_MMIO_KEYS_PRESSED] |= pressed; // cleared on read
+    prev_keys = keys;
+
+    // mouse pos: clamp and scale to framebuffer coords (0-127)
+    Vector2 mouse_pos = GetMousePosition();
+
+    // Clamp to window bounds
+    if (mouse_pos.x < 0) mouse_pos.x = 0;
+    if (mouse_pos.x >= TINY16_EMU_SCREEN_WIDTH) mouse_pos.x = TINY16_EMU_SCREEN_WIDTH - 1;
+    if (mouse_pos.y < 0) mouse_pos.y = 0;
+    if (mouse_pos.y >= TINY16_EMU_SCREEN_HEIGHT) mouse_pos.y = TINY16_EMU_SCREEN_HEIGHT - 1;
+
+    // Scale to framebuffer coordinates
+    memory->bytes[TINY16_MMIO_MOUSE_X] =
+        (uint8_t)((mouse_pos.x / TINY16_EMU_SCREEN_WIDTH) * (TINY16_FRAMEBUFFER_SIZE_WIDTH - 1));
+    memory->bytes[TINY16_MMIO_MOUSE_Y] =
+        (uint8_t)((mouse_pos.y / TINY16_EMU_SCREEN_HEIGHT) * (TINY16_FRAMEBUFFER_SIZE_HEIGHT - 1));
+
+    // mouse buttons
+    uint8_t mouse_buttons = 0;
+    if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) mouse_buttons |= 0x1;
+    if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON)) mouse_buttons |= 0x2;
+    if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) mouse_buttons |= 0x4;
+    memory->bytes[TINY16_MMIO_MOUSE_BUTTONS] = mouse_buttons;
+}
+
 int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
@@ -117,8 +159,7 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
     bool paused = false;
     while (!WindowShouldClose()) {
 
-        if (IsKeyPressed(KEY_ESCAPE))
-            break;
+        if (IsKeyPressed(KEY_ESCAPE)) break;
 
         if (IsKeyPressed(KEY_P)) {
             paused = !paused;
@@ -132,6 +173,8 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
             memory->bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
             memory->bytes[TINY16_MMIO_VSYNC] = 0;
 
+            tiny16_emu_update_input(memory);
+
             for (uint32_t step = 0; step < instr_this_frame; ++step) {
                 memory->bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
                 memory->bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
@@ -139,8 +182,7 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
                     memcpy(back_buffer, &memory->bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
                     memory->bytes[TINY16_MMIO_VSYNC] = 0;
                 }
-                if (!tiny16_cpu_step(cpu, memory, step))
-                    return EXIT_FAILURE;
+                if (!tiny16_cpu_step(cpu, memory, step)) return EXIT_FAILURE;
                 tick_counter++;
             }
             frame_counter++;

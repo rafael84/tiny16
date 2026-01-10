@@ -44,6 +44,10 @@ void tiny16_test_call_ret_basic(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_call_ret_with_args(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_call_ret_nested(Tiny16CPU* cpu, Tiny16Memory* memory);
 void tiny16_test_call_ret_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_jc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_jc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_jnc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
+void tiny16_test_jnc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory);
 
 #define TINY16_TEST(fn)                                                                            \
     do {                                                                                           \
@@ -88,6 +92,10 @@ int main(void) {
     TINY16_TEST(tiny16_test_call_ret_with_args);
     TINY16_TEST(tiny16_test_call_ret_nested);
     TINY16_TEST(tiny16_test_call_ret_preserves_registers);
+    TINY16_TEST(tiny16_test_jc_with_carry);
+    TINY16_TEST(tiny16_test_jc_without_carry);
+    TINY16_TEST(tiny16_test_jnc_with_carry);
+    TINY16_TEST(tiny16_test_jnc_without_carry);
     return 0;
 }
 
@@ -595,4 +603,70 @@ void tiny16_test_call_ret_preserves_registers(Tiny16CPU* cpu, Tiny16Memory* memo
     );
     assert(cpu->R[0] == 129); // 10 + 99 (in subroutine) + 20 (after return) = 129
     assert(cpu->R[1] == 20);  // R1 should be preserved
+}
+
+void tiny16_test_jc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test JC jumps when carry is set (ADD overflow)
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 200);        // R0 = 200
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100);        // R1 = 100
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);            // R0 = 44, C = 1 (overflow)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JC, 0x00, ADDR16(5));  // should jump (C = 1)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);         // should NOT execute
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // R2 = 42 (after jump)
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+    );
+    assert(cpu->R[0] == 44);  // 200 + 100 = 300 & 0xFF = 44
+    assert(cpu->R[2] == 42);  // Should have jumped, so R2 = 42, not 99
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_jc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test JC does not jump when carry is clear
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 50);         // R0 = 50
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 30);         // R1 = 30
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);            // R0 = 80, C = 0 (no overflow)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JC, 0x00, ADDR16(6));  // should NOT jump (C = 0)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);         // should execute
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(7)); // skip over error code
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
+        /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+    );
+    assert(cpu->R[0] == 80);  // 50 + 30 = 80
+    assert(cpu->R[2] == 99);  // Should NOT have jumped, so R2 = 99
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_jnc_with_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test JNC does not jump when carry is set
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 200);        // R0 = 200
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100);        // R1 = 100
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);            // R0 = 44, C = 1 (overflow)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JNC, 0x00, ADDR16(6)); // should NOT jump (C = 1)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);         // should execute
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(7)); // skip over error code
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
+        /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+    );
+    assert(cpu->R[0] == 44);  // 200 + 100 = 300 & 0xFF = 44
+    assert(cpu->R[2] == 99);  // Should NOT have jumped, so R2 = 99
+    assert(TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
+}
+
+void tiny16_test_jnc_without_carry(Tiny16CPU* cpu, Tiny16Memory* memory) {
+    // Test JNC jumps when carry is clear
+    TINY16_TEST_RUN(
+        /* 0 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 50);         // R0 = 50
+        /* 1 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 30);         // R1 = 30
+        /* 2 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);            // R0 = 80, C = 0 (no overflow)
+        /* 3 */ TINY16_ASM(TINY16_OPCODE_JNC, 0x00, ADDR16(5)); // should jump (C = 0)
+        /* 4 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 99);         // should NOT execute
+        /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // R2 = 42 (after jump)
+        /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
+    );
+    assert(cpu->R[0] == 80);  // 50 + 30 = 80
+    assert(cpu->R[2] == 42);  // Should have jumped, so R2 = 42, not 99
+    assert(!TINY16_CPU_FLAG(cpu, TINY16_CPU_FLAG_C));
 }

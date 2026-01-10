@@ -26,7 +26,9 @@ bool tiny16_cpu_exec(Tiny16CPU* cpu, Tiny16Memory* memory, uint64_t max_steps);
 
 #define TINY16_CPU_FLAG_Z 0
 #define TINY16_CPU_FLAG_C 1
+
 #define TINY16_CPU_FLAG(cpu, f) ((cpu)->flags & (1u << (f)))
+
 #define TINY16_CPU_SET_FLAG(cpu, flag, cond)                                                       \
     do {                                                                                           \
         if (cond) {                                                                                \

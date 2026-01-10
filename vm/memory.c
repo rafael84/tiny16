@@ -11,9 +11,7 @@
 
 void tiny16_memory_print_byte(const Tiny16Memory* memory, int addr) {
     uint8_t byte = memory->bytes[addr];
-    if (byte == 0) {
-        return;
-    }
+    if (byte == 0) return;
     printf("        0x%04X | 0b" TINY16_BIN8_FMT " | 0x%02X | %d\n", addr, TINY16_BIN8(byte), byte,
            byte);
 }
@@ -58,10 +56,8 @@ void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer) {
                 uint8_t b = (pixel & 0x03) * 255 / 3;
                 float lum = ((0.2126f * r) + (0.7152f * g) + (0.0722f * b)) / 255.0f;
                 int idx = (int)(lum * max_idx + 0.5f);
-                if (idx < 0)
-                    idx = 0;
-                if (idx > max_idx)
-                    idx = max_idx;
+                if (idx < 0) idx = 0;
+                if (idx > max_idx) idx = max_idx;
                 putchar(pixel_map[idx]);
                 putchar(pixel_map[idx]);
             }

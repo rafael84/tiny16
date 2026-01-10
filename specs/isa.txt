@@ -140,6 +140,16 @@ INSTRUCTIONS
 
       Jump to address if zero flag is clear.
 
+0x33  JC addr16
+      if C == 1: PC = addr16
+
+      Jump to address if carry flag is set.
+
+0x34  JNC addr16
+      if C == 0: PC = addr16
+
+      Jump to address if carry flag is clear.
+
 0x40  CALL addr16
       PUSH16(PC); PC = addr16
 
@@ -170,12 +180,17 @@ MMIO
 
 MMIO Control Registers (0xBF00-0xBFFF):
 
-TODO: Input (0xBF00-0xBF0F):
+Input (0xBF00-0xBF0F):
 - 0xBF00 : KEYS_STATE      (R ) gamepad/keyboard state (8 bits)
-- 0xBF01 : KEYS_PRESSED    (R ) edge detection (cleared on read)
+                                bit 7: Down,  bit 6: Up,    bit 5: Left,  bit 4: Right
+                                bit 3: B,     bit 2: A,     bit 1: Start, bit 0: Select
+- 0xBF01 : KEYS_PRESSED    (R ) edge detection (newly pressed keys, cleared on read)
+                                Same bit layout as KEYS_STATE
+                                Use for actions that trigger once per press
 - 0xBF02 : MOUSE_X         (R ) mouse X position (0-127)
 - 0xBF03 : MOUSE_Y         (R ) mouse Y position (0-127)
 - 0xBF04 : MOUSE_BUTTONS   (R ) mouse button state
+                                bit 0: left, bit 1: right, bit 2: middle
 
 Timers (0xBF20-0xBF2F):
 - 0xBF20 : TICK_LOW        (R ) CPU instruction counter low byte
@@ -217,6 +232,44 @@ Signal frame complete:
     LOADI R7, 0x23
     LOADI R0, 1
     STORE R0          ; memory[0xBF23] = 1
+
+Read keyboard input:
+    LOADI R6, 0xBF
+    LOADI R7, 0x00
+    LOAD  R0          ; R0 = KEYS_STATE
+    LOADI R1, 0x40    ; bit 6 = Up
+    AND   R0, R1      ; Check if Up is pressed
+    JZ    NOT_UP      ; Jump if Up not pressed
+    ; ... handle Up press ...
+
+Read button press (edge detection):
+    LOADI R6, 0xBF
+    LOADI R7, 0x01
+    LOAD  R0          ; R0 = KEYS_PRESSED (auto-clears on read)
+    LOADI R1, 0x04    ; bit 2 = A button
+    AND   R0, R1      ; Check if A was just pressed
+    JZ    NOT_A       ; Jump if A not pressed this frame
+    ; ... handle A press (fires once) ...
+
+Read mouse position:
+    LOADI R6, 0xBF
+    LOADI R7, 0x02
+    LOAD  R0          ; R0 = mouse X (0-127)
+    LOADI R7, 0x03
+    LOAD  R1          ; R1 = mouse Y (0-127)
+
+Multi-byte addition using carry:
+    LOADI R0, 200     ; Low byte first value
+    LOADI R1, 100     ; Low byte second value
+    ADD   R0, R1      ; R0 = low byte result, sets C if overflow
+    JNC   NO_CARRY
+    ; Handle carry
+    LOADI R2, 1       ; High byte gets +1
+    JMP   DONE
+NO_CARRY:
+    LOADI R2, 0       ; High byte gets 0
+DONE:
+    ; R2:R0 now holds 16-bit result
 
 Call a subroutine:
     LOADI R0, 5
