@@ -45,3 +45,6 @@ typedef struct {
 void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer);
 void tiny16_memory_reset(Tiny16Memory* memory);
 size_t tiny16_memory_load_from_file(Tiny16Memory* memory, char* filename);
+
+typedef uint8_t (*tiny16_memory_read_fn)(void* ctx, uint16_t addr);
+typedef void (*tiny16_memory_write_fn)(void* ctx, uint16_t addr, uint8_t value);

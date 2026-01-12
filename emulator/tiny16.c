@@ -10,6 +10,8 @@
 #include "cpu.h"
 #include "memory.c"
 #include "memory.h"
+#include "vm.c"
+#include "vm.h"
 
 #define TINY16_EMU_PIXEL_WIDTH  TINY16_FRAMEBUFFER_SIZE_WIDTH
 #define TINY16_EMU_PIXEL_HEIGHT TINY16_FRAMEBUFFER_SIZE_HEIGHT
@@ -38,8 +40,8 @@
 
 static args_t args;
 
-int tiny16_emu_cli(Tiny16CPU* cpu, Tiny16Memory* memory);
-int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory);
+int tiny16_emu_cli(Tiny16VM* vm);
+int tiny16_emu_gui(Tiny16VM* vm);
 
 int main(int argc, char** argv) {
     args = make_default_args();
@@ -48,9 +50,9 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    Tiny16Memory memory = {0};
-    tiny16_memory_reset(&memory);
-    if (!tiny16_memory_load_from_file(&memory, args.program)) {
+    Tiny16VM* vm = tiny16_vm_create();
+
+    if (!tiny16_memory_load_from_file(&vm->memory, args.program)) {
         fprintf(stderr, "could not load program from file\n");
         return EXIT_FAILURE;
     }
@@ -69,22 +71,22 @@ int main(int argc, char** argv) {
 
     int result = 0;
     if (args.max_instructions > 0) {
-        result = tiny16_emu_cli(&cpu, &memory);
+        result = tiny16_emu_cli(vm);
     } else {
-        result = tiny16_emu_gui(&cpu, &memory);
+        result = tiny16_emu_gui(vm);
     }
 
     if (args.dump || args.dump_framebuffer) {
         puts("\nDUMP ===========================================\n");
-        tiny16_cpu_print(&cpu);
-        tiny16_memory_print(&memory, args.dump_framebuffer);
+        tiny16_cpu_print(&vm->cpu);
+        tiny16_memory_print(&vm->memory, args.dump_framebuffer);
     }
 
     return result;
 }
 
-int tiny16_emu_cli(Tiny16CPU* cpu, Tiny16Memory* memory) {
-    return tiny16_cpu_exec(cpu, memory, args.max_instructions) ? EXIT_SUCCESS : EXIT_FAILURE;
+int tiny16_emu_cli(Tiny16VM* vm) {
+    return tiny16_vm_exec(vm, args.max_instructions) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer) {
@@ -101,7 +103,7 @@ void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer) {
     UpdateTexture(*texture, pixels);
 }
 
-void tiny16_emu_update_input(Tiny16Memory* memory) {
+void tiny16_emu_update_input(Tiny16VM* vm) {
     static uint8_t prev_keys = 0;
     uint8_t keys = 0;
 
@@ -114,10 +116,11 @@ void tiny16_emu_update_input(Tiny16Memory* memory) {
     if (IsKeyDown(KEY_C) || IsKeyDown(KEY_J)) keys |= 0x04;     // bit 2
     if (IsKeyDown(KEY_ENTER)) keys |= 0x02;                     // bit 1
     if (IsKeyDown(KEY_SPACE)) keys |= 0x01;                     // bit 0
-    memory->bytes[TINY16_MMIO_KEYS_STATE] = keys;
+    tiny16_vm_memory_write(vm, TINY16_MMIO_KEYS_STATE, keys);
 
-    uint8_t pressed = keys & ~prev_keys;                // edge detection
-    memory->bytes[TINY16_MMIO_KEYS_PRESSED] |= pressed; // cleared on read
+    uint8_t pressed = keys & ~prev_keys; // edge detection
+    uint8_t current_pressed = vm->memory.bytes[TINY16_MMIO_KEYS_PRESSED]; // direct read to avoid clear
+    tiny16_vm_memory_write(vm, TINY16_MMIO_KEYS_PRESSED, current_pressed | pressed);
     prev_keys = keys;
 
     // mouse pos: clamp and scale to framebuffer coords (0-127)
@@ -130,20 +133,22 @@ void tiny16_emu_update_input(Tiny16Memory* memory) {
     if (mouse_pos.y >= TINY16_EMU_SCREEN_HEIGHT) mouse_pos.y = TINY16_EMU_SCREEN_HEIGHT - 1;
 
     // Scale to framebuffer coordinates
-    memory->bytes[TINY16_MMIO_MOUSE_X] =
+    uint8_t mouse_x =
         (uint8_t)((mouse_pos.x / TINY16_EMU_SCREEN_WIDTH) * (TINY16_FRAMEBUFFER_SIZE_WIDTH - 1));
-    memory->bytes[TINY16_MMIO_MOUSE_Y] =
+    uint8_t mouse_y =
         (uint8_t)((mouse_pos.y / TINY16_EMU_SCREEN_HEIGHT) * (TINY16_FRAMEBUFFER_SIZE_HEIGHT - 1));
+    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_X, mouse_x);
+    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_Y, mouse_y);
 
     // mouse buttons
     uint8_t mouse_buttons = 0;
     if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) mouse_buttons |= 0x1;
     if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON)) mouse_buttons |= 0x2;
     if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) mouse_buttons |= 0x4;
-    memory->bytes[TINY16_MMIO_MOUSE_BUTTONS] = mouse_buttons;
+    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_BUTTONS, mouse_buttons);
 }
 
-int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
+int tiny16_emu_gui(Tiny16VM* vm) {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
     SetTargetFPS(60);
@@ -151,7 +156,6 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
     Texture2D fb_texture =
         LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
 
-    uint64_t tick_counter = 0u;
     uint64_t frame_counter = 0u;
     float instr_acc = 0.0f;
     uint8_t back_buffer[TINY16_FRAMEBUFFER_SIZE_WIDTH * TINY16_FRAMEBUFFER_SIZE_HEIGHT] = {0};
@@ -170,20 +174,17 @@ int tiny16_emu_gui(Tiny16CPU* cpu, Tiny16Memory* memory) {
             uint32_t instr_this_frame = (uint32_t)instr_acc;
             instr_acc -= instr_this_frame; // keep fractional part
 
-            memory->bytes[TINY16_MMIO_FRAME_COUNT] = frame_counter & 0xFF;
-            memory->bytes[TINY16_MMIO_VSYNC] = 0;
+            tiny16_vm_memory_write(vm, TINY16_MMIO_FRAME_COUNT, frame_counter & 0xFF);
+            tiny16_vm_memory_write(vm, TINY16_MMIO_VSYNC, 0);
 
-            tiny16_emu_update_input(memory);
+            tiny16_emu_update_input(vm);
 
             for (uint32_t step = 0; step < instr_this_frame; ++step) {
-                memory->bytes[TINY16_MMIO_TICK_LOW] = tick_counter & 0xFF;
-                memory->bytes[TINY16_MMIO_TICK_HIGH] = (tick_counter >> 8) & 0xFF;
-                if (memory->bytes[TINY16_MMIO_VSYNC] == 1) {
-                    memcpy(back_buffer, &memory->bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
-                    memory->bytes[TINY16_MMIO_VSYNC] = 0;
+                if (tiny16_vm_memory_read(vm, TINY16_MMIO_VSYNC) == 1) {
+                    memcpy(back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
+                    tiny16_vm_memory_write(vm, TINY16_MMIO_VSYNC, 0);
                 }
-                if (!tiny16_cpu_step(cpu, memory, step)) return EXIT_FAILURE;
-                tick_counter++;
+                if (!tiny16_vm_step(vm)) return EXIT_FAILURE;
             }
             frame_counter++;
 
