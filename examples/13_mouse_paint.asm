@@ -14,7 +14,7 @@ section .code
 
 START:
     ; Initialize if needed
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x00
     LOAD  R0          ; Check init flag
     LOADI R1, 0xAA
@@ -26,7 +26,7 @@ START:
 
     ; Mark as initialized
     LOADI R0, 0xAA
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x00
     STORE R0
 
@@ -65,7 +65,7 @@ READ_MOUSE:
     LOAD  R1          ; R1 = mouse Y (0-127)
 
     ; Save position for later
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x02
     STORE R0          ; mouse_x
     LOADI R7, 0x03
@@ -105,7 +105,7 @@ DONE_MOUSE:
 ; ============================================================================
 DRAW_PIXEL:
     ; Load mouse position
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x02
     LOAD  R1          ; R1 = mouse_x
     LOADI R7, 0x03

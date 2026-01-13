@@ -57,16 +57,13 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    Tiny16CPU cpu = {0};
-    tiny16_cpu_reset(&cpu);
-
     tiny16_cpu_tracing = args.trace;
     if (tiny16_cpu_tracing) {
         puts("TRACING =========================================\n");
     }
 
     if (args.skip_instructions > 0) {
-        cpu.pc += args.skip_instructions * 3;
+        vm->cpu.pc += args.skip_instructions * 3;
     }
 
     int result = 0;
@@ -116,11 +113,12 @@ void tiny16_emu_update_input(Tiny16VM* vm) {
     if (IsKeyDown(KEY_C) || IsKeyDown(KEY_J)) keys |= 0x04;     // bit 2
     if (IsKeyDown(KEY_ENTER)) keys |= 0x02;                     // bit 1
     if (IsKeyDown(KEY_SPACE)) keys |= 0x01;                     // bit 0
-    tiny16_vm_memory_write(vm, TINY16_MMIO_KEYS_STATE, keys);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_KEYS_STATE, keys);
 
     uint8_t pressed = keys & ~prev_keys; // edge detection
-    uint8_t current_pressed = vm->memory.bytes[TINY16_MMIO_KEYS_PRESSED]; // direct read to avoid clear
-    tiny16_vm_memory_write(vm, TINY16_MMIO_KEYS_PRESSED, current_pressed | pressed);
+    uint8_t current_pressed =
+        vm->memory.bytes[TINY16_MMIO_KEYS_PRESSED]; // direct read to avoid clear
+    tiny16_vm_mem_write(vm, TINY16_MMIO_KEYS_PRESSED, current_pressed | pressed);
     prev_keys = keys;
 
     // mouse pos: clamp and scale to framebuffer coords (0-127)
@@ -137,21 +135,21 @@ void tiny16_emu_update_input(Tiny16VM* vm) {
         (uint8_t)((mouse_pos.x / TINY16_EMU_SCREEN_WIDTH) * (TINY16_FRAMEBUFFER_SIZE_WIDTH - 1));
     uint8_t mouse_y =
         (uint8_t)((mouse_pos.y / TINY16_EMU_SCREEN_HEIGHT) * (TINY16_FRAMEBUFFER_SIZE_HEIGHT - 1));
-    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_X, mouse_x);
-    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_Y, mouse_y);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_MOUSE_X, mouse_x);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_MOUSE_Y, mouse_y);
 
     // mouse buttons
     uint8_t mouse_buttons = 0;
     if (IsMouseButtonDown(MOUSE_LEFT_BUTTON)) mouse_buttons |= 0x1;
     if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON)) mouse_buttons |= 0x2;
     if (IsMouseButtonDown(MOUSE_MIDDLE_BUTTON)) mouse_buttons |= 0x4;
-    tiny16_vm_memory_write(vm, TINY16_MMIO_MOUSE_BUTTONS, mouse_buttons);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_MOUSE_BUTTONS, mouse_buttons);
 }
 
 int tiny16_emu_gui(Tiny16VM* vm) {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
-    SetTargetFPS(60);
+    // SetTargetFPS(60);
 
     Texture2D fb_texture =
         LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
@@ -174,15 +172,15 @@ int tiny16_emu_gui(Tiny16VM* vm) {
             uint32_t instr_this_frame = (uint32_t)instr_acc;
             instr_acc -= instr_this_frame; // keep fractional part
 
-            tiny16_vm_memory_write(vm, TINY16_MMIO_FRAME_COUNT, frame_counter & 0xFF);
-            tiny16_vm_memory_write(vm, TINY16_MMIO_VSYNC, 0);
+            tiny16_vm_mem_write(vm, TINY16_MMIO_FRAME_COUNT, frame_counter & 0xFF);
+            tiny16_vm_mem_write(vm, TINY16_MMIO_VSYNC, 0);
 
             tiny16_emu_update_input(vm);
 
             for (uint32_t step = 0; step < instr_this_frame; ++step) {
-                if (tiny16_vm_memory_read(vm, TINY16_MMIO_VSYNC) == 1) {
+                if (tiny16_vm_mem_read(vm, TINY16_MMIO_VSYNC) == 1) {
                     memcpy(back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
-                    tiny16_vm_memory_write(vm, TINY16_MMIO_VSYNC, 0);
+                    tiny16_vm_mem_write(vm, TINY16_MMIO_VSYNC, 0);
                 }
                 if (!tiny16_vm_step(vm)) return EXIT_FAILURE;
             }
@@ -196,10 +194,7 @@ int tiny16_emu_gui(Tiny16VM* vm) {
         DrawTexturePro(fb_texture,                                                           //
                        (Rectangle){0, 0, TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT},   //
                        (Rectangle){0, 0, TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT}, //
-                       (Vector2){0, 0},                                                      //
-                       0.0f,                                                                 //
-                       WHITE                                                                 //
-        );
+                       (Vector2){0, 0}, 0.0f, WHITE);
         DrawFPS(10, 10);
         EndDrawing();
     }

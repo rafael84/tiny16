@@ -128,7 +128,7 @@ Pass 1:
 - Remove comments
 - Track section directives
 - Collect labels (both code and data labels)
-- Compute instruction addresses (code at 0x0010+, data at 0x2000+)
+- Compute instruction addresses (code at 0x0010+, data at 0x4000+)
 - Parse DB directives and accumulate data bytes
 
 Pass 2:
@@ -137,7 +137,7 @@ Pass 2:
 - Emit bytecode
 - Output file signature (16 bytes)
 - Output code section
-- Pad to data section boundary (0x2000)
+- Pad to data section boundary (0x4000)
 - Output data section if present
 
 ERRORS
@@ -163,12 +163,12 @@ File Signature (16 bytes at 0x0000-0x000F):
 
 Code Section (starts at 0x0010):
 - Instructions encoded as 3-byte sequences
-- Ends at 0x1FFF (max 8176 bytes)
+- Ends at 0x3FFF (max ~16KB)
 
-Data Section (starts at 0x2000):
-- Padded with zeros from end of code to 0x2000
+Data Section (starts at 0x4000):
+- Padded with zeros from end of code to 0x4000
 - DB directives output here
-- Ends at 0x3FFF (max 8192 bytes)
+- Ends at 0x4FFF (max 4KB)
 
 EXAMPLES
 --------

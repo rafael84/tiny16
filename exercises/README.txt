@@ -67,7 +67,7 @@ Loop N times:
 
 Access memory:
 
-    LOADI R6, 0x20    ; addr high
+    LOADI R6, 0x40    ; addr high
     LOADI R7, 0x00    ; addr low
     LOAD  R0          ; read
     STORE R0          ; write
@@ -111,7 +111,7 @@ TIPS
 - Use -df to dump framebuffer
 - R6:R7 form 16-bit address: (R6 << 8) | R7
 - Many ops set Z (zero) and C (carry) flags
-- Code at 0x0010+, data at 0x2000+
+- Code at 0x0010+, data at 0x4000+
 
 
 RESOURCES

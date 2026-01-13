@@ -101,9 +101,13 @@ LOADI, LOAD, STORE, MOV, ADD, SUB, ADC, SBC, INC, DEC, AND, OR, XOR, CMP, SHL, S
 | Address Range   | Size        | Purpose                                     |
 | --------------- | ----------- | ------------------------------------------- |
 | `0x0000-0x000F` | 16 bytes    | File signature (magic, version, entrypoint) |
-| `0x0010-0x1FFF` | 8176 bytes  | Code segment                                |
-| `0x2000-0x3FFF` | 8192 bytes  | Data segment                                |
-| `0x4000-0x7FFF` | 16 KB       | Extended/reserved                           |
+| `0x0010-0x3FFF` | ~16 KB      | Code segment                                |
+| `0x4000-0x4FFF` | 4 KB        | Data segment                                |
+| `0x5000-0x6FFF` | 8 KB        | Tiles (256 × 32 bytes)                      |
+| `0x7000-0x73FF` | 1 KB        | Tilemap (32 × 32)                           |
+| `0x7400-0x77FF` | 1 KB        | Attrmap (32 × 32)                           |
+| `0x7800-0x78FF` | 256 bytes   | OAM (64 sprites × 4 bytes)                  |
+| `0x7900-0x791F` | 32 bytes    | Palette (16 colors × 2 bytes)               |
 | `0x8000-0xBEFF` | ~16 KB      | Stack (grows down)                          |
 | `0xBF00-0xBFFF` | 256 bytes   | MMIO control registers                      |
 | `0xC000-0xFFFF` | 16384 bytes | Framebuffer (128×128 pixels, RGB332)        |

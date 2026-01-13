@@ -1,6 +1,6 @@
 ; Exercise 13: Find Element in Array
 ; Goal: Search for value 30 in array, return index (or 255 if not found)
-; Array: [10, 20, 30, 40, 50] at 0x2000
+; Array: [10, 20, 30, 40, 50] at 0x4000
 ; Instructions to use: LOADI, LOAD, SUB, JZ, INC, DEC
 ; Expected result: R0 = 2 (index where 30 is found)
 
@@ -8,7 +8,7 @@ section .code
 
 ; TODO: Your code here
 ; Strategy:
-; - Use R6:R7 to point to array (0x2000)
+; - Use R6:R7 to point to array (0x4000)
 ; - Use R0 as index counter (starts at 0)
 ; - Use R1 as search value (30)
 ; - Use R2 to store array length (5)

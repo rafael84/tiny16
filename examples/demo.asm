@@ -4,7 +4,7 @@
 ; - Using .code and .data sections
 ; - CALL/RET for subroutines
 ; - Defining sprite data with DB directive
-; - Reading from data section (0x2000)
+; - Reading from data section (0x4000)
 ; - Writing to framebuffer (0xC000)
 ; - RGB332 color format (0xFC = yellow, 0x03 = dark blue)
 ; - Address calculation for 128x128 display
@@ -12,18 +12,18 @@
 ; - Stack operations (PUSH/POP) for register preservation
 ;
 ; Memory layout:
-; 0x2000: sprite data (64 bytes)
-; 0x2040: sprite_x (1 byte)
-; 0x2041: sprite_y (1 byte)
-; 0x2042: vel_x (1 byte, signed: 0=negative, 1=positive)
-; 0x2043: vel_y (1 byte, signed: 0=negative, 1=positive)
-; 0x2044: initialized (1 byte, 0xAA when initialized)
+; 0x4000: sprite data (64 bytes)
+; 0x4040: sprite_x (1 byte)
+; 0x4041: sprite_y (1 byte)
+; 0x4042: vel_x (1 byte, signed: 0=negative, 1=positive)
+; 0x4043: vel_y (1 byte, signed: 0=negative, 1=positive)
+; 0x4044: initialized (1 byte, 0xAA when initialized)
 
 section .code
 
 START:
     ; Initialize sprite position and velocity (first time only)
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x44
     LOAD  R0          ; Check init flag
     LOADI R1, 0xAA
@@ -48,7 +48,7 @@ SKIP_INIT:
 INIT_SPRITE:
     ; Set initial position (120, 25) - off-center to avoid diagonal-only bouncing
     LOADI R0, 120
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x40
     STORE R0          ; sprite_x = 120
     LOADI R0, 25
@@ -98,7 +98,7 @@ CLEAR_LOOP:
 ; ============================================================================
 DRAW_SPRITE_ROUTINE:
     ; Load sprite position from memory into R1, R2
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x41
     LOAD  R1          ; R1 = sprite_y (current Y)
     LOADI R7, 0x40
@@ -108,14 +108,14 @@ DRAW_SPRITE_ROUTINE:
 
 DRAW_SPRITE_LOOP:
     ; Reload start_x from memory for each row
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x40
     LOAD  R2          ; R2 = start_x
     LOADI R3, 8       ; 8 pixels per row
 
 DRAW_SPRITE_ROW:
-    ; Read pixel from sprite data (0x2000 + offset)
-    LOADI R6, 0x20    ; Data section at 0x2000
+    ; Read pixel from sprite data (0x4000 + offset)
+    LOADI R6, 0x40    ; Data section at 0x4000
     MOV   R7, R0
     LOAD  R4          ; R4 = pixel color
 
@@ -186,7 +186,7 @@ DRAW_SPRITE_ROW:
 ; ============================================================================
 UPDATE_POSITION:
     ; Load current position and velocities
-    LOADI R6, 0x20    ; Data section high byte
+    LOADI R6, 0x40    ; Data section high byte
     LOADI R7, 0x40
     LOAD  R0          ; R0 = sprite_x
     LOADI R7, 0x41
@@ -222,7 +222,7 @@ BOUNCE_X:
     LOADI R4, 1
     SUB   R4, R2
     MOV   R2, R4
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x42
     STORE R2          ; Save new vel_x
     JMP   UPDATE_Y    ; Continue to Y update
@@ -254,13 +254,13 @@ BOUNCE_Y:
     LOADI R4, 1
     SUB   R4, R3
     MOV   R3, R4
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x43
     STORE R3          ; Save new vel_y
 
 SAVE_POS:
     ; Save new position
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x40
     STORE R0          ; Save sprite_x
     LOADI R7, 0x41
@@ -306,7 +306,7 @@ sprite_data:
     DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
     DB 0x03, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0x03
 
-; Animation state (at 0x2040)
+; Animation state (at 0x4040)
 sprite_x:      DB 0     ; X position
 sprite_y:      DB 0     ; Y position
 vel_x:         DB 0     ; X velocity (1=right, 0=left)

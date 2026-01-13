@@ -89,8 +89,8 @@ inline static uint16_t tiny16_cpu_addr16(const Tiny16CPU* cpu) {
 #define TINY16_CPU_TRACE_BUFFER_SIZE 40
 static char tiny16_cpu_trace_buffer[TINY16_CPU_TRACE_BUFFER_SIZE];
 
-bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_memory_read_fn memory_read,
-                     tiny16_memory_write_fn memory_write) {
+bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn memory_read,
+                     tiny16_mem_write_fn memory_write) {
 
     if (cpu->pc < TINY16_MEMORY_CODE_BEGIN || cpu->pc + 2 >= TINY16_MEMORY_CODE_END) {
         fprintf(stderr, "[CRITICAL] PC left code segment: 0x%04X (0x%04X-0x%04X)\n", cpu->pc,

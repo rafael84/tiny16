@@ -194,10 +194,10 @@ Exercise 11: Array Sum (Sum array of 5 elements)
 
     section .code
 
-    ; Array at 0x2000: [10, 20, 30, 40, 50]
+    ; Array at 0x4000: [10, 20, 30, 40, 50]
     LOADI R0, 0      ; Sum accumulator
     LOADI R1, 5      ; Array length
-    LOADI R6, 0x20   ; Array address high
+    LOADI R6, 0x40   ; Array address high
     LOADI R7, 0x00   ; Array address low
 
     loop:
@@ -219,9 +219,9 @@ Exercise 12: Array Copy (Copy 5 elements)
     section .code
 
     LOADI R0, 5      ; Array length
-    LOADI R6, 0x20   ; Source address high
+    LOADI R6, 0x40   ; Source address high
     LOADI R7, 0x00   ; Source address low
-    LOADI R4, 0x21   ; Dest address high
+    LOADI R4, 0x41   ; Dest address high
     LOADI R5, 0x00   ; Dest address low
 
     loop:
@@ -231,7 +231,7 @@ Exercise 12: Array Copy (Copy 5 elements)
         STORE R1         ; Write to dest
 
         ; Restore source address and increment both
-        LOADI R6, 0x20
+        LOADI R6, 0x40
         INC   R7
         MOV   R4, R6
         MOV   R5, R7
@@ -251,11 +251,11 @@ Exercise 13: Find Element (Find 30 in array)
 
     section .code
 
-    ; Array at 0x2000: [10, 20, 30, 40, 50]
+    ; Array at 0x4000: [10, 20, 30, 40, 50]
     LOADI R0, 0      ; Index counter
     LOADI R1, 5      ; Array length
     LOADI R2, 30     ; Search value
-    LOADI R6, 0x20   ; Array address high
+    LOADI R6, 0x40   ; Array address high
     LOADI R7, 0x00   ; Array address low
 
     loop:
@@ -343,7 +343,7 @@ Exercise 18: Animated Pixel (Move pixel with arrow keys)
 
     main_loop:
         ; Read current position from memory or start at center
-        LOADI R6, 0x20   ; Storage address high
+        LOADI R6, 0x40   ; Storage address high
         LOADI R7, 0x00   ; X position storage
         LOAD  R0         ; Load current X (default 64)
         LOADI R7, 0x01   ; Y position storage
@@ -391,7 +391,7 @@ Exercise 18: Animated Pixel (Move pixel with arrow keys)
         STORE R4         ; Draw pixel
 
         ; Save position
-        LOADI R6, 0x20
+        LOADI R6, 0x40
         LOADI R7, 0x00
         STORE R0         ; Save X
         LOADI R7, 0x01

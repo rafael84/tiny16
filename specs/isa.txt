@@ -56,9 +56,13 @@ MEMORY
 
 Layout:
 0x0000-0x000F  file signature (magic, version, entrypoint)
-0x0010–0x1FFF  code (8176 bytes)
-0x2000–0x3FFF  data (8192 bytes)
-0x4000–0x7FFF  extended / reserved (16KB)
+0x0010–0x3FFF  code (~16KB)
+0x4000–0x4FFF  data (4KB)
+0x5000–0x6FFF  tiles (8KB, 256 x 32 bytes)
+0x7000–0x73FF  tilemap (1KB, 32 x 32)
+0x7400–0x77FF  attrmap (1KB, 32 x 32)
+0x7800–0x78FF  oam (256 bytes, 64 sprites x 4 bytes)
+0x7900–0x791F  palette (32 bytes, 16 colors x 2 bytes)
 0x8000–0xBEFF  stack (grows down, ~16KB)
 0xBF00–0xBFFF  MMIO control registers (256 bytes)
 0xC000–0xFFFF  framebuffer (16,384 bytes = 128×128)
@@ -94,7 +98,7 @@ INSTRUCTIONS
       Store register value to memory at address formed by R6:R7.
       MEM[ADDR] = R, where ADDR = (R6 << 8) | R7
       Does not affect flags.
-      Cannot write to code segment (0x0010-0x1FFF).
+      Cannot write to code segment (0x0010-0x3FFF).
 
 0x13  MOV R1, R2
       Copy value from one register to another.

@@ -20,23 +20,23 @@ void tiny16_vm_reset(Tiny16VM* vm) {
 }
 
 bool tiny16_vm_step(Tiny16VM* vm) {
-    tiny16_vm_memory_write(vm, TINY16_MMIO_TICK_LOW, vm->ticks & 0xFF);
-    tiny16_vm_memory_write(vm, TINY16_MMIO_TICK_HIGH, (vm->ticks >> 8) & 0xFF);
-    bool success = tiny16_cpu_step(&vm->cpu, vm, tiny16_vm_memory_read, tiny16_vm_memory_write);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_TICK_LOW, vm->ticks & 0xFF);
+    tiny16_vm_mem_write(vm, TINY16_MMIO_TICK_HIGH, (vm->ticks >> 8) & 0xFF);
+    bool success = tiny16_cpu_step(&vm->cpu, vm, tiny16_vm_mem_read, tiny16_vm_mem_write);
     vm->ticks++;
     return success;
 }
 
-uint8_t tiny16_vm_memory_read(void* ctx, uint16_t addr) {
+uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr) {
     Tiny16VM* vm = ctx;
     uint8_t value = vm->memory.bytes[addr];
     if (addr == TINY16_MMIO_KEYS_PRESSED) {
-        tiny16_vm_memory_write(vm, TINY16_MMIO_KEYS_PRESSED, 0);
+        tiny16_vm_mem_write(vm, TINY16_MMIO_KEYS_PRESSED, 0);
     }
     return value;
 }
 
-void tiny16_vm_memory_write(void* ctx, uint16_t addr, uint8_t value) {
+void tiny16_vm_mem_write(void* ctx, uint16_t addr, uint8_t value) {
     Tiny16VM* vm = ctx;
     vm->memory.bytes[addr] = value;
 }

@@ -6,7 +6,7 @@ section .code
 
 START:
     ; Initialize position if not already done
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x10
     LOAD  R0          ; Check init flag
     LOADI R1, 0xAA
@@ -15,7 +15,7 @@ START:
 
     ; Set initial position (center)
     LOADI R0, 60
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x10
     STORE R0          ; pos_x = 60
     LOADI R7, 0x11
@@ -56,7 +56,7 @@ CLEAR_SCREEN:
 ; Read input and update position
 READ_INPUT:
     ; Load current position
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x10
     LOAD  R1          ; R1 = pos_x
     LOADI R7, 0x11
@@ -123,7 +123,7 @@ CHECK_BUTTON_A:
     AND   R3, R4
     JZ    SAVE_POS
     ; Change color
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x12
     LOAD  R3
     LOADI R4, 0x1C
@@ -132,7 +132,7 @@ CHECK_BUTTON_A:
 
 SAVE_POS:
     ; Save new position
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x10
     STORE R1
     LOADI R7, 0x11
@@ -142,7 +142,7 @@ SAVE_POS:
 ; Draw 8x8 square at current position
 DRAW_SQUARE:
     ; Load position and color
-    LOADI R6, 0x20
+    LOADI R6, 0x40
     LOADI R7, 0x10
     LOAD  R1          ; R1 = pos_x
     LOADI R7, 0x11

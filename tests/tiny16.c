@@ -75,9 +75,9 @@ static Tiny16VM* vm;
 
 #define TINY16_ASM(opcode, arg1, arg2)                                                             \
     do {                                                                                           \
-        tiny16_vm_memory_write(vm, code++, opcode);                                                \
-        tiny16_vm_memory_write(vm, code++, arg1);                                                  \
-        tiny16_vm_memory_write(vm, code++, arg2);                                                  \
+        tiny16_vm_mem_write(vm, code++, opcode);                                                   \
+        tiny16_vm_mem_write(vm, code++, arg1);                                                     \
+        tiny16_vm_mem_write(vm, code++, arg2);                                                     \
     } while (0)
 
 #define TINY16_TEST_RUN(...)                                                                       \
@@ -191,14 +191,14 @@ void tiny16_test_logic_ops(void) {
 }
 
 void tiny16_test_load_store_indirect(void) {
-    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x20); // R6 = 0x20
-                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); // R7 = 0x00  → ADDR = 0x2000
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6 = 0x40
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); // R7 = 0x00  → ADDR = 0x4000
 
                     TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xAB); // R0 = 0xAB
-                    TINY16_ASM(TINY16_OPCODE_STORE, 0, 0x00); // MEM[0x2000] = R0
+                    TINY16_ASM(TINY16_OPCODE_STORE, 0, 0x00); // MEM[0x4000] = R0
 
                     TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00); // R0 = 0
-                    TINY16_ASM(TINY16_OPCODE_LOAD, 0, 0x00);  // R0 = MEM[0x2000]
+                    TINY16_ASM(TINY16_OPCODE_LOAD, 0, 0x00);  // R0 = MEM[0x4000]
 
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     assert(vm->cpu.R[0] == 0xAB);
@@ -381,23 +381,23 @@ void tiny16_test_carry_flag_propagation(void) {
 void tiny16_test_memory_boundary(void) {
     // Test loading and storing at various memory locations in data segment
     TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x20); // R6:R7 = 0x2000 (data segment start)
+        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4000 (data segment start)
         TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
         TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xAA); // R0 = 0xAA
-        TINY16_ASM(TINY16_OPCODE_STORE, 0, 0);    // MEM[0x2000] = 0xAA
+        TINY16_ASM(TINY16_OPCODE_STORE, 0, 0);    // MEM[0x4000] = 0xAA
 
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x30); // R6:R7 = 0x3000 (middle of data segment)
+        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x48); // R6:R7 = 0x4800 (middle of data segment)
         TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
         TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0xBB); // R1 = 0xBB
-        TINY16_ASM(TINY16_OPCODE_STORE, 1, 0);    // MEM[0x3000] = 0xBB
+        TINY16_ASM(TINY16_OPCODE_STORE, 1, 0);    // MEM[0x4800] = 0xBB
 
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x20); // R6:R7 = 0x2000
+        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4000
         TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
-        TINY16_ASM(TINY16_OPCODE_LOAD, 2, 0);     // R2 = MEM[0x2000]
+        TINY16_ASM(TINY16_OPCODE_LOAD, 2, 0);     // R2 = MEM[0x4000]
 
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x30); // R6:R7 = 0x3000
+        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x48); // R6:R7 = 0x4800
         TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x00); //
-        TINY16_ASM(TINY16_OPCODE_LOAD, 3, 0);     // R3 = MEM[0x3000]
+        TINY16_ASM(TINY16_OPCODE_LOAD, 3, 0);     // R3 = MEM[0x4800]
 
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
     assert(vm->cpu.R[2] == 0xAA);

@@ -22,8 +22,8 @@ extern bool tiny16_cpu_tracing;
 void tiny16_cpu_reset(Tiny16CPU* cpu);
 void tiny16_cpu_print(const Tiny16CPU* cpu);
 
-bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_memory_read_fn memory_read,
-                     tiny16_memory_write_fn memory_write);
+bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn memory_read,
+                     tiny16_mem_write_fn memory_write);
 
 #define TINY16_CPU_FLAG_Z 0
 #define TINY16_CPU_FLAG_C 1
