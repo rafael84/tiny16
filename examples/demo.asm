@@ -1,314 +1,466 @@
-; Bouncing Smiley Demo - Animated sprite with collision detection (with subroutines)
+; Bouncing Smileys Demo - 32 PPU Sprites
 ;
 ; This demo demonstrates:
-; - Using .code and .data sections
-; - CALL/RET for subroutines
-; - Defining sprite data with DB directive
-; - Reading from data section (0x4000)
-; - Writing to framebuffer (0xC000)
-; - RGB332 color format (0xFC = yellow, 0x03 = dark blue)
-; - Address calculation for 128x128 display
-; - Animation with velocity and boundary checking
-; - Stack operations (PUSH/POP) for register preservation
+; - PPU tile-based rendering
+; - Hardware sprites via OAM (32 bouncing smileys)
+; - Using data section for constants and arrays
+; - Animation synchronized to display frame rate
 ;
 ; Memory layout:
-; 0x4000: sprite data (64 bytes)
-; 0x4040: sprite_x (1 byte)
-; 0x4041: sprite_y (1 byte)
-; 0x4042: vel_x (1 byte, signed: 0=negative, 1=positive)
-; 0x4043: vel_y (1 byte, signed: 0=negative, 1=positive)
-; 0x4044: initialized (1 byte, 0xAA when initialized)
+; 0x4000-0x4001: initialized flag, last_frame
+; 0x4010-0x408F: sprite data (32 sprites × 4 bytes each)
+;                [x, y, vel_x, vel_y] per sprite
+; 0x5000: Tile data
+; 0x7000: Tilemap
+; 0x7800: OAM (64 entries × 4 bytes)
+; 0x7900: Palette
+; 0xBF30: PPU_CTRL
+;
 
 section .code
 
 START:
-    ; Initialize sprite position and velocity (first time only)
+    ; Check if already initialized
     LOADI R6, 0x40
-    LOADI R7, 0x44
-    LOAD  R0          ; Check init flag
+    LOADI R7, 0x00    ; initialized flag at 0x4000
+    LOAD  R0
     LOADI R1, 0xAA
-    SUB   R0, R1      ; Compare with 0xAA
-    JZ    SKIP_INIT   ; Skip if already initialized
+    CMP   R0, R1
+    JZ    MAIN_LOOP
 
-    CALL  INIT_SPRITE
+    CALL  INIT_PALETTE
+    CALL  INIT_TILES
+    CALL  INIT_OAM
+    CALL  INIT_SPRITES
 
-SKIP_INIT:
-    CALL  CLEAR_SCREEN
-    CALL  DRAW_SPRITE_ROUTINE
-    CALL  UPDATE_POSITION
-    CALL  WAIT_FRAME_ROUTINE
-    JMP   SKIP_INIT   ; Loop forever
+MAIN_LOOP:
+    CALL  WAIT_FRAME
+    CALL  UPDATE_ALL_OAM
+    CALL  UPDATE_ALL_POSITIONS
+    CALL  RENDER_FRAME
+    JMP   MAIN_LOOP
 
-; ============================================================================
-; INIT_SPRITE - Initialize sprite position and velocity
-; Inputs: None
-; Outputs: None
-; Modifies: R0, R6, R7
-; ============================================================================
-INIT_SPRITE:
-    ; Set initial position (120, 25) - off-center to avoid diagonal-only bouncing
-    LOADI R0, 120
-    LOADI R6, 0x40
-    LOADI R7, 0x40
-    STORE R0          ; sprite_x = 120
-    LOADI R0, 25
-    LOADI R7, 0x41
-    STORE R0          ; sprite_y = 25
+; =============================================================================
+; INIT_PALETTE - Set up palette colors at 0x7900
+; =============================================================================
+INIT_PALETTE:
+    LOADI R6, 0x79    ; PALETTE_BASE high
+    LOADI R7, 0x00    ; PALETTE_BASE low
 
-    ; Set initial velocity (moving down-right)
-    LOADI R0, 1
-    LOADI R7, 0x42
-    STORE R0          ; vel_x = 1 (positive)
-    LOADI R7, 0x43
-    STORE R0          ; vel_y = 1 (positive)
-
-    ; Mark as initialized
-    LOADI R0, 0xAA
-    LOADI R7, 0x44
-    STORE R0          ; initialized = 0xAA
-    RET
-
-; ============================================================================
-; CLEAR_SCREEN - Clear framebuffer to dark blue
-; Inputs: None
-; Outputs: None
-; Modifies: R0, R1, R6, R7
-; ============================================================================
-CLEAR_SCREEN:
-    LOADI R0, 0x03    ; Dark blue color
-    LOADI R6, 0xC0    ; Framebuffer High (0xC000)
-    LOADI R7, 0x00    ; Framebuffer Low
-
-CLEAR_LOOP:
+    ; Color 0: dark blue background (0x03)
+    LOADI R0, 0x03
     STORE R0
     INC   R7
-    JNZ   CLEAR_LOOP
-    INC   R6          ; Increment high byte when low byte wraps
-    ; Check if we've wrapped back to 0x00 (cleared full framebuffer 0xC000-0xFFFF)
-    LOADI R1, 0
-    CMP   R6, R1      ; Sets Z if R6 == 0
-    JNZ   CLEAR_LOOP  ; Continue if R6 != 0
+    LOADI R0, 0x00    ; padding
+    STORE R0
+    INC   R7
+
+    ; Color 1: blue border (0x1F)
+    LOADI R0, 0x1F
+    STORE R0
+    INC   R7
+    LOADI R0, 0x00
+    STORE R0
+    INC   R7
+
+    ; Color 2: yellow face (0xFC)
+    LOADI R0, 0xFC
+    STORE R0
+    INC   R7
+    LOADI R0, 0x00
+    STORE R0
+    INC   R7
+
+    ; Color 3: black (eyes/mouth) (0x00)
+    LOADI R0, 0x00
+    STORE R0
+    INC   R7
+    STORE R0
     RET
 
-; ============================================================================
-; DRAW_SPRITE_ROUTINE - Draw 8x8 sprite at current position
-; Inputs: None (reads sprite_x, sprite_y from memory)
-; Outputs: None
-; Modifies: R0, R1, R2, R3, R4, R5, R6, R7
-; ============================================================================
-DRAW_SPRITE_ROUTINE:
-    ; Load sprite position from memory into R1, R2
-    LOADI R6, 0x40
-    LOADI R7, 0x41
-    LOAD  R1          ; R1 = sprite_y (current Y)
-    LOADI R7, 0x40
-    LOAD  R2          ; R2 = sprite_x (will be reset each row)
+; =============================================================================
+; INIT_TILES - Set up smiley tile at index 0
+; Tile format: 4bpp, 8x8 pixels = 32 bytes
+; =============================================================================
+INIT_TILES:
+    LOADI R6, 0x50    ; TILES_BASE high
+    LOADI R7, 0x00    ; TILES_BASE low
 
-    XOR   R0, R0      ; Sprite byte counter (0-63)
+    ; Row 0: 0 1 1 1 1 1 1 0 -> 0x01 0x11 0x11 0x10
+    LOADI R0, 0x01
+    STORE R0
+    INC   R7
+    LOADI R0, 0x11
+    STORE R0
+    INC   R7
+    STORE R0
+    INC   R7
+    LOADI R0, 0x10
+    STORE R0
+    INC   R7
 
-DRAW_SPRITE_LOOP:
-    ; Reload start_x from memory for each row
-    LOADI R6, 0x40
-    LOADI R7, 0x40
-    LOAD  R2          ; R2 = start_x
-    LOADI R3, 8       ; 8 pixels per row
+    ; Row 1: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x22
+    STORE R0
+    INC   R7
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-DRAW_SPRITE_ROW:
-    ; Read pixel from sprite data (0x4000 + offset)
-    LOADI R6, 0x40    ; Data section at 0x4000
-    MOV   R7, R0
-    LOAD  R4          ; R4 = pixel color
+    ; Row 2: 1 2 3 2 2 3 2 1 -> 0x12 0x32 0x23 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x32
+    STORE R0
+    INC   R7
+    LOADI R0, 0x23
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-    ; Calculate framebuffer address: 0xC000 + (Y << 7) + X
-    ; Since Y * 128 can exceed 255, we need to calculate the high and low bytes
-    ; Y=60, X=60: offset = 60*128 + 60 = 7680 + 60 = 7740 = 0x1E3C
+    ; Row 3: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x22
+    STORE R0
+    INC   R7
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-    ; Save current state
-    PUSH  R0
-    PUSH  R1
-    PUSH  R2
-    PUSH  R3
-    PUSH  R4
+    ; Row 4: 1 2 3 2 2 3 2 1 -> 0x12 0x32 0x23 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x32
+    STORE R0
+    INC   R7
+    LOADI R0, 0x23
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-    ; Calculate framebuffer address using R5, R6, R7 as temps
-    ; R5 = Y >> 1 (for high byte)
-    MOV   R5, R1
-    SHR   R5          ; R5 = Y / 2
+    ; Row 5: 1 2 2 3 3 2 2 1 -> 0x12 0x23 0x32 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x23
+    STORE R0
+    INC   R7
+    LOADI R0, 0x32
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-    ; R6 = low byte of (Y * 128)
-    MOV   R6, R1
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6          ; R6 = (Y << 7) & 0xFF
+    ; Row 6: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
+    LOADI R0, 0x12
+    STORE R0
+    INC   R7
+    LOADI R0, 0x22
+    STORE R0
+    INC   R7
+    STORE R0
+    INC   R7
+    LOADI R0, 0x21
+    STORE R0
+    INC   R7
 
-    ; Add X to low byte
-    ADD   R6, R2      ; R6 = low byte of offset
-
-    ; Set framebuffer pointer
-    MOV   R7, R6      ; R7 = low byte
-    LOADI R6, 0xC0
-    ADD   R6, R5      ; R6 = 0xC0 + (Y >> 1)
-
-    ; Restore and write pixel
-    POP   R4
-    STORE R4          ; Write to framebuffer
-
-    ; Restore registers
-    POP   R3
-    POP   R2
-    POP   R1
-    POP   R0
-
-    ; Move to next pixel
-    INC   R0          ; Next sprite byte
-    INC   R2          ; Next X position
-    DEC   R3          ; Decrement column counter
-    JNZ   DRAW_SPRITE_ROW
-
-    ; Move to next row
-    INC   R1          ; Next Y position
-
-    ; Check if done (64 bytes = 8 rows * 8 cols)
-    LOADI R3, 64
-    CMP   R0, R3      ; Sets Z if R0 == 64
-    JNZ   DRAW_SPRITE_LOOP
+    ; Row 7: 0 1 1 1 1 1 1 0 -> 0x01 0x11 0x11 0x10
+    LOADI R0, 0x01
+    STORE R0
+    INC   R7
+    LOADI R0, 0x11
+    STORE R0
+    INC   R7
+    STORE R0
+    INC   R7
+    LOADI R0, 0x10
+    STORE R0
     RET
 
-; ============================================================================
-; UPDATE_POSITION - Update sprite position with collision detection
-; Inputs: None (reads sprite_x, sprite_y, vel_x, vel_y from memory)
-; Outputs: None (writes back updated values)
-; Modifies: R0, R1, R2, R3, R4, R5, R6, R7
-; ============================================================================
-UPDATE_POSITION:
-    ; Load current position and velocities
-    LOADI R6, 0x40    ; Data section high byte
-    LOADI R7, 0x40
-    LOAD  R0          ; R0 = sprite_x
-    LOADI R7, 0x41
-    LOAD  R1          ; R1 = sprite_y
-    LOADI R7, 0x42
-    LOAD  R2          ; R2 = vel_x (1=positive, 0=negative)
-    LOADI R7, 0x43
-    LOAD  R3          ; R3 = vel_y
+; =============================================================================
+; INIT_OAM - Hide all 64 sprites by setting Y to 0xFF
+; =============================================================================
+INIT_OAM:
+    LOADI R6, 0x78    ; OAM_BASE high
+    LOADI R7, 0x00    ; OAM_BASE low
+    LOADI R0, 0xFF    ; Y = 0xFF means hidden
+    LOADI R1, 64      ; 64 sprites
 
-    ; Update X position (R2 = vel_x: 1=right, 0=left)
-    LOADI R5, 0
-    CMP   R2, R5      ; Sets Z if R2 == 0
-    JZ    MOVE_X_LEFT
-
-    ; Moving right - check if already at right edge
-    MOV   R4, R0
-    LOADI R5, 120
-    SUB   R4, R5      ; Check if X >= 120
-    JZ    BOUNCE_X
-    INC   R0          ; Move right
-    JMP   UPDATE_Y
-
-MOVE_X_LEFT:
-    ; Moving left - check if already at left edge
-    LOADI R5, 0
-    CMP   R0, R5      ; Check if X == 0
-    JZ    BOUNCE_X
-    DEC   R0          ; Move left
-    JMP   UPDATE_Y
-
-BOUNCE_X:
-    ; Reverse X velocity (toggle between 0 and 1)
-    LOADI R4, 1
-    SUB   R4, R2
-    MOV   R2, R4
-    LOADI R6, 0x40
-    LOADI R7, 0x42
-    STORE R2          ; Save new vel_x
-    JMP   UPDATE_Y    ; Continue to Y update
-
-UPDATE_Y:
-    ; Update Y position (R3 = vel_y: 1=down, 0=up)
-    LOADI R5, 0
-    CMP   R3, R5      ; Sets Z if R3 == 0
-    JZ    MOVE_Y_UP
-
-    ; Moving down - check if already at bottom edge
-    MOV   R4, R1
-    LOADI R5, 120
-    SUB   R4, R5      ; Check if Y >= 120
-    JZ    BOUNCE_Y
-    INC   R1          ; Move down
-    JMP   SAVE_POS
-
-MOVE_Y_UP:
-    ; Moving up - check if already at top edge
-    LOADI R5, 0
-    CMP   R1, R5      ; Check if Y == 0
-    JZ    BOUNCE_Y
-    DEC   R1          ; Move up
-    JMP   SAVE_POS
-
-BOUNCE_Y:
-    ; Reverse Y velocity (toggle between 0 and 1)
-    LOADI R4, 1
-    SUB   R4, R3
-    MOV   R3, R4
-    LOADI R6, 0x40
-    LOADI R7, 0x43
-    STORE R3          ; Save new vel_y
-
-SAVE_POS:
-    ; Save new position
-    LOADI R6, 0x40
-    LOADI R7, 0x40
-    STORE R0          ; Save sprite_x
-    LOADI R7, 0x41
-    STORE R1          ; Save sprite_y
+INIT_OAM_LOOP:
+    STORE R0          ; Y = 0xFF (hidden)
+    INC   R7
+    INC   R7
+    INC   R7
+    INC   R7          ; Next OAM entry (4 bytes each)
+    DEC   R1
+    JNZ   INIT_OAM_LOOP
     RET
 
-; ============================================================================
-; WAIT_FRAME_ROUTINE - Signal frame complete and wait for next frame
-; Inputs: None
-; Outputs: None
-; Modifies: R0, R1, R6, R7
-; ============================================================================
-WAIT_FRAME_ROUTINE:
-    ; Signal frame complete (VSYNC)
-    LOADI R6, 0xBF
-    LOADI R7, 0x23
+; =============================================================================
+; INIT_SPRITES - Initialize 32 sprites with varied positions and velocities
+; Sprite data at 0x4010: [x, y, vel_x, vel_y] × 32
+; Uses a simple pattern to distribute sprites
+; =============================================================================
+INIT_SPRITES:
+    LOADI R6, 0x40
+    LOADI R7, 0x10    ; sprite data starts at 0x4010
+    LOADI R4, 0       ; sprite counter (0-31)
+    LOADI R5, 32      ; total sprites
+
+INIT_SPRITE_LOOP:
+    ; X = (counter * 4) mod 120
+    MOV   R0, R4
+    ADD   R0, R0      ; R0 = counter * 2
+    ADD   R0, R0      ; R0 = counter * 4
+    ; Keep X in range 0-119 (simple approach: just use lower bits)
+    STORE R0          ; x
+    INC   R7
+
+    ; Y = (counter * 3 + 10) mod 120
+    MOV   R1, R4
+    ADD   R1, R4      ; R1 = counter * 2
+    ADD   R1, R4      ; R1 = counter * 3
+    LOADI R2, 10
+    ADD   R1, R2      ; R1 = counter * 3 + 10
+    STORE R1          ; y
+    INC   R7
+
+    ; vel_x = counter & 1 (alternating 0/1)
+    MOV   R0, R4
+    LOADI R2, 0x01
+    AND   R0, R2
+    STORE R0          ; vel_x
+    INC   R7
+
+    ; vel_y = (counter >> 1) & 1 (alternating pairs)
+    MOV   R0, R4
+    LOADI R2, 0x02
+    AND   R0, R2
+    ; Shift right by 1 (divide by 2) - need to check if bit 1 is set
+    JZ    VEL_Y_ZERO
     LOADI R0, 1
+    JMP   STORE_VEL_Y
+VEL_Y_ZERO:
+    LOADI R0, 0
+STORE_VEL_Y:
+    STORE R0          ; vel_y
+    INC   R7
+
+    INC   R4          ; next sprite
+    DEC   R5
+    JNZ   INIT_SPRITE_LOOP
+
+    ; Mark as initialized
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOADI R0, 0xAA
+    STORE R0          ; initialized flag
+
+    RET
+
+; =============================================================================
+; UPDATE_ALL_OAM - Update OAM for all 32 sprites
+; =============================================================================
+UPDATE_ALL_OAM:
+    LOADI R4, 0       ; sprite counter
+    LOADI R5, 32      ; total sprites
+
+UPDATE_OAM_LOOP:
+    ; Calculate sprite data address: 0x4010 + (counter * 4)
+    LOADI R6, 0x40
+    MOV   R7, R4
+    ADD   R7, R7      ; counter * 2
+    ADD   R7, R7      ; counter * 4
+    LOADI R0, 0x10
+    ADD   R7, R0      ; R7 = 0x10 + counter * 4
+
+    ; Load x, y
+    LOAD  R0          ; x
+    INC   R7
+    LOAD  R1          ; y
+
+    ; Calculate OAM address: 0x7800 + (counter * 4)
+    LOADI R6, 0x78
+    MOV   R7, R4
+    ADD   R7, R7      ; counter * 2
+    ADD   R7, R7      ; counter * 4
+
+    ; Write OAM entry: Y, X, tile, attr
+    STORE R1          ; Y position
+    INC   R7
+    STORE R0          ; X position
+    INC   R7
+    LOADI R0, 0x00    ; Tile index 0 (smiley)
+    STORE R0
+    INC   R7
+    LOADI R0, 0x00    ; Attributes (no flip)
     STORE R0
 
-    ; Wait for next frame
-WAIT_FRAME_LOOP:
+    INC   R4          ; next sprite
+    DEC   R5
+    JNZ   UPDATE_OAM_LOOP
+    RET
+
+; =============================================================================
+; UPDATE_ALL_POSITIONS - Update positions for all 32 sprites
+; =============================================================================
+UPDATE_ALL_POSITIONS:
+    LOADI R4, 0       ; sprite counter
+    LOADI R5, 32      ; total sprites
+
+UPDATE_POS_LOOP:
+    PUSH  R4          ; save counter
+    PUSH  R5          ; save remaining
+
+    ; Calculate sprite data address: 0x4010 + (counter * 4)
+    LOADI R6, 0x40
+    MOV   R7, R4
+    ADD   R7, R7      ; counter * 2
+    ADD   R7, R7      ; counter * 4
+    LOADI R0, 0x10
+    ADD   R7, R0      ; R7 = 0x10 + counter * 4
+
+    ; Load x, y, vel_x, vel_y
+    LOAD  R0          ; x
+    INC   R7
+    LOAD  R1          ; y
+    INC   R7
+    LOAD  R2          ; vel_x
+    INC   R7
+    LOAD  R3          ; vel_y
+
+    ; Save base address for later
+    DEC   R7
+    DEC   R7
+    DEC   R7          ; back to x address
+    PUSH  R7          ; save address low byte
+
+    ; Update X position
+    LOADI R5, 0
+    CMP   R2, R5
+    JZ    POS_MOVE_LEFT
+
+    ; Moving right
+    LOADI R5, 120     ; boundary
+    CMP   R0, R5
+    JZ    POS_BOUNCE_X
+    INC   R0
+    JMP   POS_UPDATE_Y
+
+POS_MOVE_LEFT:
+    LOADI R5, 0
+    CMP   R0, R5
+    JZ    POS_BOUNCE_X
+    DEC   R0
+    JMP   POS_UPDATE_Y
+
+POS_BOUNCE_X:
+    LOADI R5, 1
+    SUB   R5, R2
+    MOV   R2, R5
+
+POS_UPDATE_Y:
+    LOADI R5, 0
+    CMP   R3, R5
+    JZ    POS_MOVE_UP
+
+    ; Moving down
+    LOADI R5, 120     ; boundary
+    CMP   R1, R5
+    JZ    POS_BOUNCE_Y
+    INC   R1
+    JMP   POS_SAVE
+
+POS_MOVE_UP:
+    LOADI R5, 0
+    CMP   R1, R5
+    JZ    POS_BOUNCE_Y
+    DEC   R1
+    JMP   POS_SAVE
+
+POS_BOUNCE_Y:
+    LOADI R5, 1
+    SUB   R5, R3
+    MOV   R3, R5
+
+POS_SAVE:
+    ; Restore address and save position
+    POP   R7          ; restore address low byte
+    LOADI R6, 0x40
+    STORE R0          ; x
+    INC   R7
+    STORE R1          ; y
+    INC   R7
+    STORE R2          ; vel_x
+    INC   R7
+    STORE R3          ; vel_y
+
+    POP   R5          ; restore remaining count
+    POP   R4          ; restore sprite counter
+    INC   R4          ; next sprite
+    DEC   R5
+    JNZ   UPDATE_POS_LOOP
+    RET
+
+; =============================================================================
+; RENDER_FRAME - Trigger PPU to render
+; =============================================================================
+RENDER_FRAME:
+    LOADI R6, 0xBF    ; PPU_CTRL high
+    LOADI R7, 0x30    ; PPU_CTRL low
+    ; Enable sprites + RENDER_NOW = 0x02 | 0x80 = 0x82 (no background)
+    LOADI R0, 0x82
+    STORE R0
+    RET
+
+; =============================================================================
+; WAIT_FRAME - Wait for FRAME_COUNT to change (syncs to 60 FPS)
+; =============================================================================
+WAIT_FRAME:
+    ; Read current FRAME_COUNT
     LOADI R6, 0xBF
-    LOADI R7, 0x22    ; FRAME_COUNT
-    LOAD  R0
-    SUB   R0, R1      ; Compare with last frame count
-    JZ    WAIT_FRAME_LOOP  ; Wait until frame changes
-    MOV   R1, R0      ; Update last frame count
+    LOADI R7, 0x22    ; FRAME_COUNT at 0xBF22
+    LOAD  R0          ; R0 = current frame count
+
+    ; Load last frame count
+    LOADI R6, 0x40
+    LOADI R7, 0x01    ; last_frame at 0x4001
+    LOAD  R1          ; R1 = last frame count
+
+    ; Compare
+    CMP   R0, R1
+    JZ    WAIT_FRAME  ; If same, keep waiting
+
+    ; Frame changed - save new frame count
+    STORE R0
     RET
 
 section .data
 
-; 8x8 sprite data (smiley face in RGB332 format)
-; RGB332: RRRGGGBB
-; 0x00 = black (00000000)
-; 0xFC = yellow (11111100 = full red + full green)
-sprite_data:
-    DB 0x03, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0x03
-    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
-    DB 0xFC, 0x00, 0xFC, 0xFC, 0xFC, 0xFC, 0x00, 0xFC
-    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
-    DB 0xFC, 0x00, 0xFC, 0xFC, 0xFC, 0xFC, 0x00, 0xFC
-    DB 0xFC, 0xFC, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFC
-    DB 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC
-    DB 0x03, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0xFC, 0x03
+; State at 0x4000
+initialized:  DB 0     ; 0x4000 - initialization flag (0xAA when done)
+last_frame:   DB 0     ; 0x4001 - last known frame count
 
-; Animation state (at 0x4040)
-sprite_x:      DB 0     ; X position
-sprite_y:      DB 0     ; Y position
-vel_x:         DB 0     ; X velocity (1=right, 0=left)
-vel_y:         DB 0     ; Y velocity (1=down, 0=up)
-initialized:   DB 0     ; Initialization flag (0xAA when initialized)
+; Padding to align sprite data at 0x4010
+              DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0  ; 14 bytes padding (0x4002-0x400F)
+
+; Sprite data array (32 sprites × 4 bytes = 128 bytes)
+; Each sprite: [x, y, vel_x, vel_y]
+; Starts at 0x4010, ends at 0x408F
+sprite_data:  DB 0     ; Will be filled by INIT_SPRITES

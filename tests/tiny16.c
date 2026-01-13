@@ -6,6 +6,8 @@
 #include "cpu.h"
 #include "memory.c"
 #include "memory.h"
+#include "ppu.c"
+#include "ppu.h"
 #include "vm.c"
 #include "vm.h"
 

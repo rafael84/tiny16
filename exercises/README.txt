@@ -94,8 +94,13 @@ Input:
 Timers:
     0xBF20  TICK_LOW      CPU tick counter low byte
     0xBF21  TICK_HIGH     CPU tick counter high byte
-    0xBF22  FRAME_COUNT   Frame counter (60Hz)
-    0xBF23  VSYNC         Write 1 to signal frame complete
+    0xBF22  FRAME_COUNT   Frame counter (60Hz, wraps at 256)
+
+PPU:
+    0xBF30  PPU_CTRL      bit 0=BG, bit 1=sprites, bit 7=RENDER_NOW
+    0xBF31  PPU_SCROLL_X  Background scroll X
+    0xBF32  PPU_SCROLL_Y  Background scroll Y
+    0xBF33  PPU_STATUS    bit 0=VBLANK (cleared on read)
 
 Framebuffer:
     0xC000  Start of 128×128 display

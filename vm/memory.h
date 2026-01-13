@@ -65,7 +65,6 @@ typedef struct {
 #define TINY16_MMIO_TICK_LOW    0xBF20
 #define TINY16_MMIO_TICK_HIGH   0xBF21
 #define TINY16_MMIO_FRAME_COUNT 0xBF22
-#define TINY16_MMIO_VSYNC       0xBF23
 
 // PPU
 #define TINY16_MMIO_PPU_CTRL     0xBF30

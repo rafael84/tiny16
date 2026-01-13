@@ -10,6 +10,8 @@
 #include "cpu.h"
 #include "memory.c"
 #include "memory.h"
+#include "ppu.c"
+#include "ppu.h"
 #include "vm.c"
 #include "vm.h"
 
@@ -19,7 +21,7 @@
 #define TINY16_EMU_SCREEN_WIDTH  (TINY16_EMU_PIXEL_WIDTH * 8)
 #define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
 
-#define TINY16_EMU_TARGET_IPS (60.0f * 100000)
+#define TINY16_EMU_TARGET_IPS (60.0f * 1000) // 60k IPS = ~1000 instr/frame at 60 FPS
 
 // clang-format off
 #define REQUIRED_ARGS \
@@ -149,7 +151,7 @@ void tiny16_emu_update_input(Tiny16VM* vm) {
 int tiny16_emu_gui(Tiny16VM* vm) {
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
-    // SetTargetFPS(60);
+    SetTargetFPS(60);
 
     Texture2D fb_texture =
         LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
@@ -162,30 +164,38 @@ int tiny16_emu_gui(Tiny16VM* vm) {
     while (!WindowShouldClose()) {
 
         if (IsKeyPressed(KEY_ESCAPE)) break;
-
-        if (IsKeyPressed(KEY_P)) {
-            paused = !paused;
+        if (IsKeyPressed(KEY_P)) paused = !paused;
+        if (IsKeyPressed(KEY_ZERO)) {
+            tiny16_cpu_print(&vm->cpu);
+            tiny16_memory_print(&vm->memory, true);
         }
 
         if (!paused) {
-            instr_acc += TINY16_EMU_TARGET_IPS * GetFrameTime();
+            float delta = GetFrameTime();
+            if (delta > 0.1f) delta = 0.1f; // cap delta to 100ms to avoid spiral
+            instr_acc += TINY16_EMU_TARGET_IPS * delta;
+
+            // cap instructions per frame to avoid runaway on lag
+            uint32_t max_instr = (uint32_t)(TINY16_EMU_TARGET_IPS / 30.0f); // max ~2 frames worth
             uint32_t instr_this_frame = (uint32_t)instr_acc;
-            instr_acc -= instr_this_frame; // keep fractional part
+            if (instr_this_frame > max_instr) {
+                instr_this_frame = max_instr;
+                instr_acc = 0.0f; // reset accumulator on cap
+            } else {
+                instr_acc -= instr_this_frame;
+            }
 
             tiny16_vm_mem_write(vm, TINY16_MMIO_FRAME_COUNT, frame_counter & 0xFF);
-            tiny16_vm_mem_write(vm, TINY16_MMIO_VSYNC, 0);
 
             tiny16_emu_update_input(vm);
 
             for (uint32_t step = 0; step < instr_this_frame; ++step) {
-                if (tiny16_vm_mem_read(vm, TINY16_MMIO_VSYNC) == 1) {
-                    memcpy(back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
-                    tiny16_vm_mem_write(vm, TINY16_MMIO_VSYNC, 0);
-                }
                 if (!tiny16_vm_step(vm)) return EXIT_FAILURE;
             }
             frame_counter++;
 
+            // always update texture from framebuffer (PPU renders synchronously)
+            memcpy(back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(back_buffer));
             tiny16_emu_update_texture(&fb_texture, back_buffer);
         }
 

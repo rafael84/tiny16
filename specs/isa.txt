@@ -297,12 +297,19 @@ Input (0xBF00-0xBF0F):
 Timers (0xBF20-0xBF2F):
 - 0xBF20 : TICK_LOW        (R ) CPU instruction counter low byte
 - 0xBF21 : TICK_HIGH       (R ) CPU instruction counter high byte
-- 0xBF22 : FRAME_COUNT     (R ) frame counter (60Hz)
-- 0xBF23 : VSYNC           (RW) frame synchronization
-                                Write 1 to signal frame complete (triggers back buffer swap)
-                                Read returns 0 after swap is processed
+- 0xBF22 : FRAME_COUNT     (R ) frame counter (60Hz, wraps at 256)
 
-TODO: Random (0xBF30-0xBF3F):
+PPU (0xBF30-0xBF3F):
+- 0xBF30 : PPU_CTRL        (RW) PPU control register
+                                bit 0: enable background
+                                bit 1: enable sprites
+                                bit 7: RENDER_NOW (triggers PPU render)
+- 0xBF31 : PPU_SCROLL_X    (RW) background scroll X (0-255)
+- 0xBF32 : PPU_SCROLL_Y    (RW) background scroll Y (0-255)
+- 0xBF33 : PPU_STATUS      (R ) PPU status register
+                                bit 0: VBLANK (set after render, cleared on read)
+
+TODO: Random (0xBF40-0xBF4F):
 - 0xBF30 : RNG_VALUE       (R ) read random byte
 - 0xBF31 : RNG_SEED_LOW    (W ) set seed low byte
 - 0xBF32 : RNG_SEED_HIGH   (W ) set seed high byte
@@ -337,11 +344,17 @@ Read from address 0xBF22:
         LOADI R7, 0x22
         LOAD  R0          ; R0 = memory[0xBF22]
 
-Signal frame complete:
+Trigger PPU render:
         LOADI R6, 0xBF
-        LOADI R7, 0x23
-        LOADI R0, 1
-        STORE R0          ; memory[0xBF23] = 1
+        LOADI R7, 0x30
+        LOADI R0, 0x82    ; enable sprites + RENDER_NOW
+        STORE R0          ; PPU renders immediately
+
+Wait for next frame:
+        LOADI R6, 0xBF
+        LOADI R7, 0x22
+        LOAD  R0          ; R0 = current frame count
+        ; compare with last frame, loop until different
 
 Read keyboard input:
         LOADI R6, 0xBF

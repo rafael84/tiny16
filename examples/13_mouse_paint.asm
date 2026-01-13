@@ -1,45 +1,46 @@
 ; Mouse Paint - Draw on screen with mouse
 ;
 ; Controls:
-; - Left click: Draw white pixel at mouse position
+; - Left click + drag: Draw white line
+; - Right click + drag: Erase
 ; - Space key: Clear screen
 ;
-; This demo shows:
-; - Reading mouse position (MMIO 0xBF02, 0xBF03)
-; - Reading mouse buttons (MMIO 0xBF04)
-; - Reading keyboard input (MMIO 0xBF01)
-; - Drawing pixels to framebuffer at mouse coordinates
+; Uses line interpolation to handle fast mouse movements.
 
 section .code
 
 START:
-    ; Initialize if needed
     LOADI R6, 0x40
     LOADI R7, 0x00
-    LOAD  R0          ; Check init flag
+    LOAD  R0
     LOADI R1, 0xAA
-    SUB   R0, R1
-    JZ    SKIP_INIT
+    CMP   R0, R1
+    JZ    MAIN_LOOP
 
-    ; Clear screen on first run
     CALL  CLEAR_SCREEN
 
-    ; Mark as initialized
-    LOADI R0, 0xAA
+    ; Init prev position
     LOADI R6, 0x40
-    LOADI R7, 0x00
+    LOADI R7, 0x04
+    LOADI R0, 64
+    STORE R0
+    INC   R7
     STORE R0
 
-SKIP_INIT:
-    CALL  READ_MOUSE
-    CALL  WAIT_FRAME
-    JMP   SKIP_INIT
+    ; Mark initialized
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOADI R0, 0xAA
+    STORE R0
 
-; ============================================================================
-; CLEAR_SCREEN - Clear framebuffer to black
-; ============================================================================
+MAIN_LOOP:
+    CALL  WAIT_FRAME
+    CALL  READ_MOUSE
+    JMP   MAIN_LOOP
+
+; =============================================================================
 CLEAR_SCREEN:
-    LOADI R0, 0x00    ; Black
+    LOADI R0, 0x03
     LOADI R6, 0xC0
     LOADI R7, 0x00
 CLEAR_LOOP:
@@ -48,112 +49,310 @@ CLEAR_LOOP:
     JNZ   CLEAR_LOOP
     INC   R6
     LOADI R1, 0
-    SUB   R1, R6
+    CMP   R6, R1
     JNZ   CLEAR_LOOP
     RET
 
-; ============================================================================
-; READ_MOUSE - Read mouse input and handle buttons
-; Modifies: R0-R7
-; ============================================================================
+; =============================================================================
 READ_MOUSE:
     ; Read mouse position
     LOADI R6, 0xBF
     LOADI R7, 0x02
-    LOAD  R0          ; R0 = mouse X (0-127)
+    LOAD  R0
     LOADI R7, 0x03
-    LOAD  R1          ; R1 = mouse Y (0-127)
+    LOAD  R1
 
-    ; Save position for later
+    ; Save current position
     LOADI R6, 0x40
-    LOADI R7, 0x02
-    STORE R0          ; mouse_x
-    LOADI R7, 0x03
-    STORE R1          ; mouse_y
+    LOADI R7, 0x01
+    STORE R0
+    INC   R7
+    STORE R1
 
-    ; Read mouse buttons
+    ; Read buttons
     LOADI R6, 0xBF
     LOADI R7, 0x04
-    LOAD  R2          ; R2 = mouse buttons
+    LOAD  R2
 
-    ; Check left button (bit 0) - draw pixel
+    ; Left button - draw white
     MOV   R3, R2
     LOADI R4, 0x01
     AND   R3, R4
-    JZ    CHECK_KEYBOARD
+    JZ    CHECK_RIGHT
+    LOADI R0, 0xFF
+    LOADI R6, 0x40
+    LOADI R7, 0x06
+    STORE R0
+    CALL  DRAW_LINE
+    JMP   UPDATE_PREV
 
-    ; Draw pixel at mouse position
-    CALL  DRAW_PIXEL
+CHECK_RIGHT:
+    MOV   R3, R2
+    LOADI R4, 0x02
+    AND   R3, R4
+    JZ    CHECK_SPACE
+    LOADI R0, 0x03
+    LOADI R6, 0x40
+    LOADI R7, 0x06
+    STORE R0
+    CALL  DRAW_LINE
+    JMP   UPDATE_PREV
 
-CHECK_KEYBOARD:
-    ; Check Space key (bit 0) - clear screen
+CHECK_SPACE:
     LOADI R6, 0xBF
     LOADI R7, 0x01
-    LOAD  R3          ; R3 = KEYS_PRESSED (auto-clears on read)
-    LOADI R4, 0x01    ; bit 0 = Space
+    LOAD  R3
+    LOADI R4, 0x01
     AND   R3, R4
-    JZ    DONE_MOUSE
-
-    ; Clear screen
+    JZ    UPDATE_PREV
     CALL  CLEAR_SCREEN
 
-DONE_MOUSE:
-    RET
-
-; ============================================================================
-; DRAW_PIXEL - Draw white pixel at saved mouse position
-; ============================================================================
-DRAW_PIXEL:
-    ; Load mouse position
+UPDATE_PREV:
     LOADI R6, 0x40
-    LOADI R7, 0x02
-    LOAD  R1          ; R1 = mouse_x
-    LOADI R7, 0x03
-    LOAD  R2          ; R2 = mouse_y
-
-    ; Calculate framebuffer address: 0xC000 + (Y * 128) + X
-    ; Framebuffer offset = (Y << 7) + X
-
-    ; Calculate low byte and detect carry
-    MOV   R6, R2
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6
-    SHL   R6          ; R6 = (Y << 7) & 0xFF
-    ADD   R6, R1      ; R6 = low byte, sets C if overflow
-    MOV   R7, R6      ; R7 = low byte of address
-
-    ; Calculate high byte: 0xC0 + (Y >> 1) + carry
-    MOV   R6, R2
-    SHR   R6          ; R6 = Y >> 1
-    LOADI R5, 0xC0
-    ADD   R6, R5      ; R6 = 0xC0 + (Y >> 1)
-
-    ; Add carry from low byte addition if it occurred
-    JNC   NO_CARRY
-    INC   R6          ; Add carry to high byte
-
-NO_CARRY:
-    ; Draw white pixel
-    LOADI R0, 0xFF
+    LOADI R7, 0x01
+    LOAD  R0
+    INC   R7
+    LOAD  R1
+    INC   R7
+    INC   R7
     STORE R0
+    INC   R7
+    STORE R1
     RET
 
-; ============================================================================
-; WAIT_FRAME - Signal frame complete
-; ============================================================================
+; =============================================================================
+; DRAW_LINE - Simple stepping from prev to current
+; =============================================================================
+DRAW_LINE:
+    ; Load prev (x0,y0) and cur (x1,y1)
+    LOADI R6, 0x40
+    LOADI R7, 0x04
+    LOAD  R0          ; x0
+    INC   R7
+    LOAD  R1          ; y0
+    LOADI R7, 0x01
+    LOAD  R2          ; x1
+    INC   R7
+    LOAD  R3          ; y1
+
+    ; Store current draw pos
+    LOADI R7, 0x10
+    STORE R0          ; draw_x
+    INC   R7
+    STORE R1          ; draw_y
+
+    ; Calculate dx = x1 - x0, get sign and abs
+    PUSH  R2
+    PUSH  R3
+    SUB   R2, R0      ; dx
+    SUB   R3, R1      ; dy
+
+    ; abs(dx) and sx
+    MOV   R4, R2
+    LOADI R5, 0x80
+    AND   R4, R5
+    JZ    DX_POS
+    LOADI R4, 0
+    SUB   R4, R2
+    MOV   R2, R4
+    LOADI R4, 0xFF
+    JMP   SAVE_SX
+DX_POS:
+    LOADI R4, 0x01
+SAVE_SX:
+    LOADI R6, 0x40
+    LOADI R7, 0x12
+    STORE R4          ; sx
+    INC   R7
+    STORE R2          ; abs_dx
+
+    ; abs(dy) and sy
+    MOV   R4, R3
+    LOADI R5, 0x80
+    AND   R4, R5
+    JZ    DY_POS
+    LOADI R4, 0
+    SUB   R4, R3
+    MOV   R3, R4
+    LOADI R4, 0xFF
+    JMP   SAVE_SY
+DY_POS:
+    LOADI R4, 0x01
+SAVE_SY:
+    LOADI R6, 0x40
+    LOADI R7, 0x14
+    STORE R4          ; sy
+    INC   R7
+    STORE R3          ; abs_dy
+
+    ; steps = max(abs_dx, abs_dy)
+    CMP   R2, R3
+    JNC   USE_DY
+    MOV   R0, R2
+    JMP   SET_STEPS
+USE_DY:
+    MOV   R0, R3
+SET_STEPS:
+    INC   R0          ; +1 for both endpoints
+    LOADI R6, 0x40
+    LOADI R7, 0x16
+    STORE R0          ; steps
+
+    POP   R3
+    POP   R2
+
+LINE_LOOP:
+    CALL  DRAW_PIX
+
+    LOADI R6, 0x40
+    LOADI R7, 0x16
+    LOAD  R0
+    DEC   R0
+    STORE R0
+    JZ    LINE_END
+
+    ; Load draw position
+    LOADI R7, 0x10
+    LOAD  R0          ; x
+    INC   R7
+    LOAD  R1          ; y
+
+    ; Load abs values
+    INC   R7
+    LOAD  R2          ; sx
+    INC   R7
+    LOAD  R3          ; abs_dx
+    INC   R7
+    LOAD  R4          ; sy
+    INC   R7
+    LOAD  R5          ; abs_dy
+
+    ; Compare abs_dx vs abs_dy to decide stepping
+    CMP   R3, R5
+    JNC   STEP_Y_DOMINANT
+
+    ; X-dominant: always step X, conditionally step Y
+    LOADI R6, 1
+    CMP   R2, R6
+    JNZ   STEP_X_NEG1
+    INC   R0
+    JMP   MAYBE_STEP_Y1
+STEP_X_NEG1:
+    DEC   R0
+MAYBE_STEP_Y1:
+    ; Step Y every (abs_dx/abs_dy) steps - simplified: check accumulator
+    ; For simplicity, step Y when abs_dy > 0
+    LOADI R6, 0
+    CMP   R5, R6
+    JZ    SAVE_LINE_POS
+    LOADI R6, 1
+    CMP   R4, R6
+    JNZ   STEP_Y_NEG1
+    INC   R1
+    JMP   SAVE_LINE_POS
+STEP_Y_NEG1:
+    DEC   R1
+    JMP   SAVE_LINE_POS
+
+STEP_Y_DOMINANT:
+    ; Y-dominant: always step Y, conditionally step X
+    LOADI R6, 1
+    CMP   R4, R6
+    JNZ   STEP_Y_NEG2
+    INC   R1
+    JMP   MAYBE_STEP_X2
+STEP_Y_NEG2:
+    DEC   R1
+MAYBE_STEP_X2:
+    LOADI R6, 0
+    CMP   R3, R6
+    JZ    SAVE_LINE_POS
+    LOADI R6, 1
+    CMP   R2, R6
+    JNZ   STEP_X_NEG2
+    INC   R0
+    JMP   SAVE_LINE_POS
+STEP_X_NEG2:
+    DEC   R0
+
+SAVE_LINE_POS:
+    LOADI R6, 0x40
+    LOADI R7, 0x10
+    STORE R0
+    INC   R7
+    STORE R1
+    JMP   LINE_LOOP
+
+LINE_END:
+    RET
+
+; =============================================================================
+DRAW_PIX:
+    PUSH  R0
+    PUSH  R1
+    PUSH  R2
+    PUSH  R4
+    PUSH  R5
+    PUSH  R6
+    PUSH  R7
+
+    LOADI R6, 0x40
+    LOADI R7, 0x10
+    LOAD  R1          ; x
+    INC   R7
+    LOAD  R2          ; y
+    LOADI R7, 0x06
+    LOAD  R5          ; color
+
+    ; Address = 0xC000 + y*128 + x
+    MOV   R6, R2
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    SHL   R6
+    ADD   R6, R1
+    MOV   R7, R6
+
+    MOV   R6, R2
+    SHR   R6
+    LOADI R4, 0xC0
+    ADD   R6, R4
+    JNC   NO_C
+    INC   R6
+NO_C:
+    STORE R5
+
+    POP   R7
+    POP   R6
+    POP   R5
+    POP   R4
+    POP   R2
+    POP   R1
+    POP   R0
+    RET
+
+; =============================================================================
 WAIT_FRAME:
     LOADI R6, 0xBF
-    LOADI R7, 0x23
-    LOADI R0, 1
+    LOADI R7, 0x22
+    LOAD  R0
+    LOADI R6, 0x40
+    LOADI R7, 0x03
+    LOAD  R1
+    CMP   R0, R1
+    JZ    WAIT_FRAME
     STORE R0
     RET
 
 section .data
 
-initialized: DB 0     ; Initialization flag
-mouse_x:     DB 0     ; Mouse X position
-mouse_y:     DB 0     ; Mouse Y position
+initialized:  DB 0     ; 0x4000
+cur_x:        DB 0     ; 0x4001
+cur_y:        DB 0     ; 0x4002
+last_frame:   DB 0     ; 0x4003
+prev_x:       DB 0     ; 0x4004
+prev_y:       DB 0     ; 0x4005
+draw_color:   DB 0     ; 0x4006
