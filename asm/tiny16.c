@@ -20,8 +20,6 @@
 #include "strings.c"
 #include "strings.h"
 
-#define TINY16_ASM_LINE_BUFFER_SIZE 256
-
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
 
@@ -61,23 +59,15 @@ int main(int argc, char** argv) {
     }
 
     //
-    // pass 1
+    // Pass 1: Collect labels and parse data section
     //
 
     ctx.source_line_no = 0;
     while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
         ctx.source_line_no++;
 
-        ctx.source_line = buffer;
-        tiny16_asm_str_strip_comment(ctx.source_line);
-        tiny16_asm_str_trim_left(ctx.source_line);
-        if (strlen(ctx.source_line) == 0) continue;
-
-        tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
-        if (section != SECTION_UNKNOWN) {
-            ctx.current_section = section;
-            continue;
-        }
+        if (!tiny16_asm_ctx_preprocess_line(&ctx, buffer)) continue;
+        if (tiny16_asm_ctx_parse_section(&ctx)) continue;
 
         int label_length = tiny16_asm_label_length(ctx.source_line);
         if (label_length > 0) {
@@ -89,25 +79,14 @@ int main(int argc, char** argv) {
             char tmp[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
             strncpy(tmp, ctx.source_line, label_length - 1);
             tmp[label_length - 1] = '\0';
+
             if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND)
                 TINY16_ASM_ABORTF(&ctx, "duplicated label: %s", tmp);
-
             if (ctx.label_count >= TINY16_ASM_MAX_LABELS) TINY16_ASM_ABORT(&ctx, "too many labels");
 
-            switch (ctx.current_section) {
-            case SECTION_CODE:
-                ctx.labels[ctx.label_count].addr = ctx.code_pc;
-                break;
-            case SECTION_DATA:
-                ctx.labels[ctx.label_count].addr = ctx.data_pc;
-                break;
-            default:
-                assert(0 && "unreachable");
-                break;
-            }
-
-            strncpy(ctx.labels[ctx.label_count].name, ctx.source_line, label_length - 1);
-            ctx.labels[ctx.label_count].name[label_length - 1] = '\0';
+            uint16_t addr = (ctx.current_section == SECTION_CODE) ? ctx.code_pc : ctx.data_pc;
+            ctx.labels[ctx.label_count].addr = addr;
+            strncpy(ctx.labels[ctx.label_count].name, tmp, TINY16_ASM_MAX_LABEL_NAME_LENGTH);
             ctx.label_count++;
 
             ctx.source_line += label_length;
@@ -115,30 +94,22 @@ int main(int argc, char** argv) {
             if (strlen(ctx.source_line) == 0) continue;
         }
 
-        switch (ctx.current_section) {
-        case SECTION_UNKNOWN:
-            assert(0 && "unreachable");
-            break;
-        case SECTION_CODE:
-            ctx.code_pc += 3;
-            break;
-        case SECTION_DATA: {
-            char *rest, *mnemonic = strtok_r(ctx.source_line, " ", &rest);
-            if (!mnemonic) TINY16_ASM_ABORTF(&ctx, "could not parse instruction: %s", mnemonic);
-            ctx.source_line = rest;
-            if (strncasecmp(mnemonic, "DB", 2) == 0) {
-                tiny16_asm_str_trim_left(ctx.source_line);
-                tiny16_asm_ctx_parse_db(&ctx);
-            } else {
-                TINY16_ASM_ABORTF(&ctx, "unknown instruction: %s", mnemonic);
-            }
+        int times = tiny16_asm_ctx_parse_times_prefix(&ctx);
 
-        }; break;
+        switch (ctx.current_section) {
+        case SECTION_CODE:
+            ctx.code_pc += 3 * times;
+            break;
+        case SECTION_DATA:
+            tiny16_asm_ctx_times_do(&ctx, times, tiny16_asm_ctx_parse_data);
+            break;
+        default:
+            assert(0 && "unreachable");
         }
     }
 
     //
-    // pass 2
+    // Pass 2: Emit code section
     //
 
     ctx.current_section = SECTION_CODE;
@@ -150,36 +121,18 @@ int main(int argc, char** argv) {
     while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
         ctx.source_line_no++;
 
-        ctx.source_line = buffer;
-        tiny16_asm_str_strip_comment(ctx.source_line);
-        tiny16_asm_str_trim_left(ctx.source_line);
-        if (strlen(ctx.source_line) == 0) continue;
+        if (!tiny16_asm_ctx_preprocess_line(&ctx, buffer)) continue;
+        if (tiny16_asm_ctx_parse_section(&ctx)) continue;
+        if (!tiny16_asm_ctx_skip_label(&ctx)) continue;
 
-        tiny16_asm_section_t section = tiny16_asm_section(ctx.source_line);
-        if (section != SECTION_UNKNOWN) {
-            ctx.current_section = section;
-            continue;
-        }
-
-        int label_length = tiny16_asm_label_length(ctx.source_line);
-        if (label_length > 0) {
-            ctx.source_line += label_length;
-            tiny16_asm_str_trim_left(ctx.source_line);
-            if (strlen(ctx.source_line) == 0) continue;
-        }
         tiny16_asm_str_trim_right(ctx.source_line);
 
-        switch (ctx.current_section) {
-        case SECTION_UNKNOWN:
-            assert(0 && "unreachable");
-            break;
-        case SECTION_CODE: {
-            tiny16_asm_ctx_emit_code(&ctx);
-            if (ctx.current_section == SECTION_CODE) ctx.code_pc += 3;
-        }; break;
-        case SECTION_DATA:
-            break; // ignore, already parsed in pass 1
+        if (ctx.current_section == SECTION_CODE) {
+            int times = tiny16_asm_ctx_parse_times_prefix(&ctx);
+            tiny16_asm_ctx_times_do(&ctx, times, tiny16_asm_ctx_emit_code);
+            ctx.code_pc += 3 * times;
         }
+        // DATA section already parsed in pass 1
     }
 
     if (ctx.data_size > 0) tiny16_asm_ctx_emit_data(&ctx);

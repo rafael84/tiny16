@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +11,7 @@
 
 #define TINY16_ASM_MAX_LABEL_NAME_LENGTH 256
 #define TINY16_ASM_MAX_LABELS            4096
+#define TINY16_ASM_LINE_BUFFER_SIZE      256
 
 typedef struct {
     char name[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
@@ -35,7 +37,7 @@ typedef struct {
     uint16_t code_pc;
     uint16_t data_pc;
 
-    uint8_t data_buffer[TINY16_MEMORY_DATA_END - TINY16_MEMORY_DATA_BEGIN];
+    uint8_t data_buffer[TINY16_ASM_DATA_END - TINY16_ASM_DATA_BEGIN + 1];
     uint16_t data_size;
 } Tiny16AsmContext;
 
@@ -48,6 +50,15 @@ uint8_t tiny16_asm_ctx_parse_reg(Tiny16AsmContext* ctx, char* str, char** savept
 uint16_t tiny16_asm_ctx_parse_imm(Tiny16AsmContext* ctx, char* str, char** saveptr);
 uint8_t tiny16_asm_ctx_parse_imm8(Tiny16AsmContext* ctx, char* str, char** saveptr);
 void tiny16_asm_ctx_parse_db(Tiny16AsmContext* ctx);
+int tiny16_asm_ctx_parse_times_prefix(Tiny16AsmContext* ctx);
 
 void tiny16_asm_ctx_emit_code(Tiny16AsmContext* ctx);
 void tiny16_asm_ctx_emit_data(Tiny16AsmContext* ctx);
+
+bool tiny16_asm_ctx_preprocess_line(Tiny16AsmContext* ctx, char* buffer);
+bool tiny16_asm_ctx_parse_section(Tiny16AsmContext* ctx);
+bool tiny16_asm_ctx_skip_label(Tiny16AsmContext* ctx);
+void tiny16_asm_ctx_parse_data(Tiny16AsmContext* ctx);
+
+typedef void (*tiny16_asm_ctx_callback_fn)(Tiny16AsmContext* ctx);
+void tiny16_asm_ctx_times_do(Tiny16AsmContext* ctx, int times, tiny16_asm_ctx_callback_fn callback);

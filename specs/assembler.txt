@@ -47,6 +47,25 @@ SECTIONS
 - Default section is .code if not specified
 - Labels in each section resolve to their respective memory addresses
 
+PSEUDO-INSTRUCTIONS
+-------------------
+
+TIMES (Repeat)
+    - Works in both .code and .data sections
+    - Syntax: TIMES count instruction
+    - Repeats the following instruction count times
+    - Useful for shifts, increments, and buffer allocation
+
+Code Section Examples:
+    TIMES 4 SHR R0        ; Shift right 4 times (divide by 16)
+    TIMES 8 SHL R1        ; Shift left 8 times (multiply by 256)
+    TIMES 3 INC R2        ; Increment 3 times
+
+Data Section Examples:
+    buffer:  TIMES 256 DB 0         ; 256 bytes of zeros
+    pattern: TIMES 10 DB 0xAA       ; 10 bytes of 0xAA
+    mixed:   TIMES 4 DB 0xFF, 0x00  ; Repeats pair: FF 00 FF 00 FF 00 FF 00
+
 DATA DIRECTIVES
 ---------------
 
@@ -129,10 +148,12 @@ Pass 1:
 - Track section directives
 - Collect labels (both code and data labels)
 - Compute instruction addresses (code at 0x0010+, data at 0x4000+)
+- Parse TIMES prefix and multiply instruction count accordingly
 - Parse DB directives and accumulate data bytes
 
 Pass 2:
 - Encode instructions in code section
+- Handle TIMES by emitting instruction multiple times
 - Resolve labels to addresses
 - Emit bytecode
 - Output file signature (16 bytes)
@@ -149,6 +170,7 @@ Assembly fails on:
 - Invalid number
 - Immediate out of range
 - Undefined or duplicate label
+- TIMES with invalid count
 
 OUTPUT
 ------
@@ -168,7 +190,13 @@ Code Section (starts at 0x0010):
 Data Section (starts at 0x4000):
 - Padded with zeros from end of code to 0x4000
 - DB directives output here
-- Ends at 0x4FFF (max 4KB)
+- Can extend to 0x791F to initialize graphics memory:
+  - 0x4000-0x4FFF: User data (4KB)
+  - 0x5000-0x6FFF: Tile data (8KB, 256 tiles × 32 bytes)
+  - 0x7000-0x73FF: Tilemap (1KB)
+  - 0x7400-0x77FF: Attrmap (1KB)
+  - 0x7800-0x78FF: OAM (256 bytes, 64 sprites × 4 bytes)
+  - 0x7900-0x791F: Palette (32 bytes, 16 colors × 2 bytes)
 
 EXAMPLES
 --------
@@ -198,6 +226,43 @@ Subroutine example:
         ADD   R0, R1
         RET
 
+Using TIMES for efficient shifts:
+
+    section .code
+
+    START:
+        LOADI R0, 128
+        TIMES 4 SHR R0    ; R0 = 128 >> 4 = 8 (divide by 16)
+        HALT
+
+Defining graphics data directly:
+
+    section .data
+
+    ; User data at 0x4000
+    state: DB 0
+
+    ; Pad to tile memory at 0x5000
+           TIMES 4095 DB 0
+
+    ; Define an 8x8 tile (32 bytes)
+    tile0: DB 0x01, 0x11, 0x11, 0x10  ; Row 0
+           DB 0x12, 0x22, 0x22, 0x21  ; Row 1
+           ; ... remaining rows ...
+
+    ; Pad to OAM at 0x7800
+           TIMES 10208 DB 0
+
+    ; Initialize all 64 sprites as hidden (Y = 0xFF)
+    oam:   TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
+
+    ; Palette at 0x7900
+    palette:
+           DB 0x03, 0x00  ; Color 0: dark blue
+           DB 0x1F, 0x00  ; Color 1: blue
+           DB 0xFC, 0x00  ; Color 2: yellow
+           DB 0x00, 0x00  ; Color 3: black
+
 String data:
 
     section .data
@@ -217,8 +282,7 @@ NON-GOALS
 
 - No macros
 - No includes
-- No expressions
-- No pseudo-instructions
+- No expressions (e.g., TIMES 4*2 DB 0)
 - No linking or relocation
 
 DESIGN RULE

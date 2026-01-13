@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "args.h"
@@ -224,6 +225,26 @@ void tiny16_asm_ctx_parse_db(Tiny16AsmContext* ctx) {
     }
 }
 
+int tiny16_asm_ctx_parse_times_prefix(Tiny16AsmContext* ctx) {
+    char* line = ctx->source_line;
+    if (strncasecmp(line, "TIMES", 5) != 0 || !isspace(line[5])) {
+        return 1; // no times prefix, execute once
+    }
+    line += 5;
+    while (*line && isspace(*line))
+        line++;
+
+    char* end;
+    long count = strtol(line, &end, 0);
+    if (count < 0 || count > UINT16_MAX) TINY16_ASM_ABORT(ctx, "TIMES: invalid count");
+
+    while (*end && isspace(*end))
+        end++;
+    ctx->source_line = end;
+
+    return (int)count;
+}
+
 void tiny16_asm_ctx_emit_data(Tiny16AsmContext* ctx) {
     size_t n = TINY16_MEMORY_CODE_END - ctx->code_pc + 1;
     for (size_t i = 0; i < n; ++i)
@@ -234,5 +255,60 @@ void tiny16_asm_ctx_emit_data(Tiny16AsmContext* ctx) {
     if (n != ctx->data_size) {
         perror("write data");
         exit(1);
+    }
+}
+
+bool tiny16_asm_ctx_preprocess_line(Tiny16AsmContext* ctx, char* buffer) {
+    ctx->source_line = buffer;
+    tiny16_asm_str_strip_comment(ctx->source_line);
+    tiny16_asm_str_trim_left(ctx->source_line);
+    return strlen(ctx->source_line) > 0;
+}
+
+bool tiny16_asm_ctx_parse_section(Tiny16AsmContext* ctx) {
+    tiny16_asm_section_t section = tiny16_asm_section(ctx->source_line);
+    if (section != SECTION_UNKNOWN) {
+        ctx->current_section = section;
+        return true;
+    }
+    return false;
+}
+
+bool tiny16_asm_ctx_skip_label(Tiny16AsmContext* ctx) {
+    int label_length = tiny16_asm_label_length(ctx->source_line);
+    if (label_length > 0) {
+        ctx->source_line += label_length;
+        tiny16_asm_str_trim_left(ctx->source_line);
+    }
+    return strlen(ctx->source_line) > 0;
+}
+
+void tiny16_asm_ctx_times_do(Tiny16AsmContext* ctx, int times,
+                             tiny16_asm_ctx_callback_fn callback) {
+    char saved_line[TINY16_ASM_LINE_BUFFER_SIZE];
+    strncpy(saved_line, ctx->source_line, sizeof(saved_line) - 1);
+    saved_line[sizeof(saved_line) - 1] = '\0';
+
+    for (int i = 0; i < times; ++i) {
+        char temp[TINY16_ASM_LINE_BUFFER_SIZE];
+        strncpy(temp, saved_line, sizeof(temp) - 1);
+        temp[sizeof(temp) - 1] = '\0';
+        ctx->source_line = temp;
+        callback(ctx);
+    }
+}
+
+void tiny16_asm_ctx_parse_data(Tiny16AsmContext* ctx) {
+    tiny16_asm_str_trim_right(ctx->source_line);
+
+    char *rest, *mnemonic = strtok_r(ctx->source_line, " ", &rest);
+    if (!mnemonic) TINY16_ASM_ABORTF(ctx, "could not parse directive: %s", mnemonic);
+
+    ctx->source_line = rest;
+    if (strncasecmp(mnemonic, "DB", 2) == 0) {
+        tiny16_asm_str_trim_left(ctx->source_line);
+        tiny16_asm_ctx_parse_db(ctx);
+    } else {
+        TINY16_ASM_ABORTF(ctx, "unknown directive: %s", mnemonic);
     }
 }

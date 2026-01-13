@@ -1,20 +1,17 @@
 ; Bouncing Smileys Demo - 32 PPU Sprites
 ;
 ; This demo demonstrates:
-; - PPU tile-based rendering
+; - PPU tile-based rendering with data-defined tiles
 ; - Hardware sprites via OAM (32 bouncing smileys)
-; - Using data section for constants and arrays
+; - Using TIMES to position data at specific memory addresses
 ; - Animation synchronized to display frame rate
 ;
-; Memory layout:
+; Memory layout (all defined in data section):
 ; 0x4000-0x4001: initialized flag, last_frame
 ; 0x4010-0x408F: sprite data (32 sprites × 4 bytes each)
-;                [x, y, vel_x, vel_y] per sprite
-; 0x5000: Tile data
-; 0x7000: Tilemap
-; 0x7800: OAM (64 entries × 4 bytes)
-; 0x7900: Palette
-; 0xBF30: PPU_CTRL
+; 0x5000-0x501F: Tile 0 (smiley face, 32 bytes)
+; 0x7800-0x78FF: OAM (64 entries × 4 bytes, hidden by default)
+; 0x7900-0x7907: Palette (4 colors × 2 bytes)
 ;
 
 section .code
@@ -28,9 +25,7 @@ START:
     CMP   R0, R1
     JZ    MAIN_LOOP
 
-    CALL  INIT_PALETTE
-    CALL  INIT_TILES
-    CALL  INIT_OAM
+    ; Initialize sprite positions (computed at runtime)
     CALL  INIT_SPRITES
 
 MAIN_LOOP:
@@ -39,178 +34,6 @@ MAIN_LOOP:
     CALL  UPDATE_ALL_POSITIONS
     CALL  RENDER_FRAME
     JMP   MAIN_LOOP
-
-; =============================================================================
-; INIT_PALETTE - Set up palette colors at 0x7900
-; =============================================================================
-INIT_PALETTE:
-    LOADI R6, 0x79    ; PALETTE_BASE high
-    LOADI R7, 0x00    ; PALETTE_BASE low
-
-    ; Color 0: dark blue background (0x03)
-    LOADI R0, 0x03
-    STORE R0
-    INC   R7
-    LOADI R0, 0x00    ; padding
-    STORE R0
-    INC   R7
-
-    ; Color 1: blue border (0x1F)
-    LOADI R0, 0x1F
-    STORE R0
-    INC   R7
-    LOADI R0, 0x00
-    STORE R0
-    INC   R7
-
-    ; Color 2: yellow face (0xFC)
-    LOADI R0, 0xFC
-    STORE R0
-    INC   R7
-    LOADI R0, 0x00
-    STORE R0
-    INC   R7
-
-    ; Color 3: black (eyes/mouth) (0x00)
-    LOADI R0, 0x00
-    STORE R0
-    INC   R7
-    STORE R0
-    RET
-
-; =============================================================================
-; INIT_TILES - Set up smiley tile at index 0
-; Tile format: 4bpp, 8x8 pixels = 32 bytes
-; =============================================================================
-INIT_TILES:
-    LOADI R6, 0x50    ; TILES_BASE high
-    LOADI R7, 0x00    ; TILES_BASE low
-
-    ; Row 0: 0 1 1 1 1 1 1 0 -> 0x01 0x11 0x11 0x10
-    LOADI R0, 0x01
-    STORE R0
-    INC   R7
-    LOADI R0, 0x11
-    STORE R0
-    INC   R7
-    STORE R0
-    INC   R7
-    LOADI R0, 0x10
-    STORE R0
-    INC   R7
-
-    ; Row 1: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x22
-    STORE R0
-    INC   R7
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 2: 1 2 3 2 2 3 2 1 -> 0x12 0x32 0x23 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x32
-    STORE R0
-    INC   R7
-    LOADI R0, 0x23
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 3: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x22
-    STORE R0
-    INC   R7
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 4: 1 2 3 2 2 3 2 1 -> 0x12 0x32 0x23 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x32
-    STORE R0
-    INC   R7
-    LOADI R0, 0x23
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 5: 1 2 2 3 3 2 2 1 -> 0x12 0x23 0x32 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x23
-    STORE R0
-    INC   R7
-    LOADI R0, 0x32
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 6: 1 2 2 2 2 2 2 1 -> 0x12 0x22 0x22 0x21
-    LOADI R0, 0x12
-    STORE R0
-    INC   R7
-    LOADI R0, 0x22
-    STORE R0
-    INC   R7
-    STORE R0
-    INC   R7
-    LOADI R0, 0x21
-    STORE R0
-    INC   R7
-
-    ; Row 7: 0 1 1 1 1 1 1 0 -> 0x01 0x11 0x11 0x10
-    LOADI R0, 0x01
-    STORE R0
-    INC   R7
-    LOADI R0, 0x11
-    STORE R0
-    INC   R7
-    STORE R0
-    INC   R7
-    LOADI R0, 0x10
-    STORE R0
-    RET
-
-; =============================================================================
-; INIT_OAM - Hide all 64 sprites by setting Y to 0xFF
-; =============================================================================
-INIT_OAM:
-    LOADI R6, 0x78    ; OAM_BASE high
-    LOADI R7, 0x00    ; OAM_BASE low
-    LOADI R0, 0xFF    ; Y = 0xFF means hidden
-    LOADI R1, 64      ; 64 sprites
-
-INIT_OAM_LOOP:
-    STORE R0          ; Y = 0xFF (hidden)
-    INC   R7
-    INC   R7
-    INC   R7
-    INC   R7          ; Next OAM entry (4 bytes each)
-    DEC   R1
-    JNZ   INIT_OAM_LOOP
-    RET
 
 ; =============================================================================
 ; INIT_SPRITES - Initialize 32 sprites with varied positions and velocities
@@ -224,15 +47,13 @@ INIT_SPRITES:
     LOADI R5, 32      ; total sprites
 
 INIT_SPRITE_LOOP:
-    ; X = (counter * 4) mod 120
+    ; X = (counter * 4)
     MOV   R0, R4
-    ADD   R0, R0      ; R0 = counter * 2
-    ADD   R0, R0      ; R0 = counter * 4
-    ; Keep X in range 0-119 (simple approach: just use lower bits)
+    TIMES 2 ADD R0, R0    ; R0 = counter * 4
     STORE R0          ; x
     INC   R7
 
-    ; Y = (counter * 3 + 10) mod 120
+    ; Y = (counter * 3 + 10)
     MOV   R1, R4
     ADD   R1, R4      ; R1 = counter * 2
     ADD   R1, R4      ; R1 = counter * 3
@@ -252,7 +73,6 @@ INIT_SPRITE_LOOP:
     MOV   R0, R4
     LOADI R2, 0x02
     AND   R0, R2
-    ; Shift right by 1 (divide by 2) - need to check if bit 1 is set
     JZ    VEL_Y_ZERO
     LOADI R0, 1
     JMP   STORE_VEL_Y
@@ -285,8 +105,7 @@ UPDATE_OAM_LOOP:
     ; Calculate sprite data address: 0x4010 + (counter * 4)
     LOADI R6, 0x40
     MOV   R7, R4
-    ADD   R7, R7      ; counter * 2
-    ADD   R7, R7      ; counter * 4
+    TIMES 2 ADD R7, R7    ; counter * 4
     LOADI R0, 0x10
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
@@ -298,8 +117,7 @@ UPDATE_OAM_LOOP:
     ; Calculate OAM address: 0x7800 + (counter * 4)
     LOADI R6, 0x78
     MOV   R7, R4
-    ADD   R7, R7      ; counter * 2
-    ADD   R7, R7      ; counter * 4
+    TIMES 2 ADD R7, R7    ; counter * 4
 
     ; Write OAM entry: Y, X, tile, attr
     STORE R1          ; Y position
@@ -331,8 +149,7 @@ UPDATE_POS_LOOP:
     ; Calculate sprite data address: 0x4010 + (counter * 4)
     LOADI R6, 0x40
     MOV   R7, R4
-    ADD   R7, R7      ; counter * 2
-    ADD   R7, R7      ; counter * 4
+    TIMES 2 ADD R7, R7    ; counter * 4
     LOADI R0, 0x10
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
@@ -346,9 +163,7 @@ UPDATE_POS_LOOP:
     LOAD  R3          ; vel_y
 
     ; Save base address for later
-    DEC   R7
-    DEC   R7
-    DEC   R7          ; back to x address
+    TIMES 3 DEC R7    ; back to x address
     PUSH  R7          ; save address low byte
 
     ; Update X position
@@ -451,16 +266,91 @@ WAIT_FRAME:
     STORE R0
     RET
 
+; =============================================================================
+; DATA SECTION - All graphics data defined here using TIMES for positioning
+; =============================================================================
+
 section .data
 
+; ============================================================================
+; User Data (0x4000 - 0x408F)
+; ============================================================================
+
 ; State at 0x4000
-initialized:  DB 0     ; 0x4000 - initialization flag (0xAA when done)
-last_frame:   DB 0     ; 0x4001 - last known frame count
+initialized:  DB 0                ; 0x4000 - initialization flag (0xAA when done)
+last_frame:   DB 0                ; 0x4001 - last known frame count
 
 ; Padding to align sprite data at 0x4010
-              DB 0,0,0,0,0,0,0,0,0,0,0,0,0,0  ; 14 bytes padding (0x4002-0x400F)
+              TIMES 14 DB 0       ; 0x4002-0x400F
 
 ; Sprite data array (32 sprites × 4 bytes = 128 bytes)
 ; Each sprite: [x, y, vel_x, vel_y]
-; Starts at 0x4010, ends at 0x408F
-sprite_data:  DB 0     ; Will be filled by INIT_SPRITES
+sprite_data:  TIMES 128 DB 0      ; 0x4010-0x408F
+
+; ============================================================================
+; Padding to reach Tile Memory (0x5000)
+; From 0x4090 to 0x4FFF = 0x0F70 = 3952 bytes
+; ============================================================================
+              TIMES 3952 DB 0
+
+; ============================================================================
+; Tile 0: Smiley Face at 0x5000 (32 bytes)
+; 8x8 pixels, 4bpp format (2 pixels per byte)
+;
+; Pixel values: 0=transparent, 1=border(blue), 2=face(yellow), 3=eyes(black)
+;
+;   01111110    Row 0
+;   12222221    Row 1
+;   12322321    Row 2 (eyes)
+;   12222221    Row 3
+;   12322321    Row 4 (eyes)
+;   12233221    Row 5 (mouth)
+;   12222221    Row 6
+;   01111110    Row 7
+; ============================================================================
+tile_smiley:
+    ; Row 0: 0 1 1 1 1 1 1 0
+    DB 0x01, 0x11, 0x11, 0x10
+    ; Row 1: 1 2 2 2 2 2 2 1
+    DB 0x12, 0x22, 0x22, 0x21
+    ; Row 2: 1 2 3 2 2 3 2 1 (eyes)
+    DB 0x12, 0x32, 0x23, 0x21
+    ; Row 3: 1 2 2 2 2 2 2 1
+    DB 0x12, 0x22, 0x22, 0x21
+    ; Row 4: 1 2 3 2 2 3 2 1 (eyes)
+    DB 0x12, 0x32, 0x23, 0x21
+    ; Row 5: 1 2 2 3 3 2 2 1 (mouth)
+    DB 0x12, 0x23, 0x32, 0x21
+    ; Row 6: 1 2 2 2 2 2 2 1
+    DB 0x12, 0x22, 0x22, 0x21
+    ; Row 7: 0 1 1 1 1 1 1 0
+    DB 0x01, 0x11, 0x11, 0x10
+
+; ============================================================================
+; Padding to reach OAM (0x7800)
+; From 0x5020 to 0x77FF = 0x27E0 = 10208 bytes
+; ============================================================================
+              TIMES 10208 DB 0
+
+; ============================================================================
+; OAM at 0x7800 (64 entries × 4 bytes = 256 bytes)
+; Format: [Y, X, tile, attr] - Y=0xFF means hidden
+; All 64 sprites start hidden (Y = 0xFF)
+; ============================================================================
+oam_data:
+    ; Each OAM entry: Y=0xFF (hidden), X=0, tile=0, attr=0
+    TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
+
+; ============================================================================
+; Palette at 0x7900 (16 colors × 2 bytes = 32 bytes, using first 4)
+; Format: [color_RGB332, padding]
+; ============================================================================
+palette:
+    ; Color 0: dark blue background (RGB332: 0x03)
+    DB 0x03, 0x00
+    ; Color 1: blue border (RGB332: 0x1F)
+    DB 0x1F, 0x00
+    ; Color 2: yellow face (RGB332: 0xFC)
+    DB 0xFC, 0x00
+    ; Color 3: black eyes/mouth (RGB332: 0x00)
+    DB 0x00, 0x00

@@ -75,6 +75,12 @@ typedef struct {
 // RESERVED (0xBFF0 - 0xBFFF)
 
 //
+// Data section range: covers user data + all graphics memory
+//
+#define TINY16_ASM_DATA_BEGIN TINY16_MEMORY_DATA_BEGIN           // 0x4000
+#define TINY16_ASM_DATA_END   TINY16_MEMORY_GRAPHICS_PALETTE_END // 0x791F
+
+//
 // Framebuffer (direct bitmap)
 //
 #define TINY16_FRAMEBUFFER             0xC000
