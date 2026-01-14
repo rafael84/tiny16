@@ -1,0 +1,718 @@
+Tiny16 Tutorial Solutions
+=========================
+
+Try to solve tutorials yourself first! Refer to solutions only when stuck.
+
+
+LEVEL 1: FUNDAMENTALS (01-08)
+==============================
+
+Tutorial 01: Load and Halt
+---------------------------
+section .code
+    LOADI R0, 42
+    HALT
+
+
+Tutorial 02: Add Two Numbers
+-----------------------------
+section .code
+    LOADI R0, 7
+    LOADI R1, 8
+    ADD   R0, R1    ; R0 = R0 + R1 = 15
+    HALT
+
+
+Tutorial 03: Copy Register
+---------------------------
+section .code
+    LOADI R0, 25
+    MOV   R1, R0    ; R1 = R0 = 25
+    HALT
+
+
+Tutorial 04: Simple Subtraction
+--------------------------------
+section .code
+    LOADI R0, 15
+    LOADI R1, 10
+    SUB   R0, R1    ; R0 = R0 - R1 = 5
+    HALT
+
+
+Tutorial 05: Increment and Decrement
+-------------------------------------
+section .code
+    LOADI R0, 10
+    INC   R0        ; R0 = 11
+    INC   R0        ; R0 = 12
+    DEC   R0        ; R0 = 11
+    HALT
+
+
+Tutorial 06: Zero a Register
+-----------------------------
+section .code
+    LOADI R0, 99
+    XOR   R0, R0    ; R0 = 0 (any value XOR itself = 0)
+    HALT
+
+
+Tutorial 07: Double a Number
+-----------------------------
+section .code
+    LOADI R0, 10
+    SHL   R0        ; R0 = 20 (shift left = multiply by 2)
+    HALT
+
+; Alternative solution using ADD:
+section .code
+    LOADI R0, 10
+    ADD   R0, R0    ; R0 = R0 + R0 = 20
+    HALT
+
+
+Tutorial 08: Halve a Number
+----------------------------
+section .code
+    LOADI R0, 20
+    SHR   R0        ; R0 = 10 (shift right = divide by 2)
+    HALT
+
+
+LEVEL 2: CONTROL FLOW (09-16)
+==============================
+
+Tutorial 09: Unconditional Jump
+--------------------------------
+section .code
+    LOADI R0, 0
+loop:
+    INC   R0
+    JMP   loop      ; Infinite loop
+; Note: Run with -m 10 to limit execution
+
+
+Tutorial 10: Simple Loop
+-------------------------
+section .code
+    LOADI R0, 10
+loop:
+    DEC   R0
+    JNZ   loop      ; Loop while R0 != 0
+    HALT            ; R0 = 0
+
+
+Tutorial 11: Count Up
+----------------------
+section .code
+    LOADI R0, 0     ; Counter
+    LOADI R1, 10    ; Target
+loop:
+    CMP   R0, R1    ; Compare R0 with R1
+    JZ    done      ; If equal, exit
+    INC   R0        ; Increment counter
+    JMP   loop
+done:
+    HALT            ; R0 = 10
+
+
+Tutorial 12: Compare Numbers
+-----------------------------
+section .code
+    LOADI R0, 5
+    LOADI R1, 8
+    CMP   R0, R1    ; R0 - R1, sets C=1 if R0 < R1
+    JC    r1_larger ; Jump if R0 < R1
+    JMP   done      ; R0 >= R1
+r1_larger:
+    MOV   R0, R1    ; R0 = R1 = 8
+done:
+    HALT            ; R0 = 8 (the maximum)
+
+
+Tutorial 13: If-Else Logic
+---------------------------
+section .code
+    LOADI R0, 7
+    LOADI R1, 10
+    CMP   R0, R1    ; Compare R0 with 10
+    JC    else_block ; If R0 < 10, jump to else
+then_block:
+    LOADI R2, 100
+    JMP   done
+else_block:
+    LOADI R2, 50
+done:
+    HALT            ; R2 = 50
+
+
+Tutorial 14: For Loop
+----------------------
+section .code
+    LOADI R0, 0     ; Sum accumulator
+    LOADI R1, 1     ; Counter
+    LOADI R2, 6     ; Limit (stop at 6)
+loop:
+    ADD   R0, R1    ; Add counter to sum
+    INC   R1        ; Next number
+    CMP   R1, R2    ; Check if done
+    JNZ   loop      ; Continue if not equal
+    HALT            ; R0 = 15 (1+2+3+4+5)
+
+
+Tutorial 15: While Loop
+------------------------
+section .code
+    LOADI R0, 3
+    LOADI R1, 100
+loop:
+    CMP   R0, R1    ; Compare R0 with 100
+    JNC   done      ; If R0 >= 100 (no carry), exit
+    SHL   R0        ; Double R0
+    JMP   loop
+done:
+    HALT            ; R0 = 192
+
+
+Tutorial 16: Nested Loops
+--------------------------
+section .code
+    LOADI R0, 0     ; Total count
+    LOADI R1, 3     ; Outer iterations
+outer_loop:
+    LOADI R2, 4     ; Inner iterations (reload each time!)
+    inner_loop:
+        INC   R0    ; Count
+        DEC   R2
+        JNZ   inner_loop
+    DEC   R1
+    JNZ   outer_loop
+    HALT            ; R0 = 12
+
+
+LEVEL 3: MEMORY & DATA STRUCTURES (17-24)
+==========================================
+
+Tutorial 17: Load from Memory
+------------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOAD  R0, [R6:R7]
+    HALT
+
+section .data
+    DB 42
+
+
+Tutorial 18: Store to Memory
+-----------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOADI R0, 99
+    STORE R0, [R6:R7]
+    LOAD  R1, [R6:R7]
+    HALT
+
+section .data
+    DB 0
+
+
+Tutorial 19: Array Access
+--------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOAD  R0, [R6:R7 + 2]  ; Load 3rd element (index 2)
+    HALT
+
+section .data
+    DB 10, 20, 30, 40, 50
+
+
+Tutorial 20: Post-Increment
+----------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOAD  R0, [R6:R7]+     ; R0=5, addr becomes 0x4001
+    LOAD  R1, [R6:R7]+     ; R1=10, addr becomes 0x4002
+    LOAD  R2, [R6:R7]+     ; R2=15, addr becomes 0x4003
+    HALT
+
+section .data
+    DB 5, 10, 15, 20, 25
+
+
+Tutorial 21: Post-Decrement
+----------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x04         ; Start at last element
+    LOAD  R0, [R6:R7]-     ; R0=25, addr becomes 0x4003
+    LOAD  R1, [R6:R7]-     ; R1=20, addr becomes 0x4002
+    LOAD  R2, [R6:R7]-     ; R2=15, addr becomes 0x4001
+    HALT
+
+section .data
+    DB 5, 10, 15, 20, 25
+
+
+Tutorial 22: Offset Addressing
+-------------------------------
+section .code
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+    LOAD  R0, [R6:R7 + 0]  ; id = 1
+    LOAD  R1, [R6:R7 + 1]  ; x = 50
+    LOAD  R2, [R6:R7 + 2]  ; y = 75
+    LOAD  R3, [R6:R7 + 3]  ; color = 255
+    HALT
+
+section .data
+    DB 1, 50, 75, 255
+
+
+Tutorial 23: Array Sum
+-----------------------
+section .code
+    LOADI R0, 0            ; Sum
+    LOADI R1, 5            ; Count
+    LOADI R6, 0x40
+    LOADI R7, 0x00
+loop:
+    LOAD  R2, [R6:R7]+
+    ADD   R0, R2
+    DEC   R1
+    JNZ   loop
+    HALT                   ; R0 = 150
+
+section .data
+    DB 10, 20, 30, 40, 50
+
+
+Tutorial 24: Array Copy
+------------------------
+section .code
+    LOADI R0, 5            ; Counter
+    LOADI R6, 0x40
+    LOADI R7, 0x00         ; Source: 0x4000
+    LOADI R4, 0x40
+    LOADI R5, 0x10         ; Dest: 0x4010
+loop:
+    LOAD  R1, [R6:R7]+
+    STORE R1, [R4:R5]+
+    DEC   R0
+    JNZ   loop
+    HALT
+
+section .data
+source: DB 10, 20, 30, 40, 50
+        TIMES 11 DB 0
+dest:   TIMES 5 DB 0
+
+
+LEVEL 4: STACK & SUBROUTINES (25-32)
+=====================================
+
+Tutorial 25: Push and Pop
+--------------------------
+section .code
+    LOADI R0, 10
+    LOADI R1, 20
+    LOADI R2, 30
+    PUSH  R0
+    PUSH  R1
+    PUSH  R2
+    POP   R3               ; R3 = 30
+    POP   R4               ; R4 = 20
+    POP   R5               ; R5 = 10
+    HALT
+
+
+Tutorial 26: Preserve Registers
+--------------------------------
+section .code
+    LOADI R0, 5
+    LOADI R1, 100
+    PUSH  R1               ; Save R1
+    LOADI R1, 10           ; Use R1 temporarily
+    ADD   R0, R1           ; R0 = 15
+    POP   R1               ; Restore R1 = 100
+    HALT
+
+
+Tutorial 27: Simple Subroutine
+-------------------------------
+section .code
+    LOADI R0, 5
+    CALL  double_it
+    HALT
+
+double_it:
+    ADD   R0, R0
+    RET
+
+
+Tutorial 28: Subroutine with Arguments
+---------------------------------------
+section .code
+    LOADI R0, 5
+    LOADI R1, 7
+    CALL  add_fn
+    HALT                   ; R0 = 12
+
+add_fn:
+    ADD   R0, R1
+    RET
+
+
+Tutorial 29: Nested Calls
+--------------------------
+section .code
+    CALL  outer
+    HALT
+
+outer:
+    LOADI R0, 10
+    CALL  inner
+    RET
+
+inner:
+    INC   R0
+    RET
+
+
+Tutorial 30: Recursive Countdown
+---------------------------------
+section .code
+    LOADI R0, 5
+    CALL  countdown
+    HALT
+
+countdown:
+    CMP   R0, R0           ; Will set Z if R0=0
+    JZ    done
+    DEC   R0
+    CALL  countdown
+done:
+    RET
+
+
+Tutorial 31: Recursive Factorial
+---------------------------------
+section .code
+    LOADI R0, 5
+    CALL  factorial
+    HALT                   ; R0 = 120
+
+factorial:
+    LOADI R1, 1
+    CMP   R0, R1
+    JC    base_case        ; If R0 < 1
+    JZ    base_case        ; If R0 == 1
+
+    PUSH  R0               ; Save n
+    DEC   R0               ; n-1
+    CALL  factorial        ; factorial(n-1)
+    POP   R1               ; Restore n
+
+    ; Multiply R0 (result) by R1 (n)
+    MOV   R2, R0           ; Save result
+    LOADI R0, 0            ; Accumulator
+mult_loop:
+    ADD   R0, R2
+    DEC   R1
+    JNZ   mult_loop
+    RET
+
+base_case:
+    LOADI R0, 1
+    RET
+
+
+Tutorial 32: Stack Frame
+-------------------------
+section .code
+    CALL  compute
+    HALT
+
+compute:
+    LOADI R0, 5            ; Local a
+    LOADI R1, 10           ; Local b
+    ADD   R0, R1           ; R0 = 15
+    RET
+
+
+LEVEL 5: ADVANCED ARITHMETIC (33-38)
+=====================================
+
+Tutorial 33: 16-bit Addition
+-----------------------------
+section .code
+    LOADI R6, 0x01
+    LOADI R7, 0xFF
+    LOADI R0, 0x00
+    LOADI R1, 0x02
+    ADD   R7, R1           ; Low bytes: 0xFF + 0x02 = 0x01, C=1
+    ADC   R6, R0           ; High bytes: 0x01 + 0x00 + C = 0x02
+    HALT                   ; R6:R7 = 0x0201
+
+
+Tutorial 34: 16-bit Subtraction
+--------------------------------
+section .code
+    LOADI R6, 0x02
+    LOADI R7, 0x01
+    LOADI R0, 0x00
+    LOADI R1, 0xFF
+    SUB   R7, R1           ; Low: 0x01 - 0xFF, C=1 (borrow)
+    SBC   R6, R0           ; High: 0x02 - 0x00 - C = 0x01
+    HALT                   ; R6:R7 = 0x0102
+
+
+Tutorial 35: Multiply Simple
+-----------------------------
+section .code
+    LOADI R1, 7
+    LOADI R2, 6
+    LOADI R0, 0
+loop:
+    ADD   R0, R1
+    DEC   R2
+    JNZ   loop
+    HALT                   ; R0 = 42
+
+
+Tutorial 36: Multiply Fast
+---------------------------
+section .code
+    LOADI R1, 12           ; Multiplicand
+    LOADI R2, 5            ; Multiplier
+    LOADI R0, 0            ; Result
+loop:
+    MOV   R3, R2
+    CMP   R3, R3
+    JZ    done
+
+    MOV   R3, R2
+    LOADI R4, 1
+    AND   R3, R4
+    JZ    skip_add
+    ADD   R0, R1
+skip_add:
+    SHL   R1
+    SHR   R2
+    JMP   loop
+done:
+    HALT                   ; R0 = 60
+
+
+Tutorial 37: Divide
+--------------------
+section .code
+    LOADI R1, 42           ; Dividend
+    LOADI R2, 7            ; Divisor
+    LOADI R0, 0            ; Quotient
+loop:
+    CMP   R1, R2           ; Check if R1 < R2
+    JC    done
+    SUB   R1, R2
+    INC   R0
+    JMP   loop
+done:
+    HALT                   ; R0 = 6
+
+
+Tutorial 38: Modulo
+--------------------
+section .code
+    LOADI R0, 17
+    LOADI R1, 5
+loop:
+    CMP   R0, R1
+    JC    done
+    SUB   R0, R1
+    JMP   loop
+done:
+    HALT                   ; R0 = 2
+
+
+LEVEL 6: BIT MANIPULATION (39-44)
+==================================
+
+Tutorial 39: Set and Clear Bits
+--------------------------------
+section .code
+    LOADI R0, 0x00
+    LOADI R1, 0x11
+    OR    R0, R1           ; Set bits 0,4: R0 = 0x11
+    LOADI R1, 0xFE
+    AND   R0, R1           ; Clear bit 0: R0 = 0x10
+    HALT
+
+
+Tutorial 40: Test Bit
+----------------------
+section .code
+    LOADI R0, 0x2A
+    LOADI R1, 0x20
+    AND   R0, R1
+    JZ    bit_clear
+    LOADI R0, 1
+    JMP   done
+bit_clear:
+    LOADI R0, 0
+done:
+    HALT                   ; R0 = 1 (bit 5 is set)
+
+
+Tutorial 41: Toggle Bits
+-------------------------
+section .code
+    LOADI R0, 0xAA
+    LOADI R1, 0x81
+    XOR   R0, R1           ; Toggle bits 0,7
+    HALT                   ; R0 = 0x2B
+
+
+Tutorial 42: Count Set Bits
+----------------------------
+section .code
+    LOADI R1, 0x57
+    LOADI R0, 0
+loop:
+    MOV   R2, R1
+    CMP   R2, R2
+    JZ    done
+
+    MOV   R2, R1
+    LOADI R3, 1
+    AND   R2, R3
+    JZ    skip
+    INC   R0
+skip:
+    SHR   R1
+    JMP   loop
+done:
+    HALT                   ; R0 = 5
+
+
+Tutorial 43: Rotate Left
+-------------------------
+section .code
+    LOADI R0, 0x81
+    MOV   R1, R0
+    LOADI R2, 0x80
+    AND   R1, R2           ; Test bit 7
+    SHL   R0               ; Shift left
+    JZ    done
+    LOADI R2, 0x01
+    OR    R0, R2           ; Set bit 0 if bit 7 was set
+done:
+    HALT                   ; R0 = 0x03
+
+
+Tutorial 44: Byte Swap
+-----------------------
+section .code
+    LOADI R0, 0xAB
+    MOV   R1, R0
+    LOADI R2, 0x0F
+    AND   R0, R2           ; Low nibble: 0x0B
+    TIMES 4 SHL R0         ; Move to high: 0xB0
+
+    MOV   R2, R1
+    TIMES 4 SHR R2         ; High nibble to low: 0x0A
+    LOADI R3, 0x0F
+    AND   R2, R3           ; Mask: 0x0A
+    OR    R0, R2           ; Combine: 0xBA
+    HALT
+
+
+LEVEL 7: MMIO & HARDWARE (45-49)
+=================================
+
+Tutorial 45: Read Input State
+------------------------------
+section .code
+    LOADI R6, 0xBF
+    LOADI R7, 0x00
+    LOAD  R0, [R6:R7]
+    LOADI R1, 0x40
+    AND   R0, R1
+    JZ    not_pressed
+    LOADI R0, 1
+    JMP   done
+not_pressed:
+    LOADI R0, 0
+done:
+    HALT
+
+
+Tutorial 46: Button Press Detection
+------------------------------------
+section .code
+    LOADI R6, 0xBF
+    LOADI R7, 0x01
+    LOAD  R0, [R6:R7]
+    LOADI R1, 0x04
+    AND   R0, R1
+    JZ    not_pressed
+    LOADI R0, 1
+    JMP   done
+not_pressed:
+    LOADI R0, 0
+done:
+    HALT
+
+
+Tutorial 47: Read Mouse
+------------------------
+section .code
+    LOADI R6, 0xBF
+    LOADI R7, 0x02
+    LOAD  R0, [R6:R7]      ; X
+    LOADI R7, 0x03
+    LOAD  R1, [R6:R7]      ; Y
+    LOADI R7, 0x04
+    LOAD  R2, [R6:R7]      ; Buttons
+    LOADI R3, 0x01
+    AND   R2, R3           ; Left button
+    HALT
+
+
+Tutorial 48: Draw Pixel
+------------------------
+section .code
+    LOADI R6, 0xE0
+    LOADI R7, 0x40
+    LOADI R0, 0xFF
+    STORE R0, [R6:R7]
+    HALT
+
+
+Tutorial 49: Draw Line
+-----------------------
+section .code
+    LOADI R6, 0xD4
+    LOADI R7, 0x1E
+    LOADI R0, 0xFF
+    LOADI R1, 10
+loop:
+    STORE R0, [R6:R7]+
+    DEC   R1
+    JNZ   loop
+    HALT
+
+
+================================================================================
+End of Solutions
+
+Remember: Understanding WHY a solution works is more important than just
+copying it. Try to solve exercises yourself, and use these solutions to
+check your work or get unstuck.
+
+Happy learning!
