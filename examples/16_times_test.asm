@@ -46,7 +46,7 @@ START:
     ; Load byte from buffer (should be 0xAA)
     LOADI R6, 0x40        ; High byte of data address
     LOADI R7, 0x40        ; pattern starts at 0x4040
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R1, 0xAA
     CMP   R0, R1
     JNZ   FAIL
@@ -55,7 +55,7 @@ START:
     LOADI R6, 0x40
     LOADI R7, 0x00
     LOADI R0, 0x42        ; 'B' for "good"
-    STORE R0
+    STORE R0, [R6:R7]
     HALT
 
 FAIL:
@@ -63,7 +63,7 @@ FAIL:
     LOADI R6, 0x40
     LOADI R7, 0x00
     LOADI R0, 0x46        ; 'F' for fail
-    STORE R0
+    STORE R0, [R6:R7]
     HALT
 
 section .data

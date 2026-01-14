@@ -96,9 +96,28 @@ INSTRUCTIONS
 LOADI R, imm8
     -> opcode reg imm8
 
-LOAD R
-STORE R
-    -> opcode reg 0
+LOAD R, [PAIR]
+STORE R, [PAIR]
+    -> opcode arg1 arg2
+    -> arg1 encodes: REG(7-5) | MODE(4-3) | PAIR(2-1) | 0
+    -> arg2 is offset for OFFSET mode, otherwise 0
+
+    Register Pairs (PAIR field):
+      0 = R0:R1
+      1 = R2:R3
+      2 = R4:R5
+      3 = R6:R7
+
+    Addressing Modes (MODE field):
+      0 = BASE:   [PAIR]         - direct addressing
+      1 = INC:    [PAIR]+        - post-increment
+      2 = DEC:    [PAIR]-        - post-decrement
+      3 = OFFSET: [PAIR + imm8]  - base + offset
+
+    Examples:
+      LOAD  R0, [R6:R7]        -> 0x11 0xC6 0x00  (reg=0, mode=0, pair=3)
+      STORE R1, [R2:R3]+       -> 0x12 0x2A 0x00  (reg=1, mode=1, pair=1)
+      LOAD  R3, [R4:R5 + 10]   -> 0x11 0x7C 0x0A  (reg=3, mode=3, pair=2)
 
 ADD R1, R2
 SUB R1, R2

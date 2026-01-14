@@ -80,10 +80,13 @@ For more examples including subroutines, comparisons, input handling, and multi-
 
 **Registers:**
 
-| Register | Purpose                            |
-| -------- | ---------------------------------- |
-| R0-R5    | General purpose (8-bit)            |
-| R6:R7    | Form 16-bit address for LOAD/STORE |
+| Register | Purpose                                   |
+| -------- | ----------------------------------------- |
+| R0-R7    | General purpose (8-bit)                   |
+| R0:R1    | Register pair for addressing              |
+| R2:R3    | Register pair for addressing              |
+| R4:R5    | Register pair for addressing              |
+| R6:R7    | Register pair for addressing (convention) |
 
 **Flags:**
 

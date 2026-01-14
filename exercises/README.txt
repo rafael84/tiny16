@@ -67,10 +67,17 @@ Loop N times:
 
 Access memory:
 
-    LOADI R6, 0x40    ; addr high
-    LOADI R7, 0x00    ; addr low
-    LOAD  R0          ; read
-    STORE R0          ; write
+    LOADI R6, 0x40        ; addr high
+    LOADI R7, 0x00        ; addr low
+    LOAD  R0, [R6:R7]     ; read
+    STORE R0, [R6:R7]     ; write
+
+Access memory (post-increment):
+
+    LOADI R6, 0x40        ; addr high
+    LOADI R7, 0x00        ; addr low
+    LOAD  R0, [R6:R7]+    ; read and increment address
+    LOAD  R1, [R6:R7]+    ; read next byte
 
 Multiply by addition:
 
@@ -114,7 +121,7 @@ TIPS
 - Always end with HALT
 - Use -m 100 -d for quick testing
 - Use -df to dump framebuffer
-- R6:R7 form 16-bit address: (R6 << 8) | R7
+- Register pairs (R0:R1, R2:R3, R4:R5, R6:R7) form 16-bit addresses
 - Many ops set Z (zero) and C (carry) flags
 - Code at 0x0010+, data at 0x4000+
 

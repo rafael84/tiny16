@@ -13,7 +13,7 @@ section .code
 ; Step 3: Load color (0xFF = white) into R0
 ; Step 4: Load counter (10) into R1
 ; Step 5: Loop:
-;         - STORE R0 (draw pixel)
+;         - STORE R0, [R6:R7] (draw pixel)
 ;         - INC R7 (move to next pixel, same row)
 ;         - DEC R1 (decrement counter)
 ;         - JNZ loop

@@ -11,14 +11,12 @@
 
 #include "args.c"
 #include "args.h"
-#include "context.c"
-#include "context.h"
 #include "cpu.c"
 #include "cpu.h"
 #include "memory.c"
 #include "memory.h"
-#include "strings.c"
-#include "strings.h"
+#include "parser.c"
+#include "parser.h"
 
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
@@ -66,10 +64,10 @@ int main(int argc, char** argv) {
     while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
         ctx.source_line_no++;
 
-        if (!tiny16_asm_ctx_preprocess_line(&ctx, buffer)) continue;
-        if (tiny16_asm_ctx_parse_section(&ctx)) continue;
+        if (!tiny16_parser_preprocess_line(&ctx, buffer)) continue;
+        if (tiny16_parser_parse_section(&ctx)) continue;
 
-        int label_length = tiny16_asm_label_length(ctx.source_line);
+        int label_length = tiny16_parser_label_length(&ctx);
         if (label_length > 0) {
             if (label_length - 1 >= TINY16_ASM_MAX_LABEL_NAME_LENGTH) {
                 TINY16_ASM_ABORTF(&ctx, "max label name length exceeded: %d (limit is %d)",
@@ -80,7 +78,7 @@ int main(int argc, char** argv) {
             strncpy(tmp, ctx.source_line, label_length - 1);
             tmp[label_length - 1] = '\0';
 
-            if (tiny16_asm_ctx_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND)
+            if (tiny16_parser_label_addr(&ctx, tmp) != TINY16_ASM_LABEL_NOT_FOUND)
                 TINY16_ASM_ABORTF(&ctx, "duplicated label: %s", tmp);
             if (ctx.label_count >= TINY16_ASM_MAX_LABELS) TINY16_ASM_ABORT(&ctx, "too many labels");
 
@@ -90,18 +88,18 @@ int main(int argc, char** argv) {
             ctx.label_count++;
 
             ctx.source_line += label_length;
-            tiny16_asm_str_trim_left(ctx.source_line);
+            tiny16_parser_trim_left(&ctx);
             if (strlen(ctx.source_line) == 0) continue;
         }
 
-        int times = tiny16_asm_ctx_parse_times_prefix(&ctx);
+        int times = tiny16_parser_parse_times_prefix(&ctx);
 
         switch (ctx.current_section) {
         case SECTION_CODE:
             ctx.code_pc += 3 * times;
             break;
         case SECTION_DATA:
-            tiny16_asm_ctx_times_do(&ctx, times, tiny16_asm_ctx_parse_data);
+            tiny16_parser_times_do(&ctx, times, tiny16_parser_parse_data);
             break;
         default:
             assert(0 && "unreachable");
@@ -121,21 +119,21 @@ int main(int argc, char** argv) {
     while (fgets(buffer, TINY16_ASM_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
         ctx.source_line_no++;
 
-        if (!tiny16_asm_ctx_preprocess_line(&ctx, buffer)) continue;
-        if (tiny16_asm_ctx_parse_section(&ctx)) continue;
-        if (!tiny16_asm_ctx_skip_label(&ctx)) continue;
+        if (!tiny16_parser_preprocess_line(&ctx, buffer)) continue;
+        if (tiny16_parser_parse_section(&ctx)) continue;
+        if (!tiny16_parser_skip_label(&ctx)) continue;
 
-        tiny16_asm_str_trim_right(ctx.source_line);
+        tiny16_parser_trim_right(&ctx);
 
         if (ctx.current_section == SECTION_CODE) {
-            int times = tiny16_asm_ctx_parse_times_prefix(&ctx);
-            tiny16_asm_ctx_times_do(&ctx, times, tiny16_asm_ctx_emit_code);
+            int times = tiny16_parser_parse_times_prefix(&ctx);
+            tiny16_parser_times_do(&ctx, times, tiny16_parser_emit_code);
             ctx.code_pc += 3 * times;
         }
         // DATA section already parsed in pass 1
     }
 
-    if (ctx.data_size > 0) tiny16_asm_ctx_emit_data(&ctx);
+    if (ctx.data_size > 0) tiny16_parser_emit_data(&ctx);
 
     fclose(ctx.source_file);
     if (errno) {

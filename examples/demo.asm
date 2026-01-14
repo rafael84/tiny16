@@ -5,6 +5,7 @@
 ; - Hardware sprites via OAM (32 bouncing smileys)
 ; - Using TIMES to position data at specific memory addresses
 ; - Animation synchronized to display frame rate
+; - New addressing modes: post-increment [PAIR]+ and offset [PAIR + imm8]
 ;
 ; Memory layout (all defined in data section):
 ; 0x4000-0x4001: initialized flag, last_frame
@@ -20,7 +21,7 @@ START:
     ; Check if already initialized
     LOADI R6, 0x40
     LOADI R7, 0x00    ; initialized flag at 0x4000
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R1, 0xAA
     CMP   R0, R1
     JZ    MAIN_LOOP
@@ -50,8 +51,7 @@ INIT_SPRITE_LOOP:
     ; X = (counter * 4)
     MOV   R0, R4
     TIMES 2 ADD R0, R0    ; R0 = counter * 4
-    STORE R0          ; x
-    INC   R7
+    STORE R0, [R6:R7]+         ; x (post-increment)
 
     ; Y = (counter * 3 + 10)
     MOV   R1, R4
@@ -59,28 +59,27 @@ INIT_SPRITE_LOOP:
     ADD   R1, R4      ; R1 = counter * 3
     LOADI R2, 10
     ADD   R1, R2      ; R1 = counter * 3 + 10
-    STORE R1          ; y
-    INC   R7
+    STORE R1, [R6:R7]+         ; y (post-increment)
 
-    ; vel_x = counter & 1 (alternating 0/1)
+    ; vel_x = 2 or 3 based on counter & 1 (faster velocity!)
     MOV   R0, R4
     LOADI R2, 0x01
     AND   R0, R2
-    STORE R0          ; vel_x
-    INC   R7
+    LOADI R1, 2
+    ADD   R0, R1      ; vel_x = 2 or 3
+    STORE R0, [R6:R7]+         ; vel_x (post-increment)
 
-    ; vel_y = (counter >> 1) & 1 (alternating pairs)
+    ; vel_y = 2 or 3 based on (counter >> 1) & 1
     MOV   R0, R4
     LOADI R2, 0x02
     AND   R0, R2
-    JZ    VEL_Y_ZERO
-    LOADI R0, 1
+    JZ    VEL_Y_LOW
+    LOADI R0, 3
     JMP   STORE_VEL_Y
-VEL_Y_ZERO:
-    LOADI R0, 0
+VEL_Y_LOW:
+    LOADI R0, 2
 STORE_VEL_Y:
-    STORE R0          ; vel_y
-    INC   R7
+    STORE R0, [R6:R7]+         ; vel_y (post-increment)
 
     INC   R4          ; next sprite
     DEC   R5
@@ -90,7 +89,7 @@ STORE_VEL_Y:
     LOADI R6, 0x40
     LOADI R7, 0x00
     LOADI R0, 0xAA
-    STORE R0          ; initialized flag
+    STORE R0, [R6:R7]          ; initialized flag
 
     RET
 
@@ -109,26 +108,22 @@ UPDATE_OAM_LOOP:
     LOADI R0, 0x10
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
-    ; Load x, y
-    LOAD  R0          ; x
-    INC   R7
-    LOAD  R1          ; y
+    ; Load x, y using offset addressing (no pointer modification needed)
+    LOAD  R0, [R6:R7 + 0]      ; x at offset 0
+    LOAD  R1, [R6:R7 + 1]      ; y at offset 1
 
     ; Calculate OAM address: 0x7800 + (counter * 4)
     LOADI R6, 0x78
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
 
-    ; Write OAM entry: Y, X, tile, attr
-    STORE R1          ; Y position
-    INC   R7
-    STORE R0          ; X position
-    INC   R7
+    ; Write OAM entry using post-increment: Y, X, tile, attr
+    STORE R1, [R6:R7]+         ; Y position
+    STORE R0, [R6:R7]+         ; X position
     LOADI R0, 0x00    ; Tile index 0 (smiley)
-    STORE R0
-    INC   R7
+    STORE R0, [R6:R7]+
     LOADI R0, 0x00    ; Attributes (no flip)
-    STORE R0
+    STORE R0, [R6:R7]
 
     INC   R4          ; next sprite
     DEC   R5
@@ -153,78 +148,81 @@ UPDATE_POS_LOOP:
     LOADI R0, 0x10
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
-    ; Load x, y, vel_x, vel_y
-    LOAD  R0          ; x
-    INC   R7
-    LOAD  R1          ; y
-    INC   R7
-    LOAD  R2          ; vel_x
-    INC   R7
-    LOAD  R3          ; vel_y
+    ; Load x, y, vel_x, vel_y using offset addressing
+    LOAD  R0, [R6:R7 + 0]      ; x
+    LOAD  R1, [R6:R7 + 1]      ; y
+    LOAD  R2, [R6:R7 + 2]      ; vel_x (now 2-3)
+    LOAD  R3, [R6:R7 + 3]      ; vel_y (now 2-3)
 
-    ; Save base address for later
-    TIMES 3 DEC R7    ; back to x address
     PUSH  R7          ; save address low byte
 
-    ; Update X position
-    LOADI R5, 0
+    ; Update X position: add velocity, check bounds
+    ; vel_x > 1 means moving right, vel_x = 0 means moving left
+    LOADI R5, 1
     CMP   R2, R5
-    JZ    POS_MOVE_LEFT
+    JC    POS_MOVE_LEFT        ; vel_x < 1 means moving left (vel_x = 0)
+    JZ    POS_MOVE_LEFT        ; vel_x == 1 also left
 
-    ; Moving right
+    ; Moving right: x += vel_x
+    ADD   R0, R2
     LOADI R5, 120     ; boundary
     CMP   R0, R5
-    JZ    POS_BOUNCE_X
-    INC   R0
+    JC    POS_UPDATE_Y         ; x < 120, no bounce
+    ; Bounce: clamp x and reverse velocity
+    MOV   R0, R5               ; x = 120
+    XOR   R2, R2               ; vel_x = 0 (move left)
     JMP   POS_UPDATE_Y
 
 POS_MOVE_LEFT:
-    LOADI R5, 0
+    ; Moving left: x -= speed (speed stored when we reversed)
+    ; For left movement, vel_x is 0, we use a fixed speed of 2
+    LOADI R5, 2
     CMP   R0, R5
-    JZ    POS_BOUNCE_X
-    DEC   R0
+    JC    POS_BOUNCE_X_LEFT    ; x < 2, will underflow
+    SUB   R0, R5
     JMP   POS_UPDATE_Y
 
-POS_BOUNCE_X:
-    LOADI R5, 1
-    SUB   R5, R2
-    MOV   R2, R5
+POS_BOUNCE_X_LEFT:
+    XOR   R0, R0               ; x = 0
+    LOADI R2, 2                ; vel_x = 2 (move right)
 
 POS_UPDATE_Y:
-    LOADI R5, 0
+    ; Update Y position: similar logic
+    LOADI R5, 1
     CMP   R3, R5
-    JZ    POS_MOVE_UP
+    JC    POS_MOVE_UP          ; vel_y < 1 means moving up
+    JZ    POS_MOVE_UP          ; vel_y == 1 also up
 
-    ; Moving down
+    ; Moving down: y += vel_y
+    ADD   R1, R3
     LOADI R5, 120     ; boundary
     CMP   R1, R5
-    JZ    POS_BOUNCE_Y
-    INC   R1
+    JC    POS_SAVE             ; y < 120, no bounce
+    ; Bounce: clamp y and reverse velocity
+    MOV   R1, R5               ; y = 120
+    XOR   R3, R3               ; vel_y = 0 (move up)
     JMP   POS_SAVE
 
 POS_MOVE_UP:
-    LOADI R5, 0
+    ; Moving up: y -= speed
+    LOADI R5, 2
     CMP   R1, R5
-    JZ    POS_BOUNCE_Y
-    DEC   R1
+    JC    POS_BOUNCE_Y_UP      ; y < 2, will underflow
+    SUB   R1, R5
     JMP   POS_SAVE
 
-POS_BOUNCE_Y:
-    LOADI R5, 1
-    SUB   R5, R3
-    MOV   R3, R5
+POS_BOUNCE_Y_UP:
+    XOR   R1, R1               ; y = 0
+    LOADI R3, 2                ; vel_y = 2 (move down)
 
 POS_SAVE:
-    ; Restore address and save position
+    ; Restore address and save position using post-increment
     POP   R7          ; restore address low byte
     LOADI R6, 0x40
-    STORE R0          ; x
-    INC   R7
-    STORE R1          ; y
-    INC   R7
-    STORE R2          ; vel_x
-    INC   R7
-    STORE R3          ; vel_y
+    STORE R0, [R6:R7]+         ; x
+    STORE R1, [R6:R7]+         ; y
+    STORE R2, [R6:R7]+         ; vel_x
+    STORE R3, [R6:R7]          ; vel_y
 
     POP   R5          ; restore remaining count
     POP   R4          ; restore sprite counter
@@ -241,7 +239,7 @@ RENDER_FRAME:
     LOADI R7, 0x30    ; PPU_CTRL low
     ; Enable sprites + RENDER_NOW = 0x02 | 0x80 = 0x82 (no background)
     LOADI R0, 0x82
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================
@@ -251,19 +249,19 @@ WAIT_FRAME:
     ; Read current FRAME_COUNT
     LOADI R6, 0xBF
     LOADI R7, 0x22    ; FRAME_COUNT at 0xBF22
-    LOAD  R0          ; R0 = current frame count
+    LOAD  R0, [R6:R7]          ; R0 = current frame count
 
     ; Load last frame count
     LOADI R6, 0x40
     LOADI R7, 0x01    ; last_frame at 0x4001
-    LOAD  R1          ; R1 = last frame count
+    LOAD  R1, [R6:R7]          ; R1 = last frame count
 
     ; Compare
     CMP   R0, R1
     JZ    WAIT_FRAME  ; If same, keep waiting
 
     ; Frame changed - save new frame count
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================

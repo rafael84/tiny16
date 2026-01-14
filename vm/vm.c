@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "cpu.h"
@@ -44,6 +45,12 @@ uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr) {
 
 void tiny16_vm_mem_write(void* ctx, uint16_t addr, uint8_t value) {
     Tiny16VM* vm = ctx;
+
+    if (addr >= TINY16_MEMORY_CODE_BEGIN && addr < TINY16_MEMORY_CODE_END) {
+        fprintf(stderr, "[CRITICAL] MEM write to code segment: 0x%04X\n", addr);
+        exit(EXIT_FAILURE);
+    }
+
     if (tiny16_is_ppu_mmio(addr)) {
         tiny16_ppu_mmio_write(&vm->ppu, addr, value);
         if (addr == TINY16_MMIO_PPU_CTRL && (value & TINY16_PPU_CTRL_RENDER_NOW)) {
@@ -51,6 +58,7 @@ void tiny16_vm_mem_write(void* ctx, uint16_t addr, uint8_t value) {
         }
         return;
     }
+
     vm->memory.bytes[addr] = value;
 }
 

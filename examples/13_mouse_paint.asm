@@ -12,7 +12,7 @@ section .code
 START:
     LOADI R6, 0x40
     LOADI R7, 0x00
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R1, 0xAA
     CMP   R0, R1
     JZ    MAIN_LOOP
@@ -23,15 +23,15 @@ START:
     LOADI R6, 0x40
     LOADI R7, 0x04
     LOADI R0, 64
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
-    STORE R0
+    STORE R0, [R6:R7]
 
     ; Mark initialized
     LOADI R6, 0x40
     LOADI R7, 0x00
     LOADI R0, 0xAA
-    STORE R0
+    STORE R0, [R6:R7]
 
 MAIN_LOOP:
     CALL  WAIT_FRAME
@@ -44,7 +44,7 @@ CLEAR_SCREEN:
     LOADI R6, 0xC0
     LOADI R7, 0x00
 CLEAR_LOOP:
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     JNZ   CLEAR_LOOP
     INC   R6
@@ -58,21 +58,21 @@ READ_MOUSE:
     ; Read mouse position
     LOADI R6, 0xBF
     LOADI R7, 0x02
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R7, 0x03
-    LOAD  R1
+    LOAD  R1, [R6:R7]
 
     ; Save current position
     LOADI R6, 0x40
     LOADI R7, 0x01
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
-    STORE R1
+    STORE R1, [R6:R7]
 
     ; Read buttons
     LOADI R6, 0xBF
     LOADI R7, 0x04
-    LOAD  R2
+    LOAD  R2, [R6:R7]
 
     ; Left button - draw white
     MOV   R3, R2
@@ -82,7 +82,7 @@ READ_MOUSE:
     LOADI R0, 0xFF
     LOADI R6, 0x40
     LOADI R7, 0x06
-    STORE R0
+    STORE R0, [R6:R7]
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
@@ -94,14 +94,14 @@ CHECK_RIGHT:
     LOADI R0, 0x03
     LOADI R6, 0x40
     LOADI R7, 0x06
-    STORE R0
+    STORE R0, [R6:R7]
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
 CHECK_SPACE:
     LOADI R6, 0xBF
     LOADI R7, 0x01
-    LOAD  R3
+    LOAD  R3, [R6:R7]
     LOADI R4, 0x01
     AND   R3, R4
     JZ    UPDATE_PREV
@@ -110,14 +110,14 @@ CHECK_SPACE:
 UPDATE_PREV:
     LOADI R6, 0x40
     LOADI R7, 0x01
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     INC   R7
-    LOAD  R1
+    LOAD  R1, [R6:R7]
     INC   R7
     INC   R7
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
-    STORE R1
+    STORE R1, [R6:R7]
     RET
 
 ; =============================================================================
@@ -127,19 +127,19 @@ DRAW_LINE:
     ; Load prev (x0,y0) and cur (x1,y1)
     LOADI R6, 0x40
     LOADI R7, 0x04
-    LOAD  R0          ; x0
+    LOAD  R0, [R6:R7]          ; x0
     INC   R7
-    LOAD  R1          ; y0
+    LOAD  R1, [R6:R7]          ; y0
     LOADI R7, 0x01
-    LOAD  R2          ; x1
+    LOAD  R2, [R6:R7]          ; x1
     INC   R7
-    LOAD  R3          ; y1
+    LOAD  R3, [R6:R7]          ; y1
 
     ; Store current draw pos
     LOADI R7, 0x10
-    STORE R0          ; draw_x
+    STORE R0, [R6:R7]          ; draw_x
     INC   R7
-    STORE R1          ; draw_y
+    STORE R1, [R6:R7]          ; draw_y
 
     ; Calculate dx = x1 - x0, get sign and abs
     PUSH  R2
@@ -162,9 +162,9 @@ DX_POS:
 SAVE_SX:
     LOADI R6, 0x40
     LOADI R7, 0x12
-    STORE R4          ; sx
+    STORE R4, [R6:R7]          ; sx
     INC   R7
-    STORE R2          ; abs_dx
+    STORE R2, [R6:R7]          ; abs_dx
 
     ; abs(dy) and sy
     MOV   R4, R3
@@ -181,9 +181,9 @@ DY_POS:
 SAVE_SY:
     LOADI R6, 0x40
     LOADI R7, 0x14
-    STORE R4          ; sy
+    STORE R4, [R6:R7]          ; sy
     INC   R7
-    STORE R3          ; abs_dy
+    STORE R3, [R6:R7]          ; abs_dy
 
     ; steps = max(abs_dx, abs_dy)
     CMP   R2, R3
@@ -196,7 +196,7 @@ SET_STEPS:
     INC   R0          ; +1 for both endpoints
     LOADI R6, 0x40
     LOADI R7, 0x16
-    STORE R0          ; steps
+    STORE R0, [R6:R7]          ; steps
 
     POP   R3
     POP   R2
@@ -206,26 +206,26 @@ LINE_LOOP:
 
     LOADI R6, 0x40
     LOADI R7, 0x16
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     DEC   R0
-    STORE R0
+    STORE R0, [R6:R7]
     JZ    LINE_END
 
     ; Load draw position
     LOADI R7, 0x10
-    LOAD  R0          ; x
+    LOAD  R0, [R6:R7]          ; x
     INC   R7
-    LOAD  R1          ; y
+    LOAD  R1, [R6:R7]          ; y
 
     ; Load abs values
     INC   R7
-    LOAD  R2          ; sx
+    LOAD  R2, [R6:R7]          ; sx
     INC   R7
-    LOAD  R3          ; abs_dx
+    LOAD  R3, [R6:R7]          ; abs_dx
     INC   R7
-    LOAD  R4          ; sy
+    LOAD  R4, [R6:R7]          ; sy
     INC   R7
-    LOAD  R5          ; abs_dy
+    LOAD  R5, [R6:R7]          ; abs_dy
 
     ; Compare abs_dx vs abs_dy to decide stepping
     CMP   R3, R5
@@ -278,9 +278,9 @@ STEP_X_NEG2:
 SAVE_LINE_POS:
     LOADI R6, 0x40
     LOADI R7, 0x10
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
-    STORE R1
+    STORE R1, [R6:R7]
     JMP   LINE_LOOP
 
 LINE_END:
@@ -298,11 +298,11 @@ DRAW_PIX:
 
     LOADI R6, 0x40
     LOADI R7, 0x10
-    LOAD  R1          ; x
+    LOAD  R1, [R6:R7]          ; x
     INC   R7
-    LOAD  R2          ; y
+    LOAD  R2, [R6:R7]          ; y
     LOADI R7, 0x06
-    LOAD  R5          ; color
+    LOAD  R5, [R6:R7]          ; color
 
     ; Address = 0xC000 + y*128 + x
     MOV   R6, R2
@@ -323,7 +323,7 @@ DRAW_PIX:
     JNC   NO_C
     INC   R6
 NO_C:
-    STORE R5
+    STORE R5, [R6:R7]
 
     POP   R7
     POP   R6
@@ -338,13 +338,13 @@ NO_C:
 WAIT_FRAME:
     LOADI R6, 0xBF
     LOADI R7, 0x22
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R6, 0x40
     LOADI R7, 0x03
-    LOAD  R1
+    LOAD  R1, [R6:R7]
     CMP   R0, R1
     JZ    WAIT_FRAME
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 section .data

@@ -13,7 +13,7 @@ START:
     ; Check if already initialized
     LOADI R6, 0x40
     LOADI R7, 0x00
-    LOAD  R0
+    LOAD  R0, [R6:R7]
     LOADI R1, 0xAA
     CMP   R0, R1
     JZ    MAIN_LOOP
@@ -39,18 +39,18 @@ INIT_PALETTE:
 
     ; Color 0: dark blue background (0x03)
     LOADI R0, 0x03
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     LOADI R0, 0x00
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
 
     ; Color 1: yellow (0xFC) - can be changed by button
     LOADI R0, 0xFC
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     LOADI R0, 0x00
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================
@@ -63,7 +63,7 @@ INIT_TILE:
     LOADI R1, 32      ; 32 bytes per tile
 
 INIT_TILE_LOOP:
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     DEC   R1
     JNZ   INIT_TILE_LOOP
@@ -79,7 +79,7 @@ INIT_OAM:
     LOADI R1, 64
 
 INIT_OAM_LOOP:
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     INC   R7
     INC   R7
@@ -95,15 +95,15 @@ INIT_SPRITE:
     LOADI R6, 0x40
     LOADI R7, 0x01
     LOADI R0, 60      ; pos_x = 60 (center)
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
     LOADI R0, 60      ; pos_y = 60 (center)
-    STORE R0
+    STORE R0, [R6:R7]
 
     ; Mark as initialized
     LOADI R7, 0x00
     LOADI R0, 0xAA
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================
@@ -113,14 +113,14 @@ READ_INPUT:
     ; Load current position
     LOADI R6, 0x40
     LOADI R7, 0x01
-    LOAD  R1          ; R1 = pos_x
+    LOAD  R1, [R6:R7]          ; R1 = pos_x
     INC   R7
-    LOAD  R2          ; R2 = pos_y
+    LOAD  R2, [R6:R7]          ; R2 = pos_y
 
     ; Read KEYS_STATE
     LOADI R6, 0xBF
     LOADI R7, 0x00
-    LOAD  R0          ; R0 = keys
+    LOAD  R0, [R6:R7]          ; R0 = keys
 
     ; Check Up (bit 6)
     MOV   R3, R0
@@ -166,24 +166,24 @@ CHECK_BUTTON_A:
     ; Check A button (bit 2) - use KEYS_PRESSED for single press
     LOADI R6, 0xBF
     LOADI R7, 0x01
-    LOAD  R3
+    LOAD  R3, [R6:R7]
     LOADI R4, 0x04
     AND   R3, R4
     JZ    SAVE_POS
     ; Toggle palette color 1 (change square color)
     LOADI R6, 0x79
     LOADI R7, 0x02    ; Color 1 at offset 2
-    LOAD  R3
+    LOAD  R3, [R6:R7]
     LOADI R4, 0x1C
     XOR   R3, R4
-    STORE R3
+    STORE R3, [R6:R7]
 
 SAVE_POS:
     LOADI R6, 0x40
     LOADI R7, 0x01
-    STORE R1          ; pos_x
+    STORE R1, [R6:R7]          ; pos_x
     INC   R7
-    STORE R2          ; pos_y
+    STORE R2, [R6:R7]          ; pos_y
     RET
 
 ; =============================================================================
@@ -193,21 +193,21 @@ UPDATE_OAM:
     ; Load position
     LOADI R6, 0x40
     LOADI R7, 0x01
-    LOAD  R0          ; x
+    LOAD  R0, [R6:R7]          ; x
     INC   R7
-    LOAD  R1          ; y
+    LOAD  R1, [R6:R7]          ; y
 
     ; Write to OAM entry 0
     LOADI R6, 0x78
     LOADI R7, 0x00
-    STORE R1          ; Y
+    STORE R1, [R6:R7]          ; Y
     INC   R7
-    STORE R0          ; X
+    STORE R0, [R6:R7]          ; X
     INC   R7
     LOADI R0, 0x00    ; Tile index 0
-    STORE R0
+    STORE R0, [R6:R7]
     INC   R7
-    STORE R0          ; Attributes
+    STORE R0, [R6:R7]          ; Attributes
     RET
 
 ; =============================================================================
@@ -217,7 +217,7 @@ RENDER_FRAME:
     LOADI R6, 0xBF
     LOADI R7, 0x30
     LOADI R0, 0x82    ; ENABLE_SPRITES | RENDER_NOW
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================
@@ -226,16 +226,16 @@ RENDER_FRAME:
 WAIT_FRAME:
     LOADI R6, 0xBF
     LOADI R7, 0x22    ; FRAME_COUNT
-    LOAD  R0
+    LOAD  R0, [R6:R7]
 
     LOADI R6, 0x40
     LOADI R7, 0x03    ; last_frame
-    LOAD  R1
+    LOAD  R1, [R6:R7]
 
     CMP   R0, R1
     JZ    WAIT_FRAME
 
-    STORE R0
+    STORE R0, [R6:R7]
     RET
 
 section .data

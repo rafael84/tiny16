@@ -201,7 +201,7 @@ Exercise 11: Array Sum (Sum array of 5 elements)
     LOADI R7, 0x00   ; Array address low
 
     loop:
-        LOAD  R2         ; Read array element
+        LOAD  R2, [R6:R7]         ; Read array element
         ADD   R0, R2     ; Add to sum
         INC   R7         ; Next address
         DEC   R1         ; Decrement counter
@@ -225,10 +225,10 @@ Exercise 12: Array Copy (Copy 5 elements)
     LOADI R5, 0x00   ; Dest address low
 
     loop:
-        LOAD  R1         ; Read from source (R6:R7)
+        LOAD  R1, [R6:R7]         ; Read from source (R6:R7)
         MOV   R6, R4     ; Switch to dest address
         MOV   R7, R5
-        STORE R1         ; Write to dest
+        STORE R1, [R6:R7]         ; Write to dest
 
         ; Restore source address and increment both
         LOADI R6, 0x40
@@ -259,7 +259,7 @@ Exercise 13: Find Element (Find 30 in array)
     LOADI R7, 0x00   ; Array address low
 
     loop:
-        LOAD  R3         ; Read array element
+        LOAD  R3, [R6:R7]         ; Read array element
         MOV   R4, R3
         SUB   R4, R2     ; Compare with search value
         JZ    found      ; Found it!
@@ -288,7 +288,7 @@ Exercise 14: Read Input State
 
     LOADI R6, 0xBF   ; High byte of KEYS_STATE
     LOADI R7, 0x00   ; Low byte
-    LOAD  R0         ; R0 = current key state
+    LOAD  R0, [R6:R7]         ; R0 = current key state
     LOADI R1, 0x40   ; Mask for Up key (bit 6)
     AND   R0, R1     ; Isolate Up bit
     HALT
@@ -300,9 +300,9 @@ Exercise 15: Read Mouse Position
 
     LOADI R6, 0xBF   ; High byte of MMIO
     LOADI R7, 0x02   ; MOUSE_X address
-    LOAD  R0         ; R0 = mouse X (0-127)
+    LOAD  R0, [R6:R7]         ; R0 = mouse X (0-127)
     LOADI R7, 0x03   ; MOUSE_Y address
-    LOAD  R1         ; R1 = mouse Y (0-127)
+    LOAD  R1, [R6:R7]         ; R1 = mouse Y (0-127)
     HALT
 
 
@@ -314,7 +314,7 @@ Exercise 16: Draw a Pixel
     LOADI R6, 0xC5   ; High byte
     LOADI R7, 0x0A   ; Low byte
     LOADI R0, 0xFF   ; White color
-    STORE R0         ; Draw pixel
+    STORE R0, [R6:R7]         ; Draw pixel
     HALT
 
 
@@ -329,7 +329,7 @@ Exercise 17: Draw Horizontal Line
     LOADI R1, 10     ; Pixel count
 
     loop:
-        STORE R0     ; Draw pixel
+        STORE R0, [R6:R7]     ; Draw pixel
         INC   R7     ; Next X position
         DEC   R1     ; Decrement counter
         JNZ   loop   ; Continue if not done
@@ -345,14 +345,14 @@ Exercise 18: Animated Pixel (Move pixel with arrow keys)
         ; Read current position from memory or start at center
         LOADI R6, 0x40   ; Storage address high
         LOADI R7, 0x00   ; X position storage
-        LOAD  R0         ; Load current X (default 64)
+        LOAD  R0, [R6:R7]         ; Load current X (default 64)
         LOADI R7, 0x01   ; Y position storage
-        LOAD  R1         ; Load current Y (default 64)
+        LOAD  R1, [R6:R7]         ; Load current Y (default 64)
 
         ; Read keyboard input
         LOADI R6, 0xBF   ; MMIO base
         LOADI R7, 0x00   ; KEYS_STATE
-        LOAD  R2         ; R2 = key state
+        LOAD  R2, [R6:R7]         ; R2 = key state
 
         ; Check Right key (bit 4)
         MOV   R3, R2
@@ -388,14 +388,14 @@ Exercise 18: Animated Pixel (Move pixel with arrow keys)
         LOADI R6, 0xC0
         MOV   R7, R0
         LOADI R4, 0xFF   ; White color
-        STORE R4         ; Draw pixel
+        STORE R4, [R6:R7]         ; Draw pixel
 
         ; Save position
         LOADI R6, 0x40
         LOADI R7, 0x00
-        STORE R0         ; Save X
+        STORE R0, [R6:R7]         ; Save X
         LOADI R7, 0x01
-        STORE R1         ; Save Y
+        STORE R1, [R6:R7]         ; Save Y
 
         JMP   main_loop  ; Infinite loop
 

@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -44,10 +45,6 @@ void tiny16_cpu_print(const Tiny16CPU* cpu) {
            TINY16_BIN16(cpu->pc), TINY16_BIN16(cpu->sp), TINY16_BIN8(cpu->flags));
     printf("  0x%016X  0x%016X\n", cpu->pc, cpu->sp);
     printf("    %016d    %016d\n", cpu->pc, cpu->sp);
-}
-
-inline static uint16_t tiny16_cpu_addr16(const Tiny16CPU* cpu) {
-    return ((uint16_t)cpu->R[6] << 8) | cpu->R[7];
 }
 
 #define TINY16_CPU_PUSH(cpu, mem_ctx, mem_write, value8)                                           \
@@ -112,13 +109,20 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
                      arg2);
             break;
         case TINY16_OPCODE_LOAD:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE,
-                     "R%d\t;; R%d = MEM[R6:R7]", arg1, arg1);
-            break;
-        case TINY16_OPCODE_STORE:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE,
-                     "R%d\t;; MEM[R6:R7] = R%d", arg1, arg1);
-            break;
+        case TINY16_OPCODE_STORE: {
+            uint8_t reg = (arg1 >> 5) & 0x7;
+            Tiny16AddrMode mode = (arg1 >> 3) & 0x3;
+            uint8_t pair = (arg1 >> 1) & 0x3;
+            static const char* pair_names[] = {"R0:R1", "R2:R3", "R4:R5", "R6:R7"};
+            static const char* mode_suffix[] = {"", "+", "-", ""};
+            if (mode == TINY16_ADDR_MODE_OFFSET) {
+                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE,
+                         "R%d, [%s + 0x%02X]", reg, pair_names[pair], arg2);
+            } else {
+                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s]%s", reg,
+                         pair_names[pair], mode_suffix[mode]);
+            }
+        } break;
         case TINY16_OPCODE_INC:
         case TINY16_OPCODE_DEC:
         case TINY16_OPCODE_PUSH:
@@ -152,19 +156,49 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         cpu->R[arg1] = arg2;
         break;
 
-    case TINY16_OPCODE_LOAD: {
-        uint16_t addr = tiny16_cpu_addr16(cpu);
-        cpu->R[arg1] = memory_read(memory_context, addr);
-    }; break;
-
+    case TINY16_OPCODE_LOAD:
     case TINY16_OPCODE_STORE: {
-        uint16_t addr = tiny16_cpu_addr16(cpu);
-        if (addr >= TINY16_MEMORY_CODE_BEGIN && addr < TINY16_MEMORY_CODE_END) {
-            fprintf(stderr, "[CRITICAL] STORE into code segment: 0x%04X (R6=0x%02X, R7=0x%02X)\n",
-                    addr, cpu->R[6], cpu->R[7]);
-            return false;
+        //
+        // BYTE 0 : OPCODE   (LOAD / STORE)
+        // BYTE 1 : REG | MODE | PAIR
+        // BYTE 2 : AUX (offset or 0)
+        //
+        // BYTE 1  bits 7–5 : REG    (Rd or Rs)
+        //         bits 4–3 : MODE   (addressing mode)
+        //         bits 2–1 : PAIR   (00–11)
+        //         bit  0   : unused (0)
+        //
+
+        uint8_t reg = (arg1 >> 5) & 0x7;
+        Tiny16AddrMode mode = (arg1 >> 3) & 0x3;
+        uint8_t pair = (arg1 >> 1) & 0x3;
+
+        // PAIR: 0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7
+        uint8_t* Rh = &cpu->R[pair * 2];     // even (high byte)
+        uint8_t* Rl = &cpu->R[pair * 2 + 1]; // odd (low byte)
+
+        uint16_t addr = ((uint16_t)(*Rh << 8)) | *Rl;
+        uint16_t ea = addr; // effective address
+
+        if (mode == TINY16_ADDR_MODE_OFFSET) ea = addr + (uint8_t)arg2;
+
+        switch (opcode) {
+        case TINY16_OPCODE_LOAD:
+            cpu->R[reg] = memory_read(memory_context, ea);
+            break;
+        case TINY16_OPCODE_STORE:
+            memory_write(memory_context, ea, cpu->R[reg]);
+            break;
+        default:
+            assert(0 && "unreachable");
         }
-        memory_write(memory_context, addr, cpu->R[arg1]);
+
+        if (mode == TINY16_ADDR_MODE_INC) addr++;
+        if (mode == TINY16_ADDR_MODE_DEC) addr--;
+
+        *Rh = addr >> 8;
+        *Rl = addr & 0xFF;
+
     } break;
 
     case TINY16_OPCODE_MOV:

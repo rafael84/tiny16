@@ -25,6 +25,32 @@ void tiny16_cpu_print(const Tiny16CPU* cpu);
 bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn memory_read,
                      tiny16_mem_write_fn memory_write);
 
+typedef enum {
+    TINY16_ADDR_MODE_BASE = 0x00,   // [PAIR]
+    TINY16_ADDR_MODE_INC = 0x01,    // [PAIR]+  (post-increment)
+    TINY16_ADDR_MODE_DEC = 0x02,    // [PAIR]-  (post-decrement)
+    TINY16_ADDR_MODE_OFFSET = 0x03, // [PAIR + imm8]
+} Tiny16AddrMode;
+
+typedef enum {
+    TINY16_ADDR_PAIR_01 = 0x00, // R0:R1
+    TINY16_ADDR_PAIR_23 = 0x01, // R2:R3
+    TINY16_ADDR_PAIR_45 = 0x02, // R4:R5
+    TINY16_ADDR_PAIR_67 = 0x03, // R6:R7
+} Tiny16AddrPair;
+
+typedef struct {
+    // Byte 1: REG(7-5) | MODE(4-3) | PAIR(2-1) | 0
+    uint8_t reg;
+    Tiny16AddrMode mode;
+    Tiny16AddrPair pair;
+    // Byte 2: (TINY16_ADDR_MODE_OFFSET)
+    uint8_t offset;
+} Tiny16Addr;
+
+// REG(7-5) | MODE(4-3) | PAIR(2-1) | 0
+#define TINY16_ADDR_BYTE1(reg, mode, pair) (((reg) << 5) | ((mode) << 3) | ((pair) << 1))
+
 #define TINY16_CPU_FLAG_Z 0
 #define TINY16_CPU_FLAG_C 1
 

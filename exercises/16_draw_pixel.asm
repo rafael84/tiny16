@@ -12,7 +12,7 @@ section .code
 ;         = 0xC000 + 1280 + 10 = 0xC000 + 1290 = 0xC50A
 ; Step 2: Set R6:R7 to 0xC50A
 ; Step 3: Load 0xFF (white) into R0
-; Step 4: STORE R0 to draw the pixel
+; Step 4: STORE R0, [R6:R7] to draw the pixel
 ; Note: Use -df flag to see framebuffer in dump
 
 HALT
