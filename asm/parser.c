@@ -34,7 +34,7 @@ void tiny16_parser_trim_right(Tiny16AsmContext* ctx) {
     end[1] = '\0';
 }
 
-static bool tiny16_asm_is_valid_label_prefix(char* str) {
+static bool tiny16_parser_is_valid_label_prefix(char* str) {
     return (str && (isalpha(str[0]) || str[0] == '_' || str[0] == '.'));
 }
 
@@ -42,7 +42,7 @@ int tiny16_parser_label_length(Tiny16AsmContext* ctx) {
     char* str = ctx->source_line;
     int len = strlen(str);
     int i;
-    if (!(tiny16_asm_is_valid_label_prefix(str))) return 0;
+    if (!(tiny16_parser_is_valid_label_prefix(str))) return 0;
     for (i = 1; i < len; ++i) {
         bool valid = isalpha(str[i]) || isdigit(str[i]) || str[i] == '.' || str[i] == '_';
         if (!valid) break;
@@ -51,27 +51,27 @@ int tiny16_parser_label_length(Tiny16AsmContext* ctx) {
     return 0;
 }
 
-tiny16_asm_section_t tiny16_parser_section(Tiny16AsmContext* ctx) {
+tiny16_parser_section_t tiny16_parser_section(Tiny16AsmContext* ctx) {
     char* str = ctx->source_line;
     if (strncasecmp("section", str, 7) == 0) {
         str += 7;
         while (*str && isspace((unsigned char)*str))
             str++;
         if (*str != '\0') {
-            if (strncmp(str, ".code", 5) == 0) return SECTION_CODE;
-            if (strncmp(str, ".data", 5) == 0) return SECTION_DATA;
+            if (strncmp(str, ".code", 5) == 0) return TINY16_PARSER_SECTION_CODE;
+            if (strncmp(str, ".data", 5) == 0) return TINY16_PARSER_SECTION_DATA;
         }
     }
-    return SECTION_UNKNOWN;
+    return TINY16_PARSER_SECTION_UNKNOWN;
 }
 
-#define TINY16_ASM_ABORT(ctx, fmt)                                                                 \
+#define TINY16_PARSER_ABORT(ctx, fmt)                                                              \
     do {                                                                                           \
         fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no);          \
         exit(1);                                                                                   \
     } while (0)
 
-#define TINY16_ASM_ABORTF(ctx, fmt, ...)                                                           \
+#define TINY16_PARSER_ABORTF(ctx, fmt, ...)                                                        \
     do {                                                                                           \
         fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no,           \
                 __VA_ARGS__);                                                                      \
@@ -82,19 +82,19 @@ uint16_t tiny16_parser_label_addr(Tiny16AsmContext* ctx, char* name) {
     for (int i = 0; i < ctx->label_count; ++i) {
         if (strcmp(ctx->labels[i].name, name) == 0) return ctx->labels[i].addr;
     }
-    return TINY16_ASM_LABEL_NOT_FOUND;
+    return TINY16_PARSER_LABEL_NOT_FOUND;
 }
 
-static bool tiny16_asm_is_sep(char c) { return c == ',' || c == ' ' || c == '\t'; }
+static bool tiny16_parser_is_sep(char c) { return c == ',' || c == ' ' || c == '\t'; }
 
 void tiny16_parser_skip_sep(Tiny16AsmContext* ctx) {
-    while (tiny16_asm_is_sep(*ctx->source_line))
+    while (tiny16_parser_is_sep(*ctx->source_line))
         ctx->source_line++;
 }
 
 size_t tiny16_parser_read_token(Tiny16AsmContext* ctx, char* buf, size_t max_len) {
     size_t len = 0;
-    while (*ctx->source_line && !tiny16_asm_is_sep(*ctx->source_line) && len < max_len - 1) {
+    while (*ctx->source_line && !tiny16_parser_is_sep(*ctx->source_line) && len < max_len - 1) {
         buf[len++] = *ctx->source_line++;
     }
     buf[len] = '\0';
@@ -103,17 +103,18 @@ size_t tiny16_parser_read_token(Tiny16AsmContext* ctx, char* buf, size_t max_len
 
 void tiny16_parser_expect_end(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
-    if (*ctx->source_line != '\0') TINY16_ASM_ABORT(ctx, "too many operands");
+    if (*ctx->source_line != '\0') TINY16_PARSER_ABORT(ctx, "too many operands");
 }
 
 Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
     char mnemonic[32];
     if (tiny16_parser_read_token(ctx, mnemonic, sizeof(mnemonic)) == 0)
-        TINY16_ASM_ABORT(ctx, "could not parse mnemonic");
+        TINY16_PARSER_ABORT(ctx, "could not parse mnemonic");
 
     Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
-    if (opcode == TINY16_OPCODE_UNKNOWN) TINY16_ASM_ABORTF(ctx, "unknown mnemonic: %s", mnemonic);
+    if (opcode == TINY16_OPCODE_UNKNOWN)
+        TINY16_PARSER_ABORTF(ctx, "unknown mnemonic: %s", mnemonic);
 
     return opcode;
 }
@@ -121,32 +122,33 @@ Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16AsmContext* ctx) {
 uint8_t tiny16_parser_parse_reg(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
     char c = toupper(*ctx->source_line);
-    if (c != 'R') TINY16_ASM_ABORTF(ctx, "expected register, found `%c`", *ctx->source_line);
+    if (c != 'R') TINY16_PARSER_ABORTF(ctx, "expected register, found `%c`", *ctx->source_line);
     ctx->source_line++;
     char d = *ctx->source_line;
-    if (d < '0' || d > '7') TINY16_ASM_ABORTF(ctx, "invalid register number: `%c`", d);
+    if (d < '0' || d > '7') TINY16_PARSER_ABORTF(ctx, "invalid register number: `%c`", d);
     ctx->source_line++;
     return (uint8_t)(d - '0');
 }
 
 uint16_t tiny16_parser_parse_imm(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
-    if (*ctx->source_line == '\0') TINY16_ASM_ABORT(ctx, "immediate expected");
+    if (*ctx->source_line == '\0') TINY16_PARSER_ABORT(ctx, "immediate expected");
     if (isalpha(*ctx->source_line) || *ctx->source_line == '_') {
-        char label[TINY16_ASM_MAX_LABEL_NAME_LENGTH];
+        char label[TINY16_PARSER_MAX_LABEL_NAME_LENGTH];
         tiny16_parser_read_token(ctx, label, sizeof(label));
         uint16_t addr = tiny16_parser_label_addr(ctx, label);
-        if (addr == TINY16_ASM_LABEL_NOT_FOUND) TINY16_ASM_ABORTF(ctx, "label %s not found", label);
+        if (addr == TINY16_PARSER_LABEL_NOT_FOUND)
+            TINY16_PARSER_ABORTF(ctx, "label %s not found", label);
         return addr;
     }
-    long val = tiny16_asm_parse_number(ctx);
-    if (val < 0 || val > UINT16_MAX) TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %ld", val);
+    long val = tiny16_parser_parse_number(ctx);
+    if (val < 0 || val > UINT16_MAX) TINY16_PARSER_ABORTF(ctx, "immediate out of bounds: %ld", val);
     return (uint16_t)val;
 }
 
 uint8_t tiny16_parser_parse_imm8(Tiny16AsmContext* ctx) {
     uint16_t imm = tiny16_parser_parse_imm(ctx);
-    if (imm > UINT8_MAX) TINY16_ASM_ABORTF(ctx, "immediate out of bounds: %" PRIu16, imm);
+    if (imm > UINT8_MAX) TINY16_PARSER_ABORTF(ctx, "immediate out of bounds: %" PRIu16, imm);
     return (uint8_t)imm;
 }
 
@@ -156,13 +158,13 @@ void tiny16_parser_eat_space(Tiny16AsmContext* ctx) {
 }
 
 void tiny16_parser_eat_char(Tiny16AsmContext* ctx, char c) {
-    if (*ctx->source_line != c) TINY16_ASM_ABORTF(ctx, "expected `%c`", c);
+    if (*ctx->source_line != c) TINY16_PARSER_ABORTF(ctx, "expected `%c`", c);
     ctx->source_line++;
 }
 
-long tiny16_asm_parse_number(Tiny16AsmContext* ctx) {
+long tiny16_parser_parse_number(Tiny16AsmContext* ctx) {
     if (!isdigit(*ctx->source_line))
-        TINY16_ASM_ABORTF(ctx, "expected number, found `%s`", ctx->source_line);
+        TINY16_PARSER_ABORTF(ctx, "expected number, found `%s`", ctx->source_line);
 
     long value;
     char* end;
@@ -194,14 +196,14 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
     tiny16_parser_eat_space(ctx);
 
     uint8_t rh = tiny16_parser_parse_reg(ctx);
-    if (rh % 2 != 0) TINY16_ASM_ABORTF(ctx, "expected even register, found R%d", rh);
+    if (rh % 2 != 0) TINY16_PARSER_ABORTF(ctx, "expected even register, found R%d", rh);
 
     tiny16_parser_eat_space(ctx);
     tiny16_parser_eat_char(ctx, ':');
     tiny16_parser_eat_space(ctx);
 
     uint8_t rl = tiny16_parser_parse_reg(ctx);
-    if (rl != rh + 1) TINY16_ASM_ABORTF(ctx, "expected R%d, found R%d", rh + 1, rl);
+    if (rl != rh + 1) TINY16_PARSER_ABORTF(ctx, "expected R%d, found R%d", rh + 1, rl);
 
     addr.pair = rh / 2;
     addr.mode = TINY16_ADDR_MODE_BASE;
@@ -214,10 +216,10 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
         char sign = *ctx->source_line;
         ctx->source_line++;
         tiny16_parser_eat_space(ctx);
-        long val = tiny16_asm_parse_number(ctx);
+        long val = tiny16_parser_parse_number(ctx);
         if (sign == '-') val = -val;
         if (val < 0 || val > UINT8_MAX)
-            TINY16_ASM_ABORTF(ctx, "offset out of bounds: %ld (must be 0-255)", val);
+            TINY16_PARSER_ABORTF(ctx, "offset out of bounds: %ld (must be 0-255)", val);
         addr.mode = TINY16_ADDR_MODE_OFFSET;
         addr.offset = (uint8_t)val;
         tiny16_parser_eat_space(ctx);
@@ -243,7 +245,7 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
 void tiny16_parser_emit_code(Tiny16AsmContext* ctx) {
     const uint16_t max_program_size = TINY16_MEMORY_CODE_END - TINY16_MEMORY_CODE_BEGIN;
     if ((ctx->output_file_size + 3) > max_program_size)
-        TINY16_ASM_ABORTF(ctx, "max program size is %d bytes", max_program_size);
+        TINY16_PARSER_ABORTF(ctx, "max program size is %d bytes", max_program_size);
 
     Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(ctx);
 
@@ -318,8 +320,7 @@ void tiny16_parser_emit_code(Tiny16AsmContext* ctx) {
     ctx->output_file_size += 3;
 }
 
-// Helper: parse escape sequence, returns escaped char
-static char tiny16_asm_parse_escape(char c) {
+static char tiny16_parser_parse_escape(char c) {
     switch (c) {
     case 'n':
         return '\n';
@@ -350,7 +351,7 @@ void tiny16_parser_parse_db(Tiny16AsmContext* ctx) {
                 if (*ctx->source_line == '\\' && ctx->source_line[1]) {
                     ctx->source_line++;
                     ctx->data_buffer[ctx->data_size++] =
-                        tiny16_asm_parse_escape(*ctx->source_line++);
+                        tiny16_parser_parse_escape(*ctx->source_line++);
                 } else {
                     ctx->data_buffer[ctx->data_size++] = *ctx->source_line++;
                 }
@@ -359,7 +360,7 @@ void tiny16_parser_parse_db(Tiny16AsmContext* ctx) {
         }
         // parse number
         else if (isdigit(*ctx->source_line)) {
-            long value = tiny16_asm_parse_number(ctx);
+            long value = tiny16_parser_parse_number(ctx);
             ctx->data_buffer[ctx->data_size++] = (uint8_t)(value & 0xFF);
         }
         // skip unknown characters
@@ -376,8 +377,8 @@ int tiny16_parser_parse_times_prefix(Tiny16AsmContext* ctx) {
     ctx->source_line += 5;
     tiny16_parser_eat_space(ctx);
 
-    long count = tiny16_asm_parse_number(ctx);
-    if (count < 0 || count > UINT16_MAX) TINY16_ASM_ABORT(ctx, "TIMES: invalid count");
+    long count = tiny16_parser_parse_number(ctx);
+    if (count < 0 || count > UINT16_MAX) TINY16_PARSER_ABORT(ctx, "TIMES: invalid count");
 
     tiny16_parser_eat_space(ctx);
     return (int)count;
@@ -404,8 +405,8 @@ bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx, char* buffer) {
 }
 
 bool tiny16_parser_parse_section(Tiny16AsmContext* ctx) {
-    tiny16_asm_section_t section = tiny16_parser_section(ctx);
-    if (section != SECTION_UNKNOWN) {
+    tiny16_parser_section_t section = tiny16_parser_section(ctx);
+    if (section != TINY16_PARSER_SECTION_UNKNOWN) {
         ctx->current_section = section;
         return true;
     }
@@ -422,12 +423,12 @@ bool tiny16_parser_skip_label(Tiny16AsmContext* ctx) {
 }
 
 void tiny16_parser_times_do(Tiny16AsmContext* ctx, int times, tiny16_parser_callback_fn callback) {
-    char saved_line[TINY16_ASM_LINE_BUFFER_SIZE];
+    char saved_line[TINY16_PARSER_LINE_BUFFER_SIZE];
     strncpy(saved_line, ctx->source_line, sizeof(saved_line) - 1);
     saved_line[sizeof(saved_line) - 1] = '\0';
 
     for (int i = 0; i < times; ++i) {
-        char temp[TINY16_ASM_LINE_BUFFER_SIZE];
+        char temp[TINY16_PARSER_LINE_BUFFER_SIZE];
         strncpy(temp, saved_line, sizeof(temp) - 1);
         temp[sizeof(temp) - 1] = '\0';
         ctx->source_line = temp;
@@ -441,10 +442,10 @@ void tiny16_parser_parse_data(Tiny16AsmContext* ctx) {
 
     char directive[32];
     if (tiny16_parser_read_token(ctx, directive, sizeof(directive)) == 0)
-        TINY16_ASM_ABORT(ctx, "could not parse directive");
+        TINY16_PARSER_ABORT(ctx, "could not parse directive");
 
     if (strncasecmp(directive, "DB", 2) == 0)
         tiny16_parser_parse_db(ctx);
     else
-        TINY16_ASM_ABORTF(ctx, "unknown directive: %s", directive);
+        TINY16_PARSER_ABORTF(ctx, "unknown directive: %s", directive);
 }
