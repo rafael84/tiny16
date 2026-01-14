@@ -12,6 +12,19 @@
 #include "memory.h"
 #include "parser.h"
 
+#define TINY16_PARSER_ABORT(ctx, fmt)                                                              \
+    do {                                                                                           \
+        fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no);          \
+        exit(1);                                                                                   \
+    } while (0)
+
+#define TINY16_PARSER_ABORTF(ctx, fmt, ...)                                                        \
+    do {                                                                                           \
+        fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no,           \
+                __VA_ARGS__);                                                                      \
+        exit(1);                                                                                   \
+    } while (0)
+
 void tiny16_parser_strip_comment(Tiny16AsmContext* ctx) {
     char* cut = strchr(ctx->source_line, ';');
     if (cut) *cut = '\0';
@@ -36,6 +49,40 @@ void tiny16_parser_trim_right(Tiny16AsmContext* ctx) {
 
 static bool tiny16_parser_is_valid_label_prefix(char* str) {
     return (str && (isalpha(str[0]) || str[0] == '_' || str[0] == '.'));
+}
+
+char* tiny16_parser_next_line(Tiny16AsmContext* ctx) {
+    return fgets(ctx->line_buffer, TINY16_PARSER_LINE_BUFFER_SIZE, ctx->source_file);
+}
+
+bool tiny16_parser_parse_label(Tiny16AsmContext* ctx) {
+    int label_length = tiny16_parser_label_length(ctx);
+    if (label_length > 0) {
+        if (label_length - 1 >= TINY16_PARSER_MAX_TOKEN_LENGTH) {
+            TINY16_PARSER_ABORTF(ctx, "max label name length exceeded: %d (limit is %d)",
+                                 label_length, TINY16_PARSER_MAX_TOKEN_LENGTH);
+        }
+
+        char tmp[TINY16_PARSER_MAX_TOKEN_LENGTH];
+        strncpy(tmp, ctx->source_line, label_length - 1);
+        tmp[label_length - 1] = '\0';
+
+        if (tiny16_parser_label_addr(ctx, tmp) != TINY16_PARSER_LABEL_NOT_FOUND)
+            TINY16_PARSER_ABORTF(ctx, "duplicated label: %s", tmp);
+        if (ctx->label_count >= TINY16_PARSER_MAX_LABELS)
+            TINY16_PARSER_ABORT(ctx, "too many labels");
+
+        uint16_t addr =
+            (ctx->current_section == TINY16_PARSER_SECTION_CODE) ? ctx->code_pc : ctx->data_pc;
+        ctx->labels[ctx->label_count].addr = addr;
+        strncpy(ctx->labels[ctx->label_count].name, tmp, TINY16_PARSER_MAX_TOKEN_LENGTH);
+        ctx->label_count++;
+
+        ctx->source_line += label_length;
+        tiny16_parser_trim_left(ctx);
+        if (strlen(ctx->source_line) == 0) return true;
+    }
+    return false;
 }
 
 int tiny16_parser_label_length(Tiny16AsmContext* ctx) {
@@ -65,19 +112,6 @@ tiny16_parser_section_t tiny16_parser_section(Tiny16AsmContext* ctx) {
     return TINY16_PARSER_SECTION_UNKNOWN;
 }
 
-#define TINY16_PARSER_ABORT(ctx, fmt)                                                              \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no);          \
-        exit(1);                                                                                   \
-    } while (0)
-
-#define TINY16_PARSER_ABORTF(ctx, fmt, ...)                                                        \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%d: " fmt "\n", args.source_filename, (ctx)->source_line_no,           \
-                __VA_ARGS__);                                                                      \
-        exit(1);                                                                                   \
-    } while (0)
-
 uint16_t tiny16_parser_label_addr(Tiny16AsmContext* ctx, char* name) {
     for (int i = 0; i < ctx->label_count; ++i) {
         if (strcmp(ctx->labels[i].name, name) == 0) return ctx->labels[i].addr;
@@ -92,13 +126,14 @@ void tiny16_parser_skip_sep(Tiny16AsmContext* ctx) {
         ctx->source_line++;
 }
 
-size_t tiny16_parser_read_token(Tiny16AsmContext* ctx, char* buf, size_t max_len) {
+char* tiny16_parser_read_token(Tiny16AsmContext* ctx) {
     size_t len = 0;
+    size_t max_len = TINY16_PARSER_MAX_TOKEN_LENGTH;
     while (*ctx->source_line && !tiny16_parser_is_sep(*ctx->source_line) && len < max_len - 1) {
-        buf[len++] = *ctx->source_line++;
+        ctx->token_buffer[len++] = *ctx->source_line++;
     }
-    buf[len] = '\0';
-    return len;
+    ctx->token_buffer[len] = '\0';
+    return ctx->token_buffer;
 }
 
 void tiny16_parser_expect_end(Tiny16AsmContext* ctx) {
@@ -108,9 +143,8 @@ void tiny16_parser_expect_end(Tiny16AsmContext* ctx) {
 
 Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
-    char mnemonic[32];
-    if (tiny16_parser_read_token(ctx, mnemonic, sizeof(mnemonic)) == 0)
-        TINY16_PARSER_ABORT(ctx, "could not parse mnemonic");
+    char* mnemonic = tiny16_parser_read_token(ctx);
+    if (*mnemonic == '\0') TINY16_PARSER_ABORT(ctx, "could not parse mnemonic");
 
     Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
     if (opcode == TINY16_OPCODE_UNKNOWN)
@@ -134,8 +168,7 @@ uint16_t tiny16_parser_parse_imm(Tiny16AsmContext* ctx) {
     tiny16_parser_skip_sep(ctx);
     if (*ctx->source_line == '\0') TINY16_PARSER_ABORT(ctx, "immediate expected");
     if (isalpha(*ctx->source_line) || *ctx->source_line == '_') {
-        char label[TINY16_PARSER_MAX_LABEL_NAME_LENGTH];
-        tiny16_parser_read_token(ctx, label, sizeof(label));
+        char* label = tiny16_parser_read_token(ctx);
         uint16_t addr = tiny16_parser_label_addr(ctx, label);
         if (addr == TINY16_PARSER_LABEL_NOT_FOUND)
             TINY16_PARSER_ABORTF(ctx, "label %s not found", label);
@@ -397,8 +430,8 @@ void tiny16_parser_emit_data(Tiny16AsmContext* ctx) {
     }
 }
 
-bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx, char* buffer) {
-    ctx->source_line = buffer;
+bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx) {
+    ctx->source_line = ctx->line_buffer;
     tiny16_parser_strip_comment(ctx);
     tiny16_parser_trim_left(ctx);
     return strlen(ctx->source_line) > 0;
@@ -440,9 +473,8 @@ void tiny16_parser_parse_data(Tiny16AsmContext* ctx) {
     tiny16_parser_trim_right(ctx);
     tiny16_parser_skip_sep(ctx);
 
-    char directive[32];
-    if (tiny16_parser_read_token(ctx, directive, sizeof(directive)) == 0)
-        TINY16_PARSER_ABORT(ctx, "could not parse directive");
+    char* directive = tiny16_parser_read_token(ctx);
+    if (*directive == '\0') TINY16_PARSER_ABORT(ctx, "could not parse directive");
 
     if (strncasecmp(directive, "DB", 2) == 0)
         tiny16_parser_parse_db(ctx);

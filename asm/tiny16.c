@@ -48,8 +48,6 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    char buffer[TINY16_PARSER_LINE_BUFFER_SIZE];
-
     ctx.source_file = fopen(args.source_filename, "r");
     if (ctx.source_file == NULL) {
         perror("could not open input file");
@@ -61,38 +59,12 @@ int main(int argc, char** argv) {
     //
 
     ctx.source_line_no = 0;
-    while (fgets(buffer, TINY16_PARSER_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
+    while (tiny16_parser_next_line(&ctx) != NULL) {
         ctx.source_line_no++;
 
-        if (!tiny16_parser_preprocess_line(&ctx, buffer)) continue;
+        if (!tiny16_parser_preprocess_line(&ctx)) continue;
         if (tiny16_parser_parse_section(&ctx)) continue;
-
-        int label_length = tiny16_parser_label_length(&ctx);
-        if (label_length > 0) {
-            if (label_length - 1 >= TINY16_PARSER_MAX_LABEL_NAME_LENGTH) {
-                TINY16_PARSER_ABORTF(&ctx, "max label name length exceeded: %d (limit is %d)",
-                                     label_length, TINY16_PARSER_MAX_LABEL_NAME_LENGTH);
-            }
-
-            char tmp[TINY16_PARSER_MAX_LABEL_NAME_LENGTH];
-            strncpy(tmp, ctx.source_line, label_length - 1);
-            tmp[label_length - 1] = '\0';
-
-            if (tiny16_parser_label_addr(&ctx, tmp) != TINY16_PARSER_LABEL_NOT_FOUND)
-                TINY16_PARSER_ABORTF(&ctx, "duplicated label: %s", tmp);
-            if (ctx.label_count >= TINY16_PARSER_MAX_LABELS)
-                TINY16_PARSER_ABORT(&ctx, "too many labels");
-
-            uint16_t addr =
-                (ctx.current_section == TINY16_PARSER_SECTION_CODE) ? ctx.code_pc : ctx.data_pc;
-            ctx.labels[ctx.label_count].addr = addr;
-            strncpy(ctx.labels[ctx.label_count].name, tmp, TINY16_PARSER_MAX_LABEL_NAME_LENGTH);
-            ctx.label_count++;
-
-            ctx.source_line += label_length;
-            tiny16_parser_trim_left(&ctx);
-            if (strlen(ctx.source_line) == 0) continue;
-        }
+        if (tiny16_parser_parse_label(&ctx)) continue;
 
         int times = tiny16_parser_parse_times_prefix(&ctx);
 
@@ -118,10 +90,10 @@ int main(int argc, char** argv) {
     fseek(ctx.source_file, 0L, SEEK_SET);
     ctx.source_line_no = 0;
 
-    while (fgets(buffer, TINY16_PARSER_LINE_BUFFER_SIZE, ctx.source_file) != NULL) {
+    while (tiny16_parser_next_line(&ctx) != NULL) {
         ctx.source_line_no++;
 
-        if (!tiny16_parser_preprocess_line(&ctx, buffer)) continue;
+        if (!tiny16_parser_preprocess_line(&ctx)) continue;
         if (tiny16_parser_parse_section(&ctx)) continue;
         if (!tiny16_parser_skip_label(&ctx)) continue;
 

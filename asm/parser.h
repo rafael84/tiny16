@@ -9,12 +9,12 @@
 #include "cpu.h"
 #include "memory.h"
 
-#define TINY16_PARSER_MAX_LABEL_NAME_LENGTH 256
-#define TINY16_PARSER_MAX_LABELS            4096
-#define TINY16_PARSER_LINE_BUFFER_SIZE      256
+#define TINY16_PARSER_MAX_TOKEN_LENGTH 256
+#define TINY16_PARSER_MAX_LABELS       4096
+#define TINY16_PARSER_LINE_BUFFER_SIZE 256
 
 typedef struct {
-    char name[TINY16_PARSER_MAX_LABEL_NAME_LENGTH];
+    char name[TINY16_PARSER_MAX_TOKEN_LENGTH];
     uint16_t addr;
 } Tiny16Parser;
 
@@ -42,9 +42,15 @@ typedef struct {
 
     uint8_t data_buffer[TINY16_DATA_END - TINY16_DATA_BEGIN + 1];
     uint16_t data_size;
+
+    char line_buffer[TINY16_PARSER_LINE_BUFFER_SIZE];
+    char token_buffer[TINY16_PARSER_MAX_TOKEN_LENGTH];
 } Tiny16AsmContext;
 
 #define TINY16_PARSER_LABEL_NOT_FOUND 0xFFFF
+
+char* tiny16_parser_next_line(Tiny16AsmContext* ctx);
+bool tiny16_parser_parse_label(Tiny16AsmContext* ctx);
 
 void tiny16_parser_strip_comment(Tiny16AsmContext* ctx);
 void tiny16_parser_trim_left(Tiny16AsmContext* ctx);
@@ -59,7 +65,7 @@ uint8_t tiny16_parser_parse_reg(Tiny16AsmContext* ctx);
 uint16_t tiny16_parser_parse_imm(Tiny16AsmContext* ctx);
 uint8_t tiny16_parser_parse_imm8(Tiny16AsmContext* ctx);
 void tiny16_parser_skip_sep(Tiny16AsmContext* ctx);
-size_t tiny16_parser_read_token(Tiny16AsmContext* ctx, char* buf, size_t max_len);
+char* tiny16_parser_read_token(Tiny16AsmContext* ctx);
 void tiny16_parser_expect_end(Tiny16AsmContext* ctx);
 long tiny16_parser_parse_number(Tiny16AsmContext* ctx);
 Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx);
@@ -68,7 +74,7 @@ int tiny16_parser_parse_times_prefix(Tiny16AsmContext* ctx);
 void tiny16_parser_eat_space(Tiny16AsmContext* ctx);
 void tiny16_parser_eat_char(Tiny16AsmContext* ctx, char c);
 
-bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx, char* buffer);
+bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx);
 bool tiny16_parser_parse_section(Tiny16AsmContext* ctx);
 bool tiny16_parser_skip_label(Tiny16AsmContext* ctx);
 void tiny16_parser_parse_data(Tiny16AsmContext* ctx);
