@@ -7,6 +7,7 @@
 #include <string.h>
 
 #include "binary.h"
+#include "cpu.h"
 #include "memory.h"
 
 void tiny16_memory_print_byte(const Tiny16Memory* memory, int addr) {
@@ -34,7 +35,14 @@ void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer) {
     printf("\n\nMemory\n");
 
     printf("\n  Code Segment\n");
-    tiny16_memory_print_segment(memory, TINY16_MEMORY_CODE_BEGIN, TINY16_MEMORY_CODE_END, 'A');
+    for (int pc = TINY16_MEMORY_CODE_BEGIN; pc <= TINY16_MEMORY_CODE_END; pc += 3) {
+        Tiny16OpCode opcode = memory->bytes[pc];
+        if (opcode == TINY16_OPCODE_UNKNOWN) continue;
+        uint8_t arg1 = memory->bytes[pc + 1];
+        uint8_t arg2 = memory->bytes[pc + 2];
+        tiny16_cpu_trace(pc, opcode, arg1, arg2);
+        printf("\n");
+    }
 
     printf("\n  Data Segment\n");
     tiny16_memory_print_segment(memory, TINY16_MEMORY_DATA_BEGIN, TINY16_MEMORY_DATA_END, 'A');

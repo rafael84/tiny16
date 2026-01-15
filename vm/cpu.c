@@ -86,6 +86,56 @@ void tiny16_cpu_print(const Tiny16CPU* cpu) {
 #define TINY16_CPU_TRACE_BUFFER_SIZE 40
 static char tiny16_cpu_trace_buffer[TINY16_CPU_TRACE_BUFFER_SIZE];
 
+void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t arg2) {
+
+    printf("    0x%04X | %02X %02X %02X | %-6s", addr, opcode, arg1, arg2,
+           tiny16_mnemonic_from_opcode(opcode));
+
+    switch (opcode) {
+    case TINY16_OPCODE_LOADI:
+        snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, 0x%02X", arg1, arg2);
+        break;
+    case TINY16_OPCODE_LOAD:
+    case TINY16_OPCODE_STORE: {
+        uint8_t reg = (arg1 >> 5) & 0x7;
+        Tiny16AddrMode mode = (arg1 >> 3) & 0x3;
+        uint8_t pair = (arg1 >> 1) & 0x3;
+        static const char* pair_names[] = {"R0:R1", "R2:R3", "R4:R5", "R6:R7"};
+        static const char* mode_suffix[] = {"", "+", "-", ""};
+        if (mode == TINY16_ADDR_MODE_OFFSET) {
+            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s + 0x%02X]",
+                     reg, pair_names[pair], arg2);
+        } else {
+            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s]%s", reg,
+                     pair_names[pair], mode_suffix[mode]);
+        }
+    } break;
+    case TINY16_OPCODE_INC:
+    case TINY16_OPCODE_DEC:
+    case TINY16_OPCODE_PUSH:
+    case TINY16_OPCODE_POP:
+        snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d", arg1);
+        break;
+    case TINY16_OPCODE_JMP:
+    case TINY16_OPCODE_JZ:
+    case TINY16_OPCODE_JNZ:
+    case TINY16_OPCODE_JC:
+    case TINY16_OPCODE_JNC:
+    case TINY16_OPCODE_CALL:
+        snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "0x%04X",
+                 ((arg1 << 8) | arg2));
+        break;
+    case TINY16_OPCODE_RET:
+    case TINY16_OPCODE_HALT:
+        tiny16_cpu_trace_buffer[0] = '\0';
+        break;
+    default:
+        snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, R%d", arg1, arg2);
+    }
+
+    printf("%-24s\t", tiny16_cpu_trace_buffer);
+}
+
 bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn memory_read,
                      tiny16_mem_write_fn memory_write) {
 
@@ -96,55 +146,10 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
     }
 
     if (tiny16_cpu_tracing) {
-        uint16_t opcode = memory_read(memory_context, cpu->pc);
+        Tiny16OpCode opcode = memory_read(memory_context, cpu->pc);
         uint16_t arg1 = memory_read(memory_context, cpu->pc + 1);
         uint16_t arg2 = memory_read(memory_context, cpu->pc + 2);
-
-        printf("  PC [0x%04X] | %02X %02X %02X | %-6s", cpu->pc, opcode, arg1, arg2,
-               tiny16_mnemonic_from_opcode(opcode));
-
-        switch (opcode) {
-        case TINY16_OPCODE_LOADI:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, 0x%02X", arg1,
-                     arg2);
-            break;
-        case TINY16_OPCODE_LOAD:
-        case TINY16_OPCODE_STORE: {
-            uint8_t reg = (arg1 >> 5) & 0x7;
-            Tiny16AddrMode mode = (arg1 >> 3) & 0x3;
-            uint8_t pair = (arg1 >> 1) & 0x3;
-            static const char* pair_names[] = {"R0:R1", "R2:R3", "R4:R5", "R6:R7"};
-            static const char* mode_suffix[] = {"", "+", "-", ""};
-            if (mode == TINY16_ADDR_MODE_OFFSET) {
-                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE,
-                         "R%d, [%s + 0x%02X]", reg, pair_names[pair], arg2);
-            } else {
-                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s]%s", reg,
-                         pair_names[pair], mode_suffix[mode]);
-            }
-        } break;
-        case TINY16_OPCODE_INC:
-        case TINY16_OPCODE_DEC:
-        case TINY16_OPCODE_PUSH:
-        case TINY16_OPCODE_POP:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d", arg1);
-            break;
-        case TINY16_OPCODE_JMP:
-        case TINY16_OPCODE_JZ:
-        case TINY16_OPCODE_JNZ:
-        case TINY16_OPCODE_JC:
-        case TINY16_OPCODE_JNC:
-        case TINY16_OPCODE_CALL:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "0x%04X",
-                     ((arg1 << 8) | arg2));
-            break;
-        case TINY16_OPCODE_RET:
-        case TINY16_OPCODE_HALT:
-            tiny16_cpu_trace_buffer[0] = '\0';
-            break;
-        default:
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, R%d", arg1, arg2);
-        }
+        tiny16_cpu_trace(cpu->pc, opcode, arg1, arg2);
     }
 
     uint16_t opcode = memory_read(memory_context, cpu->pc++);
@@ -349,9 +354,9 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
     }
 
     if (tiny16_cpu_tracing) {
-        printf("%-24s\t | C=%d Z=%d |", tiny16_cpu_trace_buffer,
-               TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_C),
-               TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_Z));
+        uint8_t C = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_C);
+        uint8_t Z = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_Z);
+        printf(" | C=%d Z=%d |", C, Z);
         for (uint8_t i = 0; i < TINY16_CPU_REGISTERS; ++i) {
             printf(" R%d=%02X", i, cpu->R[i]);
         }

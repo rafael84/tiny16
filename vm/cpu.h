@@ -87,3 +87,5 @@ static const size_t TINY16_OPCODE_COUNT = sizeof opcode_table / sizeof opcode_ta
 
 const char* tiny16_mnemonic_from_opcode(Tiny16OpCode opcode);
 Tiny16OpCode tiny16_opcode_from_mnemonic(const char* mnemonic);
+
+void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t arg2);
