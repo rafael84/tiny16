@@ -1,0 +1,866 @@
+TinyLisp Language Specification
+===============================
+
+VERSION
+    TinyLisp v0.1
+
+TARGET
+    tiny16 virtual machine
+
+SCOPE
+    This document defines TinyLisp syntax, semantics, scoping,
+    and lowering rules to tiny16 bytecode.
+
+------------------------------------------------------------
+1. LEXICAL CONVENTIONS
+------------------------------------------------------------
+
+Whitespace
+    Space, tab, newline separate tokens.
+
+Comments
+    ";" to end of line.
+
+Tokens
+    "(" , ")"           parentheses
+    number              decimal (0-255) or hexadecimal (0x00-0xFF)
+    symbol              [A-Za-z_][A-Za-z0-9_-]*
+                        Case-sensitive (foo ≠ Foo)
+                        Hyphens allowed: my-function, is-valid?
+
+------------------------------------------------------------
+2. SYNTAX
+------------------------------------------------------------
+
+Grammar (EBNF)
+
+    program     := form*
+    form        := atom | list
+    list        := "(" form* ")"
+    atom        := number | symbol
+
+------------------------------------------------------------
+3. SEMANTIC MODEL
+------------------------------------------------------------
+
+Evaluation
+    Lists evaluate as special forms or function calls.
+    Atoms evaluate to literals or variable values.
+
+Result Convention
+    Every expression evaluation leaves its 8-bit result in R0.
+    Exception: Address expressions also populate R6:R7 (see Section 8).
+
+Conditionals
+    Non-zero value means "true", zero means "false".
+    Comparison predicates return 1 (true) or 0 (false).
+
+------------------------------------------------------------
+4. REGISTERS AND DATA MODEL
+------------------------------------------------------------
+
+Registers
+    R0      result / accumulator (8-bit)
+    R1–R5   temporaries / caller-saved (8-bit)
+    R6:R7   address pair (16-bit), also caller-saved
+    FP      frame pointer (16-bit, alias for R4:R5)
+    SP      stack pointer (16-bit)
+    PC      program counter (16-bit)
+
+Data Model
+    All values are 8-bit integers.
+    Addresses are 16-bit values formed by register pairs.
+    Register pair notation: Rhigh:Rlow where ADDR = (Rhigh << 8) | Rlow
+
+Stack
+    Grows downward from 0xBEFF.
+    PUSH: decrements SP, then stores value at SP.
+    POP: loads value from SP, then increments SP.
+    CALL: pushes 16-bit return address (2 bytes, high then low).
+    RET: pops 16-bit return address and jumps to it.
+
+------------------------------------------------------------
+5. VARIABLES AND SCOPING
+------------------------------------------------------------
+
+Scope
+    Lexical scoping.
+
+Bindings
+    Introduced by:
+        - function parameters
+        - let bindings
+
+Shadowing
+    Inner bindings may reuse names of outer bindings.
+    A symbol resolves to the nearest enclosing binding.
+    Resolution is performed at compile time.
+
+Storage
+    All variables are stored on the stack.
+    Variables are accessed via frame-pointer-relative offsets.
+    Each function call establishes a new stack frame.
+
+Frame Pointer Convention
+    FP (R4:R5) points to the base of the current stack frame.
+    Local variables and parameters are accessed as FP + offset.
+    Offsets are computed at compile time for each binding.
+
+------------------------------------------------------------
+6. SPECIAL FORMS
+------------------------------------------------------------
+
+(def name (arg*) body...)
+    Define function `name`.
+    Parameters are accessed via frame-pointer-relative offsets.
+    Function returns the value of the last body expression in R0.
+    Uses callee-cleanup: function restores SP before returning.
+
+(let (var1 val1 var2 val2 ... varN valN) body...)
+    Evaluate bindings left-to-right.
+    Each binding allocates one stack slot.
+    All bindings are visible within body forms.
+    Bindings are released after body execution.
+    Returns value of last body expression.
+
+(set var expr)
+    Assign evaluated `expr` to nearest enclosing binding of `var`.
+    `var` must be a bound variable (parameter or let binding).
+    Returns the assigned value.
+
+(if cond then else)
+    If `cond` evaluates to non-zero, evaluate `then`,
+    otherwise evaluate `else`.
+    Returns the value of the branch taken.
+    Both branches are required (no optional else).
+
+(while cond body...)
+    While `cond` evaluates to non-zero, evaluate body forms.
+    Body forms are evaluated in sequence on each iteration.
+    Returns 0 when loop terminates.
+
+(do expr...)
+    Evaluate expressions in sequence.
+    Returns the value of the last expression.
+    Useful for sequencing side effects.
+
+------------------------------------------------------------
+7. PRIMITIVE OPERATORS
+------------------------------------------------------------
+
+Arithmetic
+    (add a b)       ; a + b
+    (sub a b)       ; a - b
+    (neg x)         ; 0 - x (two's complement negation)
+    (inc x)         ; x + 1
+    (dec x)         ; x - 1
+
+Bitwise
+    (and a b)       ; bitwise AND
+    (or  a b)       ; bitwise OR
+    (xor a b)       ; bitwise XOR
+    (not x)         ; bitwise NOT (~x, XOR with 0xFF)
+    (shl x)         ; shift left by 1 (x << 1)
+    (shr x)         ; shift right by 1 (x >> 1)
+
+Comparison (return 1 for true, 0 for false)
+    (eq a b)        ; 1 if a == b, else 0
+    (ne a b)        ; 1 if a != b, else 0
+    (lt a b)        ; 1 if a < b (unsigned), else 0
+    (gt a b)        ; 1 if a > b (unsigned), else 0
+    (le a b)        ; 1 if a <= b (unsigned), else 0
+    (ge a b)        ; 1 if a >= b (unsigned), else 0
+
+Logical (treat 0 as false, non-zero as true)
+    (lnot x)        ; 1 if x == 0, else 0
+
+------------------------------------------------------------
+8. MEMORY ACCESS
+------------------------------------------------------------
+
+(load addr-expr)
+    Read byte from memory at address.
+    `addr-expr` must evaluate to a 16-bit address in R6:R7.
+    Result in R0.
+
+(store addr-expr value)
+    Write byte `value` to memory at address.
+    `addr-expr` must evaluate to a 16-bit address.
+    Returns the stored value.
+
+Address Expressions
+    Address expressions populate both R0 and R6:R7.
+    R0 receives the low byte, R6:R7 holds the full 16-bit address.
+
+    (addr high low)
+        Constructs 16-bit address from two 8-bit values.
+        Result: (high << 8) | low
+        R6 = high, R7 = low, R0 = low
+
+    (addr+ base-addr offset)
+        16-bit addition: base + offset.
+        `base-addr` must be an address expression.
+        `offset` is an 8-bit value.
+        Useful for array indexing and pointer arithmetic.
+
+------------------------------------------------------------
+9. FUNCTION CALLS
+------------------------------------------------------------
+
+Call Form
+    (f arg1 arg2 ... argN)
+
+Calling Convention
+    1. Caller pushes current FP (2 bytes)
+    2. Caller evaluates and pushes arguments left-to-right
+    3. Caller executes CALL (pushes 16-bit return address)
+    4. Callee sets FP = SP (establishes frame)
+    5. Callee allocates locals by decrementing SP
+    6. Callee executes body
+    7. Callee restores SP = FP
+    8. Callee executes RET (pops return address, jumps)
+    9. Caller pops arguments
+    10. Caller restores FP
+
+Stack Frame Layout (after callee prologue)
+    Higher addresses (toward 0xBEFF)
+    +-------------------+
+    | caller's FP high  |  [FP + N + 4]
+    | caller's FP low   |  [FP + N + 3]
+    +-------------------+
+    | arg 1             |  [FP + 4]
+    | arg 2             |  [FP + 5]
+    | ...               |
+    | arg N             |  [FP + N + 2]
+    +-------------------+
+    | return addr high  |  [FP + 2]
+    | return addr low   |  [FP + 1]
+    +-------------------+
+    | (frame base)      |  [FP + 0]  <- FP points here
+    +-------------------+
+    | local 1           |  [FP - 1]
+    | local 2           |  [FP - 2]
+    | ...               |
+    | local M           |  [FP - M]  <- SP points here
+    +-------------------+
+    Lower addresses (toward 0x8000)
+
+Register Usage
+    R0: return value and expression results
+    R1-R3: caller-saved temporaries
+    R4:R5 (FP): frame pointer, callee-saved
+    R6:R7: address register pair, caller-saved
+
+Recursion
+    Fully supported. Each call gets its own stack frame.
+    Variables are accessed relative to FP, not absolute addresses.
+
+------------------------------------------------------------
+10. PROGRAM ENTRY
+------------------------------------------------------------
+
+    Program begins with initialization code that:
+    1. Sets SP to 0xBEFF
+    2. Sets FP to SP
+    3. Calls main
+    4. Halts after main returns
+
+------------------------------------------------------------
+11. LOWERING RULES (TinyLisp → tiny16)
+------------------------------------------------------------
+
+11.1 Literals
+
+    number
+        LOADI R0, imm8
+
+------------------------------------------------------------
+
+11.2 Variable Read
+
+    x
+        ; Variables accessed via FP + offset
+        ; Offset computed at compile time (positive for args, negative for locals)
+        ; For variable at offset K from FP:
+
+        ; Compute address = FP + K
+        MOV   R6, R4            ; R6 = FP high
+        MOV   R7, R5            ; R7 = FP low
+        LOADI R0, K             ; offset (or handle negative via subtraction)
+        ADD   R7, R0            ; low byte + offset
+        LOADI R0, 0
+        ADC   R6, R0            ; propagate carry to high byte
+        LOAD  R0, [R6:R7]       ; load variable value
+
+------------------------------------------------------------
+
+11.3 Arithmetic (Binary)
+
+    (add a b)
+        eval a
+        PUSH R0                 ; save a
+        eval b
+        POP  R1                 ; R1 = a, R0 = b
+        ADD  R0, R1             ; R0 = a + b
+
+    (sub a b)
+        eval a
+        PUSH R0                 ; save a
+        eval b
+        MOV  R1, R0             ; R1 = b
+        POP  R0                 ; R0 = a
+        SUB  R0, R1             ; R0 = a - b
+
+    (and a b), (or a b), (xor a b)
+        ; Same pattern as (add a b) - commutative operations
+
+------------------------------------------------------------
+
+11.4 Arithmetic (Unary)
+
+    (inc x)
+        eval x
+        INC R0
+
+    (dec x)
+        eval x
+        DEC R0
+
+    (neg x)
+        eval x
+        MOV  R1, R0             ; R1 = x
+        LOADI R0, 0             ; R0 = 0
+        SUB  R0, R1             ; R0 = 0 - x
+
+    (not x)
+        eval x
+        LOADI R1, 0xFF
+        XOR  R0, R1             ; R0 = ~x
+
+    (shl x)
+        eval x
+        ADD  R0, R0             ; R0 = x + x = x << 1
+
+    (shr x)
+        eval x
+        SHR  R0                 ; R0 = x >> 1 (if instruction exists)
+        ; Or implement via repeated logic if no SHR instruction
+
+------------------------------------------------------------
+
+11.5 Comparison Predicates
+
+    (eq a b)
+        eval a
+        PUSH R0
+        eval b
+        POP  R1                 ; R1 = a, R0 = b
+        CMP  R1, R0             ; sets Z if a == b
+        LOADI R0, 0             ; assume false
+        JNZ  .done              ; if not equal, skip
+        LOADI R0, 1             ; equal: return 1
+    .done:
+
+    (ne a b)
+        eval a
+        PUSH R0
+        eval b
+        POP  R1                 ; R1 = a, R0 = b
+        CMP  R1, R0             ; sets Z if a == b
+        LOADI R0, 1             ; assume true (not equal)
+        JNZ  .done              ; if not equal, done
+        LOADI R0, 0             ; equal: return 0
+    .done:
+
+    (lt a b)
+        eval a
+        PUSH R0
+        eval b
+        POP  R1                 ; R1 = a, R0 = b
+        CMP  R1, R0             ; compare a with b, sets C if a < b
+        LOADI R0, 0             ; assume false
+        JNC  .done              ; if no carry (a >= b), skip
+        LOADI R0, 1             ; a < b: return 1
+    .done:
+
+    (gt a b)
+        ; a > b is equivalent to b < a
+        eval b
+        PUSH R0
+        eval a
+        POP  R1                 ; R1 = b, R0 = a
+        CMP  R1, R0             ; compare b with a, sets C if b < a
+        LOADI R0, 0
+        JNC  .done
+        LOADI R0, 1
+    .done:
+
+    (le a b)
+        ; a <= b is NOT(a > b)
+        eval (gt a b)
+        LOADI R1, 1
+        XOR  R0, R1             ; flip 0<->1
+
+    (ge a b)
+        ; a >= b is NOT(a < b)
+        eval (lt a b)
+        LOADI R1, 1
+        XOR  R0, R1             ; flip 0<->1
+
+    (lnot x)
+        eval x
+        LOADI R1, 0
+        CMP  R0, R1             ; sets Z if x == 0
+        LOADI R0, 0             ; assume false
+        JNZ  .done              ; if x != 0, return 0
+        LOADI R0, 1             ; x == 0: return 1
+    .done:
+
+------------------------------------------------------------
+
+11.6 Memory Load
+
+    (load (addr high low))
+        eval high
+        MOV  R6, R0             ; high byte of address
+        eval low
+        MOV  R7, R0             ; low byte of address
+        LOAD R0, [R6:R7]        ; load from memory
+        ; R0 = value, R6:R7 = address (preserved)
+
+------------------------------------------------------------
+
+11.7 Memory Store
+
+    (store (addr high low) value)
+        eval high
+        MOV  R6, R0             ; high byte of address
+        eval low
+        MOV  R7, R0             ; low byte of address
+        PUSH R6                 ; save address high
+        PUSH R7                 ; save address low
+        eval value              ; R0 = value to store
+        POP  R7                 ; restore address low
+        POP  R6                 ; restore address high
+        STORE R0, [R6:R7]       ; store to memory
+        ; R0 = stored value (for chaining)
+
+------------------------------------------------------------
+
+11.8 Let Binding
+
+    (let (v1 e1 v2 e2 ... vN eN) body...)
+
+        ; Allocate and initialize bindings
+        eval e1
+        PUSH R0                 ; v1 at [FP - (base + 1)]
+        eval e2
+        PUSH R0                 ; v2 at [FP - (base + 2)]
+        ...
+        eval eN
+        PUSH R0                 ; vN at [FP - (base + N)]
+
+        eval body...            ; last expression result in R0
+
+        ; Clean up N stack slots
+        ; Option 1: Adjust SP directly (if ADD SP, imm supported)
+        LOADI R1, N
+        ADD   SP, R1            ; SP = SP + N
+
+        ; Option 2: Pop N times (if no SP arithmetic)
+        POP R1                  ; discard vN
+        POP R1                  ; discard vN-1
+        ...                     ; repeat N times
+
+------------------------------------------------------------
+
+11.9 Assignment
+
+    (set x expr)
+        eval expr               ; result in R0
+        PUSH R0                 ; save value
+
+        ; Compute address of x (FP + offset)
+        MOV   R6, R4            ; R6 = FP high
+        MOV   R7, R5            ; R7 = FP low
+        LOADI R1, offset_of_x
+        ADD   R7, R1
+        LOADI R1, 0
+        ADC   R6, R1
+
+        POP   R0                ; restore value
+        STORE R0, [R6:R7]       ; store to variable
+        ; R0 = assigned value (returned)
+
+------------------------------------------------------------
+
+11.10 If Expression
+
+    (if cond then else)
+
+        eval cond               ; result in R0
+        LOADI R1, 0
+        CMP   R0, R1            ; compare with 0
+        JZ    else_label        ; if cond == 0, go to else
+        eval then               ; evaluate then branch
+        JMP   end_label         ; skip else branch
+    else_label:
+        eval else               ; evaluate else branch
+    end_label:
+        ; Result in R0 from whichever branch executed
+
+------------------------------------------------------------
+
+11.11 While Loop
+
+    (while cond body...)
+
+    loop_label:
+        eval cond               ; evaluate condition
+        LOADI R1, 0
+        CMP   R0, R1            ; compare with 0
+        JZ    end_label         ; exit if cond == 0
+        eval body...            ; evaluate body expressions
+        JMP   loop_label        ; repeat
+    end_label:
+        LOADI R0, 0             ; while returns 0
+
+------------------------------------------------------------
+
+11.12 Do Expression
+
+    (do e1 e2 ... eN)
+
+        eval e1                 ; result discarded
+        eval e2                 ; result discarded
+        ...
+        eval eN                 ; result in R0 (returned)
+
+------------------------------------------------------------
+
+11.13 Function Definition
+
+    (def f (a b) body...)
+
+    f:
+        ; Prologue: establish stack frame
+        ; FP already saved by caller
+        ; Return address already on stack (pushed by CALL)
+        MOV  R4, SP_high        ; FP = SP (set frame pointer)
+        MOV  R5, SP_low
+
+        ; Parameters 'a' and 'b' are above return address
+        ; Compiler assigns offsets:
+        ;   'a' at FP + 3 (after ret addr high, ret addr low, frame base)
+        ;   'b' at FP + 4
+
+        eval body...            ; evaluate body, result in R0
+
+        ; Epilogue: restore SP and return
+        MOV  SP_high, R4        ; SP = FP (deallocate locals)
+        MOV  SP_low, R5
+        RET                     ; pop return address, jump
+
+------------------------------------------------------------
+
+11.14 Function Call
+
+    (f arg1 arg2)
+
+        ; Save caller's frame pointer
+        PUSH R4                 ; FP high
+        PUSH R5                 ; FP low
+
+        ; Push arguments left-to-right
+        eval arg1
+        PUSH R0                 ; arg1
+        eval arg2
+        PUSH R0                 ; arg2
+
+        CALL f                  ; call function, result in R0
+
+        ; Clean up arguments (caller cleanup for simplicity)
+        POP  R1                 ; discard arg2
+        POP  R1                 ; discard arg1
+
+        ; Restore caller's frame pointer
+        POP  R5                 ; FP low
+        POP  R4                 ; FP high
+
+        ; Result in R0
+
+------------------------------------------------------------
+
+11.15 Program Entry
+
+    ; Generated at program start
+    _start:
+        ; Initialize stack pointer
+        LOADI R0, 0xBE
+        MOV   SP_high, R0
+        LOADI R0, 0xFF
+        MOV   SP_low, R0
+
+        ; Initialize frame pointer = SP
+        MOV   R4, SP_high
+        MOV   R5, SP_low
+
+        ; Call main
+        CALL  main
+
+        ; Halt after main returns
+        HALT
+
+------------------------------------------------------------
+
+11.16 Address Construction
+
+    (addr high low)
+        eval high
+        MOV  R6, R0             ; R6 = high byte
+        eval low
+        MOV  R7, R0             ; R7 = low byte (R0 also = low)
+        ; Address in R6:R7, R0 = low byte
+
+------------------------------------------------------------
+
+11.17 Address Arithmetic
+
+    (addr+ base offset)
+        ; base must be an address expression
+        eval base               ; R6:R7 = base address
+        PUSH R6                 ; save high byte
+        PUSH R7                 ; save low byte
+
+        eval offset             ; R0 = offset
+
+        POP  R7                 ; restore low byte
+        ADD  R7, R0             ; low = low + offset
+        POP  R6                 ; restore high byte
+        LOADI R0, 0
+        ADC  R6, R0             ; high = high + carry
+
+        MOV  R0, R7             ; R0 = low byte of result
+        ; R6:R7 = base + offset
+
+------------------------------------------------------------
+12. EXAMPLES
+------------------------------------------------------------
+
+Example 1: Simple Arithmetic
+
+    (def double (x)
+        (add x x))
+
+    (def main ()
+        (double 21))
+
+    ; Returns 42
+
+------------------------------------------------------------
+
+Example 2: Conditional with Comparison
+
+    (def max (a b)
+        (if (gt a b)
+            a
+            b))
+
+    (def main ()
+        (max 5 3))
+
+    ; Returns 5
+
+------------------------------------------------------------
+
+Example 3: Loop with Counter
+
+    (def countdown (n)
+        (while (gt n 0)
+            (set n (dec n)))
+        n)
+
+    (def main ()
+        (countdown 10))
+
+    ; Returns 0
+
+------------------------------------------------------------
+
+Example 4: Factorial (Recursive)
+
+    (def factorial (n)
+        (if (eq n 0)
+            1
+            (mul n (factorial (dec n)))))
+
+    ; Note: mul would need to be implemented as a function
+    ; since there's no hardware multiply
+
+    (def mul (a b)
+        (let (result 0)
+            (while (gt b 0)
+                (do
+                    (set result (add result a))
+                    (set b (dec b))))
+            result))
+
+    (def main ()
+        (factorial 5))
+
+    ; Returns 120
+
+------------------------------------------------------------
+
+Example 5: Memory Access (Array Sum)
+
+    ; Sum first N bytes starting at address 0x4000
+    (def array-sum (n)
+        (let (sum 0 i 0)
+            (while (lt i n)
+                (do
+                    (set sum (add sum (load (addr+ (addr 0x40 0x00) i))))
+                    (set i (inc i))))
+            sum))
+
+    (def main ()
+        ; Assume memory at 0x4000 contains: 10, 20, 30, 40, 50
+        (array-sum 5))
+
+    ; Returns 150
+
+------------------------------------------------------------
+
+Example 6: Sequencing with Do
+
+    (def init-array ()
+        (do
+            (store (addr 0x40 0x00) 10)
+            (store (addr 0x40 0x01) 20)
+            (store (addr 0x40 0x02) 30)
+            30))  ; returns last stored value
+
+    (def main ()
+        (init-array))
+
+------------------------------------------------------------
+13. IMPLEMENTATION NOTES
+------------------------------------------------------------
+
+Register Allocation Strategy
+    The baseline compiler uses a simple stack-based approach:
+    - All intermediate values go through R0
+    - Temporaries are pushed/popped from stack
+    - R1-R3 used for short-lived temporaries in primitives
+    - R4:R5 reserved for frame pointer
+    - R6:R7 reserved for memory addressing
+
+    Optimizations can:
+    - Keep hot values in R1-R3
+    - Avoid redundant pushes for simple expressions
+    - Use R6:R7 for temporary address calculations
+
+Stack Overflow Protection
+    Stack grows down from 0xBEFF toward 0x8000.
+    Programs should check SP > 0x8000 before deep recursion.
+    No automatic stack overflow detection in generated code.
+
+Unsigned Arithmetic
+    All arithmetic is unsigned 8-bit.
+    Comparisons (lt, gt, le, ge) treat values as unsigned.
+    Signed arithmetic requires library functions.
+
+Optimization Opportunities
+    - Constant folding: (add 1 2) → 3 at compile time
+    - Dead code elimination: unused let bindings
+    - Tail call optimization: replace CALL+RET with JMP
+    - Common subexpression elimination
+    - Register allocation for loop variables
+
+------------------------------------------------------------
+14. ERROR CONDITIONS
+------------------------------------------------------------
+
+Compile-time Errors
+    - Undefined variable reference
+    - Wrong number of arguments to function
+    - Invalid syntax (mismatched parentheses)
+    - Numeric literal out of range (not 0-255)
+    - Duplicate parameter names in function definition
+
+Runtime Errors (not detected by generated code)
+    - Stack overflow (SP < 0x8000)
+    - Stack underflow (SP > 0xBEFF)
+    - Invalid memory access
+    - Infinite recursion
+
+------------------------------------------------------------
+15. FUTURE EXTENSIONS
+------------------------------------------------------------
+
+Additional Primitives
+    (adc a b)       ; add with carry for multi-byte arithmetic
+    (sbc a b)       ; subtract with borrow
+    (rol x)         ; rotate left through carry
+    (ror x)         ; rotate right through carry
+
+Signed Comparisons
+    (lts a b)       ; signed less-than
+    (gts a b)       ; signed greater-than
+
+Control Flow
+    (cond            ; multi-way conditional
+        (test1 expr1)
+        (test2 expr2)
+        (else  exprN))
+
+    (for (init test step) body...)
+
+Data
+    (const name value)      ; compile-time constant
+    (data name byte...)     ; data section allocation
+    (string "text")         ; string literal → data section address
+
+Macros
+    (defmacro name (args...) template)
+
+Type Annotations (optional, for documentation)
+    (def f ((x : u8) (y : u8)) : u8
+        body...)
+
+------------------------------------------------------------
+16. COMPLETE GRAMMAR
+------------------------------------------------------------
+
+    program     := form*
+
+    form        := atom
+                 | list
+
+    list        := "(" ")"
+                 | "(" form+ ")"
+
+    atom        := NUMBER
+                 | SYMBOL
+
+    NUMBER      := [0-9]+
+                 | "0x" [0-9A-Fa-f]+
+
+    SYMBOL      := [A-Za-z_] [A-Za-z0-9_-]*
+
+    COMMENT     := ";" [^\n]* "\n"
+
+    WHITESPACE  := [ \t\n\r]+
+
+Special Forms (keywords)
+    def, let, set, if, while, do
+
+Built-in Operators
+    add, sub, neg, inc, dec
+    and, or, xor, not, shl, shr
+    eq, ne, lt, gt, le, ge, lnot
+    load, store, addr, addr+
+
+------------------------------------------------------------
+END OF SPEC
+------------------------------------------------------------
