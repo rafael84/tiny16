@@ -14,7 +14,7 @@ bin:
 
 tests: bin vm/*.c vm/*.h tests/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-tests tests/tiny16.c
-	bin/tiny16-tests
+	bin/tiny16-tests | column -t | paste - - -
 
 asm: bin vm/*.c vm/*.h asm/*.h asm/*.c | bin
 	$(CC) $(CFLAGS) -o bin/tiny16-asm asm/tiny16.c
