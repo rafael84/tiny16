@@ -13,13 +13,13 @@
 
 section .code
 
-; TODO: Load 0x40 into R6 (struct base address high)
-; TODO: Load 0x00 into R7 (struct base address low)
-; TODO: Load field 0 (id) from [R6:R7 + 0] into R0
-; TODO: Load field 1 (x) from [R6:R7 + 1] into R1
-; TODO: Load field 2 (y) from [R6:R7 + 2] into R2
-; TODO: Load field 3 (color) from [R6:R7 + 3] into R3
-; TODO: Halt
+loadi   r6, 0x40        ; Load 0x40 into R6 (struct base address high)
+loadi   r7, 0x00        ; Load 0x00 into R7 (struct base address low)
+load    r0, [r6:r7+0]   ; Load field 0 (id) from [R6:R7 + 0] into R0
+load    r1, [r6:r7+1]   ; Load field 1 (x) from [R6:R7 + 1] into R1
+load    r2, [r6:r7+2]   ; Load field 2 (y) from [R6:R7 + 2] into R2
+load    r3, [r6:r7+3]   ; Load field 3 (color) from [R6:R7 + 3] into R3
+halt                    ; Halt
 
 section .data
 

@@ -13,14 +13,14 @@
 
 section .code
 
-; TODO: Call outer
-; TODO: Halt (R0 should be 11)
+call outer          ; Call outer
+halt                ; Halt (R0 should be 11)
 
 outer:
-    ; TODO: Load 10 into R0
-    ; TODO: Call inner (nested call)
-    ; TODO: Return to main
+    loadi   r0, 10  ; Load 10 into R0
+    call    inner   ; Call inner (nested call)
+    ret             ; Return to main
 
 inner:
-    ; TODO: Increment R0 (R0 = 11)
-    ; TODO: Return to outer
+    inc     r0      ; Increment R0 (R0 = 11)
+    ret             ; Return to outer

@@ -12,8 +12,8 @@
 
 section .code
 
-; TODO: Load 10 into R0
-; TODO: Increment R0 (R0 becomes 11)
-; TODO: Increment R0 again (R0 becomes 12)
-; TODO: Decrement R0 (R0 becomes 11)
-; TODO: Halt the program
+        loadi r0, 10    ; Load 10 into R0
+times 2 inc r0          ; Increment R0 (R0 becomes 11)
+                        ; Increment R0 again (R0 becomes 12)
+        dec r0          ; Decrement R0 (R0 becomes 11)
+        halt            ; Halt the program

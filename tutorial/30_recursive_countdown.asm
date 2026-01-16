@@ -4,7 +4,7 @@
 ; Goal: Implement countdown(n) recursively
 ;       countdown(5) -> 5, 4, 3, 2, 1, 0 stored in memory
 ;
-; Instructions to use: LOADI, CALL, RET, DEC, JZ, HALT
+; Instructions to use: LOADI, CALL, RET, DEC, OR, JZ, JMP, HALT
 ; Expected result: R0 = 0 (countdown complete)
 ;
 ; Hint: Base case: if R0 == 0, return
@@ -14,13 +14,13 @@
 
 section .code
 
-; TODO: Load 5 into R0
-; TODO: Call countdown
-; TODO: Halt (R0 should be 0)
+loadi   r0, 5           ; Load 5 into R0
+call    countdown       ; Call countdown
+halt                    ; Halt (R0 should be 0)
 
 countdown:
-    ; TODO: Check if R0 == 0 (compare with itself or check Z flag)
-    ; TODO: If R0 == 0, return (base case)
-    ; TODO: Decrement R0
-    ; TODO: Call countdown recursively
-    ; TODO: Return
+    or      r0, r0      ; Check if R0 == 0 (sets Z flag if R0 is zero)
+    jz      done        ; If R0 == 0, return (base case)
+    dec     r0          ; Decrement R0
+    jmp     countdown   ; Call countdown recursively
+    done:   ret         ; Return

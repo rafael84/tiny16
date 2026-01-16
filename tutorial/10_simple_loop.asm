@@ -13,8 +13,9 @@
 
 section .code
 
-; TODO: Load 10 into R0
+loadi r0, 10    ; Load 10 into R0
+
 loop:
-    ; TODO: Decrement R0
-    ; TODO: Jump to loop if R0 is not zero (JNZ)
-; TODO: Halt (R0 should be 0)
+    dec r0      ; Decrement R0
+    jnz loop    ; Jump to loop if R0 is not zero (JNZ)
+halt            ; Halt (R0 should be 0)

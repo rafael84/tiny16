@@ -13,12 +13,12 @@
 
 section .code
 
-; TODO: Load 0x40 into R6 (high byte)
-; TODO: Load 0x04 into R7 (low byte - point to last element)
-; TODO: Load from [R6:R7]- into R0 (reads 25, R6:R7 becomes 0x4003)
-; TODO: Load from [R6:R7]- into R1 (reads 20, R6:R7 becomes 0x4002)
-; TODO: Load from [R6:R7]- into R2 (reads 15, R6:R7 becomes 0x4001)
-; TODO: Halt
+loadi   r6, 0x40        ; Load 0x40 into R6 (high byte)
+loadi   r7, 0x04        ; Load 0x04 into R7 (low byte - point to last element)
+load    r0, [r6:r7]-    ; Load from [R6:R7]- into R0 (reads 25, R6:R7 becomes 0x4003)
+load    r1, [r6:r7]-    ; Load from [R6:R7]- into R1 (reads 20, R6:R7 becomes 0x4002)
+load    r2, [r6:r7]-    ; Load from [R6:R7]- into R2 (reads 15, R6:R7 becomes 0x4001)
+halt                    ; Halt
 
 section .data
 

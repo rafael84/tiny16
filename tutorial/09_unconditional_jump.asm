@@ -13,8 +13,9 @@
 
 section .code
 
-; TODO: Load 0 into R0
+loadi r0, 0     ; Load 0 into R0
+
 loop:
-    ; TODO: Increment R0
-    ; TODO: Jump back to loop
+    inc r0      ; Increment R0
+    jmp loop    ; Jump back to loop
 ; Note: This program never reaches HALT - that's the point!

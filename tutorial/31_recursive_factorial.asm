@@ -14,17 +14,30 @@
 
 section .code
 
-; TODO: Load 5 into R0
-; TODO: Call factorial
-; TODO: Halt (R0 should be 120)
+loadi   r0, 5
+call    factorial
+halt                    ; R0 = 120
 
 factorial:
-    ; TODO: Compare R0 with 1
-    ; TODO: If R0 <= 1, load 1 into R0 and return (base case)
-    ; TODO: Push R0 (save current n)
-    ; TODO: Decrement R0 (n-1)
-    ; TODO: Call factorial recursively (computes (n-1)!)
-    ; TODO: Pop R1 (restore original n)
-    ; TODO: Multiply: result = n * factorial(n-1)
-    ;      (Use repeated addition in a loop)
-    ; TODO: Return (result in R0)
+    loadi   r1, 1
+    cmp     r0, r1
+    jc      base_case   ; if r0 < 1
+    jz      base_case   ; if r0 == 1
+
+    push    r0          ; save n
+    dec     r0          ; n-1
+    call    factorial   ; factorial(n-1)
+    pop     r1          ; restore n
+
+    ; multiply: r0 (result) by r1 (n)
+    mov     r2, r0      ; save result
+    loadi   r0, 0       ; accumulator
+    multiply:
+        add     r0, r2
+        dec     r1
+        jnz     multiply
+        ret
+
+    base_case:
+        loadi   r0, 1
+        ret

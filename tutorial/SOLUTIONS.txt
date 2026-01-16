@@ -393,7 +393,7 @@ section .code
     HALT
 
 countdown:
-    CMP   R0, R0           ; Will set Z if R0=0
+    OR    R0, R0           ; Will set Z if R0=0
     JZ    done
     DEC   R0
     CALL  countdown
@@ -493,8 +493,7 @@ section .code
     LOADI R2, 5            ; Multiplier
     LOADI R0, 0            ; Result
 loop:
-    MOV   R3, R2
-    CMP   R3, R3
+    OR    R2, R2
     JZ    done
 
     MOV   R3, R2
@@ -584,8 +583,7 @@ section .code
     LOADI R1, 0x57
     LOADI R0, 0
 loop:
-    MOV   R2, R1
-    CMP   R2, R2
+    OR    R1, R1
     JZ    done
 
     MOV   R2, R1

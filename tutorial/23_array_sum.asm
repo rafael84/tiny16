@@ -13,16 +13,16 @@
 
 section .code
 
-; TODO: Load 0 into R0 (sum accumulator)
-; TODO: Load 5 into R1 (array length / loop counter)
-; TODO: Load 0x40 into R6 (array address high)
-; TODO: Load 0x00 into R7 (array address low)
+loadi   r0, 0               ; Load 0 into R0 (sum accumulator)
+loadi   r1, 5               ; Load 5 into R1 (array length / loop counter)
+loadi   r6, 0x40            ; Load 0x40 into R6 (array address high)
+loadi   r7, 0x00            ; Load 0x00 into R7 (array address low)
 loop:
-    ; TODO: Load from [R6:R7]+ into R2
-    ; TODO: Add R2 to R0
-    ; TODO: Decrement R1
-    ; TODO: Jump to loop if R1 != 0
-; TODO: Halt (R0 should be 150)
+    load    r2, [r6:r7]+    ; Load from [R6:R7]+ into R2
+    add     r0, r2          ; Add R2 to R0
+    dec     r1              ; Decrement R1
+    jnz     loop            ; Jump to loop if R1 != 0
+halt                        ; Halt (R0 should be 150)
 
 section .data
 

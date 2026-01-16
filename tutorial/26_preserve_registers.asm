@@ -13,10 +13,10 @@
 
 section .code
 
-; TODO: Load 5 into R0
-; TODO: Load 100 into R1 (important value we need to preserve)
-; TODO: Push R1 (save it before using R1 for temp work)
-; TODO: Load 10 into R1 (use R1 as temp)
-; TODO: Add R1 to R0 (R0 = 5 + 10 = 15)
-; TODO: Pop R1 (restore original value of 100)
-; TODO: Halt (R0=15, R1=100)
+loadi   r0, 5       ; Load 5 into R0
+loadi   r1, 100     ; Load 100 into R1 (important value we need to preserve)
+push    r1          ; Push R1 (save it before using R1 for temp work)
+loadi   r1, 10      ; Load 10 into R1 (use R1 as temp)
+add     r0, r1      ; Add R1 to R0 (R0 = 5 + 10 = 15)
+pop     r1          ; Pop R1 (restore original value of 100)
+halt                ; Halt (R0=15, R1=100)

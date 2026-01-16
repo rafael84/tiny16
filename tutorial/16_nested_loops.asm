@@ -14,14 +14,14 @@
 
 section .code
 
-; TODO: Load 0 into R0 (total count)
-; TODO: Load 3 into R1 (outer loop iterations)
+loadi r0, 0             ; Load 0 into R0 (total count)
+loadi r1, 3             ; Load 3 into R1 (outer loop iterations)
 outer_loop:
-    ; TODO: Load 4 into R2 (inner loop iterations - reload each time)
+    loadi r2, 4         ; Load 4 into R2 (inner loop iterations - reload each time)
     inner_loop:
-        ; TODO: Increment R0 (count total iterations)
-        ; TODO: Decrement R2
-        ; TODO: If R2 != 0, jump to inner_loop
-    ; TODO: Decrement R1 (outer counter)
-    ; TODO: If R1 != 0, jump to outer_loop
-; TODO: Halt (R0 should be 12)
+        inc r0          ; Increment R0 (count total iterations)
+        dec r2          ; Decrement R2
+        jnz inner_loop  ; If R2 != 0, jump to inner_loop
+    dec r1              ; Decrement R1 (outer counter)
+    jnz outer_loop      ; If R1 != 0, jump to outer_loop
+halt                    ; Halt (R0 should be 12)

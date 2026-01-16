@@ -11,6 +11,6 @@
 
 section .code
 
-; TODO: Load 20 into R0
-; TODO: Halve R0 using SHR (shift right)
-; TODO: Halt the program
+loadi r0, 20    ; Load 20 into R0
+shr r0          ; Halve R0 using SHR (shift right)
+halt            ; Halt the program

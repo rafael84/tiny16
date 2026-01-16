@@ -356,7 +356,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
     if (tiny16_cpu_tracing) {
         uint8_t C = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_C);
         uint8_t Z = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_Z);
-        printf(" | C=%d Z=%d |", C, Z);
+        printf(" |> C=%d Z=%d |", C, Z);
         for (uint8_t i = 0; i < TINY16_CPU_REGISTERS; ++i) {
             printf(" R%d=%02X", i, cpu->R[i]);
         }

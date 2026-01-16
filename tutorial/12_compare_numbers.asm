@@ -4,7 +4,7 @@
 ; Goal: Load two numbers (5 and 8) and store the maximum in R0
 ;       Use CMP and conditional jumps
 ;
-; Instructions to use: LOADI, CMP, JC, MOV, HALT
+; Instructions to use: LOADI, CMP, JC, JMP, MOV, HALT
 ; Expected result: R0 = 8 (the maximum)
 ;
 ; Hint: CMP R0, R1 computes R0 - R1 and sets flags
@@ -13,12 +13,12 @@
 
 section .code
 
-; TODO: Load 5 into R0
-; TODO: Load 8 into R1
-; TODO: Compare R0 with R1
-; TODO: If R0 < R1 (C=1), jump to r1_larger
-; TODO: Jump to done (R0 >= R1, R0 is max)
+loadi r0, 5     ; Load 5 into R0
+loadi r1, 8     ; Load 8 into R1
+cmp r0, r1      ; Compare R0 with R1
+jc r1_larger    ; If R0 < R1 (C=1), jump to r1_larger
+jmp done        ; Jump to done (R0 >= R1, R0 is max)
 r1_larger:
-    ; TODO: Move R1 to R0 (R1 is the max)
+    mov r0, r1  ; Move R1 to R0 (R1 is the max)
 done:
-    ; TODO: Halt (R0 should be 8)
+    halt        ; Halt (R0 should be 8)

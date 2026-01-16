@@ -13,12 +13,12 @@
 
 section .code
 
-; TODO: Load 0 into R0 (counter)
-; TODO: Load 10 into R1 (target)
+loadi r0, 0     ; Load 0 into R0 (counter)
+loadi r1, 10    ; Load 10 into R1 (target)
 loop:
-    ; TODO: Compare R0 with R1
-    ; TODO: If equal (Z=1), jump to done
-    ; TODO: Increment R0
-    ; TODO: Jump back to loop
+    cmp r0, r1  ; Compare R0 with R1
+    jz  done    ; If equal (Z=1), jump to done
+    inc r0      ; Increment R0
+    jmp loop    ; Jump back to loop
 done:
-    ; TODO: Halt (R0 should be 10)
+    halt        ; Halt (R0 should be 10)

@@ -13,6 +13,6 @@
 
 section .code
 
-; TODO: Load 10 into R0
-; TODO: Double R0 using SHL or ADD
-; TODO: Halt the program
+loadi r0, 10    ; Load 10 into R0
+shl r0          ; Double R0 using SHL or ADD
+halt            ; Halt the program

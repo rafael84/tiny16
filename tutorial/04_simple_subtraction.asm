@@ -11,7 +11,7 @@
 
 section .code
 
-; TODO: Load 15 into R0
-; TODO: Load 10 into R1
-; TODO: Subtract R1 from R0 (R0 = R0 - R1)
-; TODO: Halt the program
+loadi r0, 15    ; Load 15 into R0
+loadi r1, 10    ; Load 10 into R1
+sub r0, r1      ; Subtract R1 from R0 (R0 = R0 - R1)
+halt            ; Halt the program

@@ -13,10 +13,10 @@
 
 section .code
 
-; TODO: Load 0x40 into R6 (array base address high)
-; TODO: Load 0x00 into R7 (array base address low)
-; TODO: Load from [R6:R7 + 2] into R0 (3rd element, offset 2)
-; TODO: Halt (R0 should be 30)
+loadi   r6, 0x40        ; Load 0x40 into R6 (array base address high)
+loadi   r7, 0x00        ; Load 0x00 into R7 (array base address low)
+load    r0, [r6:r7+2]   ; Load from [R6:R7 + 2] into R0 (3rd element, offset 2)
+halt                    ; Halt (R0 should be 30)
 
 section .data
 

@@ -14,10 +14,10 @@
 
 section .code
 
-; TODO: Load 5 into R0
-; TODO: Call double_it subroutine
-; TODO: Halt (R0 should be 10)
+loadi   r0, 5       ; Load 5 into R0
+call    double_it   ; Call double_it subroutine
+halt                ; Halt (R0 should be 10)
 
 double_it:
-    ; TODO: Add R0 to itself (R0 = R0 + R0)
-    ; TODO: Return to caller
+    add     r0, r0  ; Add R0 to itself (R0 = R0 + R0)
+    ret             ; Return to caller

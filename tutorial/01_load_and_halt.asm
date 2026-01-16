@@ -11,5 +11,5 @@
 
 section .code
 
-; TODO: Load 42 into R0
-; TODO: Halt the program
+loadi r0, 42    ; Load 42 into R0
+halt            ; Halt the program

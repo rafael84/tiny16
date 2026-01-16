@@ -1,4 +1,4 @@
-.PHONY: all asm tests examples emulator clean clean-all raylib-build raylib-clean print-platform help
+.PHONY: all asm tests examples emulator clean clean-all raylib-build raylib-clean
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -66,7 +66,6 @@ examples: asm
 	done
 
 $(RAYLIB_LIB):
-	@echo "Building raylib for $(PLATFORM)..."
 	$(MAKE) -C $(RAYLIB_SRC_PATH) PLATFORM=PLATFORM_DESKTOP
 
 raylib-build: raylib-clean

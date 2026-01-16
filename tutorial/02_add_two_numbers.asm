@@ -11,7 +11,7 @@
 
 section .code
 
-; TODO: Load 7 into R0
-; TODO: Load 8 into R1
-; TODO: Add R1 to R0 (R0 = R0 + R1)
-; TODO: Halt the program
+loadi r0, 7     ; Load 7 into R0
+loadi r1, 8     ; Load 8 into R1
+add r0, r1      ; Add R1 to R0 (R0 = R0 + R1)
+halt            ; Halt the program
