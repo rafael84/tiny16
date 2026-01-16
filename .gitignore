@@ -1,4 +1,19 @@
+# Build output
 bin/
+
+# Raylib build artifacts
+thirdparty/raylib/src/*.o
+thirdparty/raylib/src/*.a
+
+# IDE/Editor
 compile_commands.json
 .cache/
 .nvim.lua
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store

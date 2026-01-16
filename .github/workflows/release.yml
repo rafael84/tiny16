@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            artifact: tiny16-linux
+          - os: macos-latest
+            platform: macos
+            artifact: tiny16-macos
+          - os: windows-latest
+            platform: windows
+            artifact: tiny16-windows
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.platform }})
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev libx11-dev
+
+      - name: Build raylib
+        run: make raylib-build
+
+      - name: Build project
+        run: make asm emulator
+
+      - name: Package (Unix)
+        if: matrix.platform != 'windows'
+        run: |
+          mkdir -p dist
+          cp bin/tiny16-asm bin/tiny16-emu dist/
+          tar -czvf ${{ matrix.artifact }}.tar.gz -C dist .
+
+      - name: Package (Windows)
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp bin/tiny16-asm.exe bin/tiny16-emu.exe dist/
+          7z a ${{ matrix.artifact }}.zip ./dist/*
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    name: Create Release
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/tiny16-linux/*.tar.gz
+            artifacts/tiny16-macos/*.tar.gz
+            artifacts/tiny16-windows/*.zip
+          generate_release_notes: true
