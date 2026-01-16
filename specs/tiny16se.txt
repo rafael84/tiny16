@@ -1,14 +1,16 @@
-TinyLisp Language Specification
-===============================
+tiny16se Language Specification
+================================
 
 VERSION
-    TinyLisp v0.1
+    tiny16se v0.1
 
-TARGET
-    tiny16 virtual machine
+DESCRIPTION
+    tiny16se is a S-expression language for the tiny16 virtual machine.
+    Similar in spirit to WebAssembly Text (WAT), it provides a human-readable
+    textual format that compiles to tiny16 bytecode.
 
 SCOPE
-    This document defines TinyLisp syntax, semantics, scoping,
+    This document defines tiny16se syntax, semantics, scoping,
     and lowering rules to tiny16 bytecode.
 
 ------------------------------------------------------------
@@ -24,9 +26,21 @@ Comments
 Tokens
     "(" , ")"           parentheses
     number              decimal (0-255) or hexadecimal (0x00-0xFF)
-    symbol              [A-Za-z_][A-Za-z0-9_-]*
+    symbol              Any sequence of non-whitespace characters that:
+                        - Does not start with a digit
+                        - Does not contain ( ) or ;
+                        - Is not a valid number literal
+
+                        Regex: [^0-9();\s][^();\s]*
+
                         Case-sensitive (foo ≠ Foo)
-                        Hyphens allowed: my-function, is-valid?
+                        Conventions:
+                            - Hyphens for multi-word: my-function
+                            - ? suffix for predicates: valid?
+                            - ! suffix for mutation: set!
+                            - + suffix for variants: addr+
+                            - *earmuffs* for special vars: *debug*
+                            - -> prefix for conversions: ->string
 
 ------------------------------------------------------------
 2. SYNTAX
@@ -266,7 +280,7 @@ Recursion
     4. Halts after main returns
 
 ------------------------------------------------------------
-11. LOWERING RULES (TinyLisp → tiny16)
+11. LOWERING RULES (tiny16se → tiny16)
 ------------------------------------------------------------
 
 11.1 Literals
@@ -846,7 +860,7 @@ Type Annotations (optional, for documentation)
     NUMBER      := [0-9]+
                  | "0x" [0-9A-Fa-f]+
 
-    SYMBOL      := [A-Za-z_] [A-Za-z0-9_-]*
+    SYMBOL      := [^0-9();\s] [^();\s]*
 
     COMMENT     := ";" [^\n]* "\n"
 
