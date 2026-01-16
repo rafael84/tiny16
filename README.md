@@ -14,14 +14,29 @@ A minimalist 16-bit virtual machine with assembler and emulator.
 
 ## Building
 
-Requires: C compiler (gcc/clang), raylib dependencies
+**macOS**
 
 ```bash
-# Linux: sudo apt-get install libgl1-mesa-dev libx11-dev libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
-# macOS: Xcode command line tools
-
-make              # Build everything
+xcode-select --install   # if not already installed
+make
 ```
+
+**Linux (Ubuntu/Debian)**
+
+```bash
+sudo apt-get install build-essential libgl1-mesa-dev libx11-dev \
+    libxcursor-dev libxrandr-dev libxinerama-dev libxi-dev
+make
+```
+
+**Windows ([MSYS2](https://www.msys2.org/))**
+
+```bash
+pacman -S mingw-w64-x86_64-gcc make
+make
+```
+
+Or download pre-built binaries from [Releases](https://github.com/rafael84/tiny16/releases).
 
 ## Usage
 
