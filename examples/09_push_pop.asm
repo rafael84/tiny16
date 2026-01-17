@@ -1,4 +1,0 @@
-LOADI R0, 10
-PUSH  R0
-POP   R1
-HALT

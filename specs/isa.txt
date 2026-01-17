@@ -212,6 +212,18 @@ INSTRUCTIONS
       Does not affect flags.
       Stack underflow occurs if SP goes above 0xBEFF.
 
+0x2E  MOVSPR PAIR
+      Move stack pointer to register pair.
+      PAIR = SP
+      Copies SP into a register pair for frame pointer access.
+      Does not affect flags.
+
+0x2F  MOVRSP PAIR
+      Move register pair to stack pointer.
+      SP = PAIR
+      Copies a register pair into SP for stack frame management.
+      Does not affect flags.
+
 0x30  JMP addr16
       Unconditional jump to address.
       PC = addr16
@@ -518,6 +530,24 @@ Preserve registers in subroutine:
         ADD   R0, R1      ; R0 = 5 + 99 = 104
         POP   R1          ; Restore R1 = 10
         RET
+
+Stack-based parameters with frame pointer:
+        LOADI R0, 15
+        PUSH  R0          ; Push arg3
+        LOADI R0, 10
+        PUSH  R0          ; Push arg2
+        LOADI R0, 5
+        PUSH  R0          ; Push arg1
+        CALL  SUM_THREE
+        HALT
+    SUM_THREE:
+        MOVSPR R6:R7          ; R6:R7 = SP (frame pointer)
+        LOAD   R0, [R6:R7 + 2] ; Load arg1 at SP+2
+        LOAD   R1, [R6:R7 + 3] ; Load arg2 at SP+3
+        LOAD   R2, [R6:R7 + 4] ; Load arg3 at SP+4
+        ADD    R0, R1         ; R0 = arg1 + arg2
+        ADD    R0, R2         ; R0 = sum + arg3
+        RET                   ; R0 = 30
 
 
 RESET

@@ -218,16 +218,7 @@ long tiny16_parser_parse_number(Tiny16AsmContext* ctx) {
     return value;
 }
 
-Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
-    Tiny16Addr addr = {0};
-
-    // Parse destination/source register: R0, [...]
-    addr.reg = tiny16_parser_parse_reg(ctx);
-    tiny16_parser_skip_sep(ctx);
-
-    tiny16_parser_eat_char(ctx, '[');
-    tiny16_parser_eat_space(ctx);
-
+Tiny16AddrPair tiny16_parser_parse_reg_pair(Tiny16AsmContext* ctx) {
     uint8_t rh = tiny16_parser_parse_reg(ctx);
     if (rh % 2 != 0) TINY16_PARSER_ABORTF(ctx, "expected even register, found R%d", rh);
 
@@ -238,7 +229,20 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
     uint8_t rl = tiny16_parser_parse_reg(ctx);
     if (rl != rh + 1) TINY16_PARSER_ABORTF(ctx, "expected R%d, found R%d", rh + 1, rl);
 
-    addr.pair = rh / 2;
+    return (Tiny16AddrPair)(rh / 2);
+}
+
+Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx) {
+    Tiny16Addr addr = {0};
+
+    // Parse destination/source register: R0, [...]
+    addr.reg = tiny16_parser_parse_reg(ctx);
+    tiny16_parser_skip_sep(ctx);
+
+    tiny16_parser_eat_char(ctx, '[');
+    tiny16_parser_eat_space(ctx);
+
+    addr.pair = tiny16_parser_parse_reg_pair(ctx);
     addr.mode = TINY16_ADDR_MODE_BASE;
     addr.offset = 0;
 
@@ -318,6 +322,12 @@ void tiny16_parser_emit_code(Tiny16AsmContext* ctx) {
     case TINY16_OPCODE_PUSH:
     case TINY16_OPCODE_POP:
         bytes[1] = tiny16_parser_parse_reg(ctx);
+        bytes[2] = 0;
+        break;
+
+    case TINY16_OPCODE_MOVSPR:
+    case TINY16_OPCODE_MOVRSP:
+        bytes[1] = tiny16_parser_parse_reg_pair(ctx);
         bytes[2] = 0;
         break;
 

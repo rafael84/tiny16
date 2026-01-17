@@ -137,6 +137,16 @@ PUSH R
 POP R
     -> opcode R 0
 
+MOVSPR PAIR
+    -> opcode pair_id 0
+    -> Move stack pointer to register pair (PAIR = SP)
+    -> pair_id: 0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7
+
+MOVRSP PAIR
+    -> opcode pair_id 0
+    -> Move register pair to stack pointer (SP = PAIR)
+    -> pair_id: 0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7
+
 JMP addr16 | label
 JZ  addr16 | label
 JNZ addr16 | label

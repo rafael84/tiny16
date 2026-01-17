@@ -7,8 +7,9 @@ A minimalist 16-bit virtual machine with assembler and emulator.
 ## Features
 
 - 8 general-purpose 8-bit registers (R0-R7)
+- 16-bit stack pointer with direct access (MOVSPR/MOVRSP)
 - 64KB address space with memory-mapped I/O
-- 26-instruction ISA with 3-byte fixed-length format
+- 28-instruction ISA with 3-byte fixed-length format
 - 128×128 pixel framebuffer (RGB332)
 - Gamepad + mouse input support
 
@@ -47,22 +48,21 @@ bin/tiny16-emu bin/demo.tiny16                      # Run
 
 **Controls:** Arrow keys/WASD (D-pad), Z/X (A/B buttons), Enter (Start), P (Pause), ESC (Exit)
 
-## Example
+## Examples
 
-```asm
-LOADI R0, 42        ; Load immediate
-LOADI R1, 10
-ADD   R0, R1        ; R0 = 52
-SHL   R0            ; R0 = 104
-HALT
-```
+**Visual Demos:**
+- [`demo.asm`](examples/demo.asm) — 32 bouncing sprites with PPU
+- [`input_test.asm`](examples/input_test.asm) — Keyboard-controlled sprite
+- [`mouse_paint.asm`](examples/mouse_paint.asm) — Drawing with mouse
+
+**Code Patterns:**
+- [`call_ret.asm`](examples/call_ret.asm) — Subroutine calling patterns
 
 ## Documentation
 
 - [`specs/isa.txt`](specs/isa.txt) — Instruction set reference
 - [`specs/assembler.txt`](specs/assembler.txt) — Assembler syntax
-- [`examples/`](examples/) — Example programs
-- [`tutorial/`](tutorial/) — Step-by-step tutorials
+- [`tutorial/`](tutorial/) — 49 step-by-step tutorials
 
 ## License
 

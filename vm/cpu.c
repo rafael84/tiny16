@@ -85,10 +85,11 @@ void tiny16_cpu_print(const Tiny16CPU* cpu) {
 
 #define TINY16_CPU_TRACE_BUFFER_SIZE 40
 static char tiny16_cpu_trace_buffer[TINY16_CPU_TRACE_BUFFER_SIZE];
+static const char* TINY16_CPU_PAIR_NAMES[] = {"R0:R1", "R2:R3", "R4:R5", "R6:R7"};
 
 void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t arg2) {
 
-    printf("    0x%04X | %02X %02X %02X | %-6s", addr, opcode, arg1, arg2,
+    printf("    0x%04X | %02X %02X %02X | %-8s", addr, opcode, arg1, arg2,
            tiny16_mnemonic_from_opcode(opcode));
 
     switch (opcode) {
@@ -100,14 +101,13 @@ void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t 
         uint8_t reg = (arg1 >> 5) & 0x7;
         Tiny16AddrMode mode = (arg1 >> 3) & 0x3;
         uint8_t pair = (arg1 >> 1) & 0x3;
-        static const char* pair_names[] = {"R0:R1", "R2:R3", "R4:R5", "R6:R7"};
         static const char* mode_suffix[] = {"", "+", "-", ""};
         if (mode == TINY16_ADDR_MODE_OFFSET) {
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s + 0x%02X]",
-                     reg, pair_names[pair], arg2);
+                     reg, TINY16_CPU_PAIR_NAMES[pair], arg2);
         } else {
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s]%s", reg,
-                     pair_names[pair], mode_suffix[mode]);
+                     TINY16_CPU_PAIR_NAMES[pair], mode_suffix[mode]);
         }
     } break;
     case TINY16_OPCODE_INC:
@@ -115,6 +115,11 @@ void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t 
     case TINY16_OPCODE_PUSH:
     case TINY16_OPCODE_POP:
         snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d", arg1);
+        break;
+    case TINY16_OPCODE_MOVSPR:
+    case TINY16_OPCODE_MOVRSP:
+        snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "%s",
+                 arg1 < 4 ? TINY16_CPU_PAIR_NAMES[arg1] : "INVALID");
         break;
     case TINY16_OPCODE_JMP:
     case TINY16_OPCODE_JZ:
@@ -179,10 +184,10 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         uint8_t pair = (arg1 >> 1) & 0x3;
 
         // PAIR: 0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7
-        uint8_t* Rh = &cpu->R[pair * 2];     // even (high byte)
-        uint8_t* Rl = &cpu->R[pair * 2 + 1]; // odd (low byte)
+        uint8_t* hi = &cpu->R[pair * 2];     // even (high byte)
+        uint8_t* lo = &cpu->R[pair * 2 + 1]; // odd (low byte)
 
-        uint16_t addr = ((uint16_t)(*Rh << 8)) | *Rl;
+        uint16_t addr = ((uint16_t)(*hi << 8)) | *lo;
         uint16_t ea = addr; // effective address
 
         if (mode == TINY16_ADDR_MODE_OFFSET) ea = addr + (uint8_t)arg2;
@@ -201,8 +206,8 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         if (mode == TINY16_ADDR_MODE_INC) addr++;
         if (mode == TINY16_ADDR_MODE_DEC) addr--;
 
-        *Rh = addr >> 8;
-        *Rl = addr & 0xFF;
+        *hi = addr >> 8;
+        *lo = addr & 0xFF;
 
     } break;
 
@@ -303,6 +308,19 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
     case TINY16_OPCODE_POP:
         TINY16_CPU_POP(cpu, memory_context, memory_read, cpu->R[arg1]);
         break;
+
+    case TINY16_OPCODE_MOVSPR: {
+        uint8_t hi = arg1 * 2;
+        uint8_t lo = arg1 * 2 + 1;
+        cpu->R[hi] = (cpu->sp >> 8) & 0xFF;
+        cpu->R[lo] = cpu->sp & 0xFF;
+    } break;
+
+    case TINY16_OPCODE_MOVRSP: {
+        uint8_t hi = arg1 * 2;
+        uint8_t lo = arg1 * 2 + 1;
+        cpu->sp = ((uint16_t)cpu->R[hi] << 8) | cpu->R[lo];
+    } break;
 
     case TINY16_OPCODE_JMP:
         cpu->pc = ((uint16_t)arg1 << 8) | arg2;

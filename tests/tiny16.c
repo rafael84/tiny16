@@ -66,6 +66,11 @@ void tiny16_test_sbc_no_borrow(void);
 void tiny16_test_sbc_with_borrow(void);
 void tiny16_test_sbc_multibyte(void);
 void tiny16_test_sbc_underflow(void);
+void tiny16_test_movspr_basic(void);
+void tiny16_test_movspr_all_pairs(void);
+void tiny16_test_movrsp_basic(void);
+void tiny16_test_movrsp_all_pairs(void);
+void tiny16_test_movspr_movrsp_roundtrip(void);
 
 #define ADDR16(instruction) (TINY16_MEMORY_CODE_BEGIN + instruction * 3)
 
@@ -157,6 +162,11 @@ int main(void) {
     TINY16_TEST(tiny16_test_sbc_with_borrow);
     TINY16_TEST(tiny16_test_sbc_multibyte);
     TINY16_TEST(tiny16_test_sbc_underflow);
+    TINY16_TEST(tiny16_test_movspr_basic);
+    TINY16_TEST(tiny16_test_movspr_all_pairs);
+    TINY16_TEST(tiny16_test_movrsp_basic);
+    TINY16_TEST(tiny16_test_movrsp_all_pairs);
+    TINY16_TEST(tiny16_test_movspr_movrsp_roundtrip);
     return 0;
 }
 
@@ -222,39 +232,39 @@ void tiny16_test_load_store_indirect(void) {
 void tiny16_test_load_store_pairs(void) {
     // Test all register pairs: R0:R1, R2:R3, R4:R5, R6:R7
     // Using R0:R1 pair
-    TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x40); // R0:R1 = 0x4000
-        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00); TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x11);
-        TINY16_ASM(TINY16_OPCODE_STORE,
-                   TINY16_ADDR_BYTE1(2, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_01), 0);
-        TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x00);
-        TINY16_ASM(TINY16_OPCODE_LOAD,
-                   TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_01), 0);
-        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x40); // R0:R1 = 0x4000
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x11);
+                    TINY16_ASM(TINY16_OPCODE_STORE,
+                               TINY16_ADDR_BYTE1(2, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_01), 0);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x00);
+                    TINY16_ASM(TINY16_OPCODE_LOAD,
+                               TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_01), 0);
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     assert(vm->cpu.R[3] == 0x11);
 
     // Using R2:R3 pair
-    TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4010
-        TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x10); TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x22);
-        TINY16_ASM(TINY16_OPCODE_STORE,
-                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_23), 0);
-        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
-        TINY16_ASM(TINY16_OPCODE_LOAD,
-                   TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_23), 0);
-        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4010
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x10);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x22);
+                    TINY16_ASM(TINY16_OPCODE_STORE,
+                               TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_23), 0);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
+                    TINY16_ASM(TINY16_OPCODE_LOAD,
+                               TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_23), 0);
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     assert(vm->cpu.R[1] == 0x22);
 
     // Using R4:R5 pair
-    TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 4, 0x40); // R4:R5 = 0x4020
-        TINY16_ASM(TINY16_OPCODE_LOADI, 5, 0x20); TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x33);
-        TINY16_ASM(TINY16_OPCODE_STORE,
-                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_45), 0);
-        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
-        TINY16_ASM(TINY16_OPCODE_LOAD,
-                   TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_45), 0);
-        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 4, 0x40); // R4:R5 = 0x4020
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 5, 0x20);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x33);
+                    TINY16_ASM(TINY16_OPCODE_STORE,
+                               TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_45), 0);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
+                    TINY16_ASM(TINY16_OPCODE_LOAD,
+                               TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_45), 0);
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     assert(vm->cpu.R[1] == 0x33);
 }
 
@@ -327,24 +337,24 @@ void tiny16_test_load_store_post_dec(void) {
     assert(vm->memory.bytes[0x400F] == 0xEE);
 
     // Test load with post-decrement
-    TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4010
-        TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x10);
-        // Pre-fill memory at 0x4010 and 0x400F
-        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x55);
-        TINY16_ASM(TINY16_OPCODE_STORE,
-                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
-        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x66);
-        TINY16_ASM(TINY16_OPCODE_STORE,
-                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_67), 0);
-        // Reset pointer to 0x4010
-        TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x10);
-        // Load with post-decrement
-        TINY16_ASM(TINY16_OPCODE_LOAD,
-                   TINY16_ADDR_BYTE1(2, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
-        TINY16_ASM(TINY16_OPCODE_LOAD,
-                   TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
-        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4010
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x10);
+                    // Pre-fill memory at 0x4010 and 0x400F
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x55);
+                    TINY16_ASM(TINY16_OPCODE_STORE,
+                               TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x66);
+                    TINY16_ASM(TINY16_OPCODE_STORE,
+                               TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_67), 0);
+                    // Reset pointer to 0x4010
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40);
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x10);
+                    // Load with post-decrement
+                    TINY16_ASM(TINY16_OPCODE_LOAD,
+                               TINY16_ADDR_BYTE1(2, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
+                    TINY16_ASM(TINY16_OPCODE_LOAD,
+                               TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     assert(vm->cpu.R[2] == 0x55); // value at 0x4010
     assert(vm->cpu.R[3] == 0x66); // value at 0x400F
     assert(vm->cpu.R[6] == 0x40);
@@ -1092,4 +1102,64 @@ void tiny16_test_sbc_underflow(void) {
     assert(vm->cpu.R[2] == 251); // 5 - 10 = -5 & 0xFF = 251
     assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
     assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // Underflow (borrow) occurred
+}
+
+void tiny16_test_movspr_basic(void) {
+    // Test MOVSPR copies SP into register pair R6:R7
+    // SP starts at 0xBEFF after reset
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP (pair 3)
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(vm->cpu.R[6] == 0xBE); // High byte of SP
+    assert(vm->cpu.R[7] == 0xFF); // Low byte of SP
+}
+
+void tiny16_test_movspr_all_pairs(void) {
+    // Test MOVSPR works with all register pairs
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_MOVSPR, 0, 0); // R0:R1 = SP
+                    TINY16_ASM(TINY16_OPCODE_MOVSPR, 1, 0); // R2:R3 = SP
+                    TINY16_ASM(TINY16_OPCODE_MOVSPR, 2, 0); // R4:R5 = SP
+                    TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(vm->cpu.R[0] == 0xBE && vm->cpu.R[1] == 0xFF); // R0:R1
+    assert(vm->cpu.R[2] == 0xBE && vm->cpu.R[3] == 0xFF); // R2:R3
+    assert(vm->cpu.R[4] == 0xBE && vm->cpu.R[5] == 0xFF); // R4:R5
+    assert(vm->cpu.R[6] == 0xBE && vm->cpu.R[7] == 0xFF); // R6:R7
+}
+
+void tiny16_test_movrsp_basic(void) {
+    // Test MOVRSP copies register pair into SP
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0xAB); // R6 = 0xAB
+                    TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0xCD); // R7 = 0xCD
+                    TINY16_ASM(TINY16_OPCODE_MOVRSP, 3, 0);   // SP = R6:R7 (pair 3)
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(vm->cpu.sp == 0xABCD);
+}
+
+void tiny16_test_movrsp_all_pairs(void) {
+    // Test MOVRSP works with all register pairs
+    TINY16_TEST_RUN(
+        // Test pair 0 (R0:R1)
+        TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x80); // R0 = 0x80
+        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00); // R1 = 0x00
+        TINY16_ASM(TINY16_OPCODE_MOVRSP, 0, 0);   // SP = R0:R1 = 0x8000
+        TINY16_ASM(TINY16_OPCODE_MOVSPR, 2, 0);   // R4:R5 = SP (verify)
+        // Test pair 1 (R2:R3)
+        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x90); // R2 = 0x90
+        TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x11); // R3 = 0x11
+        TINY16_ASM(TINY16_OPCODE_MOVRSP, 1, 0);   // SP = R2:R3 = 0x9011
+        TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0);   // R6:R7 = SP (verify)
+        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(vm->cpu.R[4] == 0x80 && vm->cpu.R[5] == 0x00); // Verified first MOVRSP
+    assert(vm->cpu.R[6] == 0x90 && vm->cpu.R[7] == 0x11); // Verified second MOVRSP
+    assert(vm->cpu.sp == 0x9011);                         // Final SP value
+}
+
+void tiny16_test_movspr_movrsp_roundtrip(void) {
+    // Test that MOVSPR followed by MOVRSP preserves SP
+    TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP
+                    TINY16_ASM(TINY16_OPCODE_MOVRSP, 3, 0); // SP = R6:R7
+                    TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
+    assert(vm->cpu.sp == 0xBEFF); // SP should be preserved
+    assert(vm->cpu.R[6] == 0xBE); // R6:R7 has SP value
+    assert(vm->cpu.R[7] == 0xFF);
 }
