@@ -15,18 +15,18 @@
 section .code
 
 ; First number: 0x01FF (R6:R7)
-; TODO: Load 0x01 into R6 (high byte)
-; TODO: Load 0xFF into R7 (low byte)
+loadi   r6, 0x01    ; Load 0x01 into R6 (high byte)
+loadi   r7, 0xff    ; Load 0xFF into R7 (low byte)
 
 ; Second number: 0x0002 (R0:R1)
-; TODO: Load 0x00 into R0 (high byte)
-; TODO: Load 0x02 into R1 (low byte)
+loadi   r0, 0x00    ; Load 0x00 into R0 (high byte)
+loadi   r1, 0x02    ; Load 0x02 into R1 (low byte)
 
 ; Add low bytes first
-; TODO: ADD R7, R1 (R7 = 0xFF + 0x02 = 0x01, sets C=1 because overflow)
+add     r7, r1      ; ADD R7, R1 (R7 = 0xFF + 0x02 = 0x01, sets C=1 because overflow)
 
 ; Add high bytes with carry
-; TODO: ADC R6, R0 (R6 = 0x01 + 0x00 + C = 0x02)
+adc     r6, r0      ; ADC R6, R0 (R6 = 0x01 + 0x00 + C = 0x02)
 
 ; Result: R6:R7 = 0x0201
-; TODO: Halt
+halt                ; Halt
