@@ -20,31 +20,39 @@ void tiny16_cpu_reset(Tiny16CPU* cpu) {
 void tiny16_cpu_print(const Tiny16CPU* cpu) {
     printf("CPU\n\n");
 
+    uint16_t pair0 = ((uint16_t)cpu->R[0] << 8) | cpu->R[1];
+    uint16_t pair1 = ((uint16_t)cpu->R[2] << 8) | cpu->R[3];
+    uint16_t pair2 = ((uint16_t)cpu->R[4] << 8) | cpu->R[5];
+    uint16_t pair3 = ((uint16_t)cpu->R[6] << 8) | cpu->R[7];
+
     for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("  --- R%d ---", i);
     }
-    printf("\n");
+    printf(" | R0:R1=0x%04X\n", pair0);
 
     for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
         printf("  0b" TINY16_BIN8_FMT, TINY16_BIN8(cpu->R[i]));
     }
-    printf("\n");
+    printf(" | R2:R3=0x%04X\n", pair1);
 
     for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
-        printf("  0x%08X", cpu->R[i]);
+        printf("        0x%02X", cpu->R[i]);
     }
-    printf("\n");
+    printf(" | R4:R5=0x%04X\n", pair2);
 
     for (int i = 0; i < TINY16_CPU_REGISTERS; ++i) {
-        printf("    %08d", cpu->R[i]);
+        printf("%12d", cpu->R[i]);
     }
-    printf("\n\n");
+    printf(" | R6:R7=0x%04X\n\n", pair3);
 
-    printf("  ------- PC -------  ------- SP -------  -- Flag  CZ\n");
-    printf("  0b" TINY16_BIN16_FMT "  0b" TINY16_BIN16_FMT "  0b " TINY16_BIN8_FMT "\n",
-           TINY16_BIN16(cpu->pc), TINY16_BIN16(cpu->sp), TINY16_BIN8(cpu->flags));
-    printf("  0x%016X  0x%016X\n", cpu->pc, cpu->sp);
-    printf("    %016d    %016d\n", cpu->pc, cpu->sp);
+    uint8_t C = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_C);
+    uint8_t Z = TINY16_CPU_FLAG(cpu->flags, TINY16_CPU_FLAG_Z);
+
+    printf("  ------- PC -------  ------- SP -------  | Flags\n");
+    printf("  0b" TINY16_BIN16_FMT "  0b" TINY16_BIN16_FMT "  | CF  %d\n", TINY16_BIN16(cpu->pc),
+           TINY16_BIN16(cpu->sp), C);
+    printf("              0x%04X              0x%04X  | ZF  %d\n", cpu->pc, cpu->sp, Z);
+    printf("%20d%20d  |\n", cpu->pc, cpu->sp);
 }
 
 #define TINY16_CPU_PUSH(cpu, mem_ctx, mem_write, value8)                                           \
