@@ -246,7 +246,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         uint16_t b = cpu->R[arg2];
         uint16_t res = a - b;
         cpu->R[arg1] = res & UINT8_MAX;
-        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, a < b);
+        TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_C, res > 0xFF);
         TINY16_CPU_SET_FLAG(cpu, TINY16_CPU_FLAG_Z, cpu->R[arg1] == 0);
     } break;
 

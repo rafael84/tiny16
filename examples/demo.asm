@@ -39,46 +39,68 @@ MAIN_LOOP:
 ; =============================================================================
 ; INIT_SPRITES - Initialize 32 sprites with varied positions and velocities
 ; Sprite data at 0x4010: [x, y, vel_x, vel_y] × 32
-; Uses a simple pattern to distribute sprites
+; Uses frame counter as pseudo-random seed for more varied distribution
 ; =============================================================================
 INIT_SPRITES:
+    ; Read FRAME_COUNT for pseudo-random seed
+    PUSH  R6
+    PUSH  R7
+    LOADI R6, 0xBF
+    LOADI R7, 0x22    ; FRAME_COUNT at 0xBF22
+    LOAD  R3, [R6:R7] ; R3 = frame count (pseudo-random seed)
+    POP   R7
+    POP   R6
+
     LOADI R6, 0x40
     LOADI R7, 0x10    ; sprite data starts at 0x4010
     LOADI R4, 0       ; sprite counter (0-31)
     LOADI R5, 32      ; total sprites
 
 INIT_SPRITE_LOOP:
-    ; X = (counter * 4)
+    ; X = ((seed + counter * 7) * 3 + 10) % 110 (range 10-119)
     MOV   R0, R4
-    TIMES 2 ADD R0, R0    ; R0 = counter * 4
+    TIMES 7 ADD R0, R4         ; counter * 7
+    ADD   R0, R3               ; add seed
+    ADD   R0, R0               ; * 2
+    ADD   R0, R0               ; * 2 (total * 4 from counter*7)
+    ; Modulo 110 to keep in range, then add 10
+    LOADI R2, 110
+    CALL  MOD_R0_BY_R2
+    LOADI R2, 10
+    ADD   R0, R2               ; R0 = x position (10-119)
     STORE R0, [R6:R7]+         ; x (post-increment)
 
-    ; Y = (counter * 3 + 10)
+    ; Y = ((seed + counter * 11) * 2 + 10) % 110 (range 10-119)
     MOV   R1, R4
-    ADD   R1, R4      ; R1 = counter * 2
-    ADD   R1, R4      ; R1 = counter * 3
+    TIMES 11 ADD R1, R4        ; counter * 11
+    ADD   R1, R3               ; add seed
+    ADD   R1, R1               ; * 2
+    ; Modulo 110 to keep in range, then add 10
+    MOV   R0, R1               ; prepare for modulo
+    LOADI R2, 110
+    CALL  MOD_R0_BY_R2
     LOADI R2, 10
-    ADD   R1, R2      ; R1 = counter * 3 + 10
+    ADD   R0, R2               ; R0 = y position (10-119)
+    MOV   R1, R0               ; restore to R1
     STORE R1, [R6:R7]+         ; y (post-increment)
 
-    ; vel_x = 2 or 3 based on counter & 1 (faster velocity!)
-    MOV   R0, R4
+    ; vel_x = 4 or 5 based on (seed + counter) & 1
+    MOV   R0, R3
+    ADD   R0, R4
     LOADI R2, 0x01
     AND   R0, R2
-    LOADI R1, 2
-    ADD   R0, R1      ; vel_x = 2 or 3
+    LOADI R1, 4
+    ADD   R0, R1               ; vel_x = 4 or 5
     STORE R0, [R6:R7]+         ; vel_x (post-increment)
 
-    ; vel_y = 2 or 3 based on (counter >> 1) & 1
+    ; vel_y = 4 or 5 based on (seed + counter * 3) & 1
     MOV   R0, R4
-    LOADI R2, 0x02
+    TIMES 3 ADD R0, R4         ; counter * 3
+    ADD   R0, R3               ; add seed
+    LOADI R2, 0x01
     AND   R0, R2
-    JZ    VEL_Y_LOW
-    LOADI R0, 3
-    JMP   STORE_VEL_Y
-VEL_Y_LOW:
-    LOADI R0, 2
-STORE_VEL_Y:
+    LOADI R1, 4
+    ADD   R0, R1               ; vel_y = 4 or 5
     STORE R0, [R6:R7]+         ; vel_y (post-increment)
 
     INC   R4          ; next sprite
@@ -91,6 +113,20 @@ STORE_VEL_Y:
     LOADI R0, 0xAA
     STORE R0, [R6:R7]          ; initialized flag
 
+    RET
+
+; =============================================================================
+; MOD_R0_BY_R2 - R0 = R0 % R2 (modulo operation)
+; Input: R0 = dividend, R2 = divisor
+; Output: R0 = remainder
+; Clobbers: R0
+; =============================================================================
+MOD_R0_BY_R2:
+    CMP   R0, R2
+    JC    MOD_DONE             ; if R0 < R2, done
+    SUB   R0, R2
+    JMP   MOD_R0_BY_R2         ; repeat
+MOD_DONE:
     RET
 
 ; =============================================================================
@@ -151,8 +187,8 @@ UPDATE_POS_LOOP:
     ; Load x, y, vel_x, vel_y using offset addressing
     LOAD  R0, [R6:R7 + 0]      ; x
     LOAD  R1, [R6:R7 + 1]      ; y
-    LOAD  R2, [R6:R7 + 2]      ; vel_x (now 2-3)
-    LOAD  R3, [R6:R7 + 3]      ; vel_y (now 2-3)
+    LOAD  R2, [R6:R7 + 2]      ; vel_x (now 4-5)
+    LOAD  R3, [R6:R7 + 3]      ; vel_y (now 4-5)
 
     PUSH  R7          ; save address low byte
 
@@ -175,16 +211,16 @@ UPDATE_POS_LOOP:
 
 POS_MOVE_LEFT:
     ; Moving left: x -= speed (speed stored when we reversed)
-    ; For left movement, vel_x is 0, we use a fixed speed of 2
-    LOADI R5, 2
+    ; For left movement, vel_x is 0, we use a fixed speed of 4
+    LOADI R5, 4
     CMP   R0, R5
-    JC    POS_BOUNCE_X_LEFT    ; x < 2, will underflow
+    JC    POS_BOUNCE_X_LEFT    ; x < 4, will underflow
     SUB   R0, R5
     JMP   POS_UPDATE_Y
 
 POS_BOUNCE_X_LEFT:
     XOR   R0, R0               ; x = 0
-    LOADI R2, 2                ; vel_x = 2 (move right)
+    LOADI R2, 4                ; vel_x = 4 (move right)
 
 POS_UPDATE_Y:
     ; Update Y position: similar logic
@@ -205,15 +241,15 @@ POS_UPDATE_Y:
 
 POS_MOVE_UP:
     ; Moving up: y -= speed
-    LOADI R5, 2
+    LOADI R5, 4
     CMP   R1, R5
-    JC    POS_BOUNCE_Y_UP      ; y < 2, will underflow
+    JC    POS_BOUNCE_Y_UP      ; y < 4, will underflow
     SUB   R1, R5
     JMP   POS_SAVE
 
 POS_BOUNCE_Y_UP:
     XOR   R1, R1               ; y = 0
-    LOADI R3, 2                ; vel_y = 2 (move down)
+    LOADI R3, 4                ; vel_y = 4 (move down)
 
 POS_SAVE:
     ; Restore address and save position using post-increment

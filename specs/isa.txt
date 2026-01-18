@@ -34,7 +34,9 @@ FLAGS
 -----
 
 Z = 1 if result == 0
-C = carry (ADD) or borrow (SUB)
+C = 1 if operation overflows (ADD) or underflows (SUB)
+    For ADD/ADC: set when result > 255 (carry out)
+    For SUB/SBC/CMP: set when result < 0 (borrow/underflow)
 
 Flags updated by:
 - ADD  : Z, C
@@ -122,7 +124,8 @@ INSTRUCTIONS
       Subtract second register from first, store result in first register.
       R1 = (R1 - R2) & 0xFF
       Sets Z=1 if result is zero, Z=0 otherwise.
-      Sets C=1 if borrow occurs (R1 < R2), C=0 otherwise.
+      Sets C=1 if borrow occurs (result underflows below 0), C=0 otherwise.
+      Note: Borrow occurs when R1 < R2, causing result to wrap around.
       R2 remains unchanged.
 
 0x22  INC R
@@ -162,7 +165,7 @@ INSTRUCTIONS
 0x27  CMP R1, R2
       Compare R1 and R2 by computing R1 - R2, set flags, but don't store result.
       Sets Z=1 if R1 == R2 (result is zero)
-      Sets C=1 if R1 < R2 (borrow occurred)
+      Sets C=1 if R1 < R2 (borrow occurs from underflow)
       Sets C=0, Z=0 if R1 > R2
       Does not modify R1 or R2.
 
@@ -194,7 +197,8 @@ INSTRUCTIONS
       Subtract with carry (borrow) - subtracts second register and carry flag from first.
       R1 = (R1 - R2 - C) & 0xFF
       Sets Z=1 if result is zero, Z=0 otherwise.
-      Sets C=1 if borrow occurs (R1 < R2 + C), C=0 otherwise.
+      Sets C=1 if borrow occurs (result underflows below 0), C=0 otherwise.
+      Note: Borrow occurs when R1 < (R2 + C), causing result to wrap around.
       R2 remains unchanged.
       Useful for multi-byte subtraction by chaining operations.
 
