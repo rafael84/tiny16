@@ -13,15 +13,20 @@
 
 section .code
 
-; TODO: Load 0x57 into R1 (value to count)
-; TODO: Load 0 into R0 (bit counter)
+loadi   r1, 0b01010111      ; Load 0x57 into R1 (value to count)
+loadi   r0, 0               ; Load 0 into R0 (bit counter)
 loop:
-    ; TODO: Check if R1 == 0 (done when no bits left)
-    ; TODO: If R1 == 0, jump to done
-    ; TODO: Test lowest bit: AND R1 with 1, store in R2
-    ; TODO: If bit is 0 (Z=1), skip increment
-    ; TODO: If bit is 1, increment R0
-    ; TODO: Shift R1 right (test next bit)
-    ; TODO: Jump back to loop
+    ; Check if R1 == 0 (done when no bits left)
+    loadi   r2, 0
+    cmp     r1, r2
+    jz      done            ; If R1 == 0, jump to done
+    ; Test lowest bit: AND R1 with 1, store in R2
+    loadi   r2, 1
+    and     r2, r1
+    jz      next            ; If bit is 0 (Z=1), skip increment
+    inc     r0              ; If bit is 1, increment R0
+next:
+    shr     r1              ; Shift R1 right (test next bit)
+    jmp     loop            ; Jump back to loop
 done:
-    ; TODO: Halt (R0 should be 5)
+    halt                    ; Halt (R0 should be 5)

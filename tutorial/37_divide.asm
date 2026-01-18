@@ -13,14 +13,14 @@
 
 section .code
 
-; TODO: Load 42 into R1 (dividend)
-; TODO: Load 7 into R2 (divisor)
-; TODO: Load 0 into R0 (quotient counter)
+loadi   r1, 42      ; Load 42 into R1 (dividend)
+loadi   r2, 7       ; Load 7 into R2 (divisor)
+loadi   r0, 0       ; Load 0 into R0 (quotient counter)
 loop:
-    ; TODO: Compare R1 with R2 (check if R1 < R2)
-    ; TODO: If R1 < R2 (C=1), jump to done
-    ; TODO: Subtract R2 from R1
-    ; TODO: Increment R0 (count subtractions)
-    ; TODO: Jump back to loop
+    cmp     r1, r2  ; Compare R1 with R2 (check if R1 < R2)
+    jc      done    ; If R1 < R2 (C=1), jump to done
+    sub     r1, r2  ; Subtract R2 from R1
+    inc     r0      ; Increment R0 (count subtractions)
+    jmp     loop    ; Jump back to loop
 done:
-    ; TODO: Halt (R0=6 quotient, R1=0 remainder)
+    halt            ; Halt (R0=6 quotient, R1=0 remainder)

@@ -13,11 +13,11 @@
 
 section .code
 
-; TODO: Load 7 into R1 (multiplicand - number to add)
-; TODO: Load 6 into R2 (multiplier - how many times)
-; TODO: Load 0 into R0 (result accumulator)
+loadi   r1, 1      ; Load 7 into R1 (multiplicand - number to add)
+loadi   r2, 255       ; Load 6 into R2 (multiplier - how many times)
+loadi   r0, 0       ; Load 0 into R0 (result accumulator)
 loop:
-    ; TODO: Add R1 to R0
-    ; TODO: Decrement R2
-    ; TODO: Jump to loop if R2 != 0
-; TODO: Halt (R0 should be 42)
+    add     r0, r1  ; Add R1 to R0
+    dec     r2      ; Decrement R2
+    jnz     loop    ; Jump to loop if R2 != 0
+halt                ; Halt (R0 should be 42)
