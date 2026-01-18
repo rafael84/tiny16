@@ -1,4 +1,4 @@
-.PHONY: all asm tests examples emulator clean clean-all raylib-build raylib-clean
+.PHONY: all asm tests examples emulator probe clean clean-all raylib-build raylib-clean
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -44,7 +44,7 @@ RAYLIB_INCLUDE = -I$(RAYLIB_SRC_PATH)
 
 BINDIR = bin
 
-all: tests asm emulator examples
+all: tests asm emulator examples probe
 
 $(BINDIR):
 	mkdir -p $@
@@ -58,6 +58,10 @@ asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
 
 emulator: $(BINDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB) | $(BINDIR)
 	$(CC) $(CFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) emulator/tiny16.c $(RAYLIB_LDFLAGS)
+
+probe: $(BINDIR) probe/*.c $(RAYLIB_LIB) | $(BINDIR)
+	$(CC) $(CFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/probe-audio$(EXE_EXT) probe/audio.c $(RAYLIB_LDFLAGS)
+	$(CC) $(CFLAGS) -o $(BINDIR)/probe-threads$(EXE_EXT) probe/threads.c -pthread -lm
 
 EXAMPLES := $(wildcard examples/*.asm)
 examples: asm
@@ -75,7 +79,7 @@ raylib-clean:
 	$(MAKE) -C $(RAYLIB_SRC_PATH) clean
 
 clean:
-	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-tests*
+	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-tests* $(BINDIR)/probe-*
 
 clean-all: clean raylib-clean
 
