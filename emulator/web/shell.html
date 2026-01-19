@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tiny16 emulator</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        background: #1a1a1a;
+        color: #f0f0f0;
+        font-family: "Courier New", monospace;
+        display: flex;
+        min-height: 100vh;
+      }
+
+      #canvas {
+        border-right: 2px solid #4a9eff;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        width: 1024px;
+        height: 1024px;
+        flex-shrink: 0;
+      }
+
+      #controls {
+        flex: 1;
+        padding: 20px;
+        background: #2a2a2a;
+        overflow-y: auto;
+      }
+
+      h1 {
+        margin: 0 0 20px 0;
+        font-size: 24px;
+        color: #4a9eff;
+      }
+
+      #file-input {
+        margin: 10px 0;
+        width: 100%;
+      }
+
+      button {
+        background: #4a9eff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px 5px 5px 0;
+        border-radius: 4px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 14px;
+      }
+
+      button:hover {
+        background: #6ab5ff;
+      }
+
+      button:disabled {
+        background: #555;
+        cursor: not-allowed;
+      }
+
+      #status {
+        margin: 15px 0;
+        padding: 10px;
+        background: #333;
+        border-radius: 4px;
+        font-size: 14px;
+      }
+
+      .section {
+        margin: 20px 0;
+        padding: 15px;
+        background: #333;
+        border-radius: 4px;
+      }
+
+      .section h2 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        color: #4a9eff;
+      }
+
+      .section p {
+        margin: 5px 0;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #555;
+        border-top: 2px solid #4a9eff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Responsive: stack vertically on smaller screens */
+      @media (max-width: 1400px) {
+        body {
+          flex-direction: column;
+        }
+
+        #canvas {
+          border-right: none;
+          border-bottom: 2px solid #4a9eff;
+          width: 100%;
+          height: auto;
+          max-width: 100vw;
+          aspect-ratio: 1;
+        }
+
+        #controls {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+
+    <div id="controls">
+      <h1>tiny16 emulator</h1>
+
+      <div id="status">
+        <div class="spinner"></div>
+        <span id="status-text">Loading...</span>
+      </div>
+
+      <div class="section">
+        <h2>Load Program</h2>
+        <input type="file" id="file-input" accept=".tiny16" />
+      </div>
+
+      <div class="section">
+        <h2>Controls</h2>
+        <button id="pause-btn" disabled>Pause (P)</button>
+        <button id="demo-btn" disabled>Load Demo</button>
+      </div>
+
+      <div class="section">
+        <h2>Keyboard</h2>
+        <p><strong>Arrow keys / WASD</strong> - D-pad</p>
+        <p><strong>Z/X or J/K</strong> - A/B buttons</p>
+        <p><strong>Enter</strong> - Start</p>
+        <p><strong>Space</strong> - Select</p>
+        <p><strong>P</strong> - Pause</p>
+        <p><strong>ESC</strong> - Exit</p>
+      </div>
+    </div>
+
+    <script type="text/javascript">
+      var Module = {
+        preRun: [],
+        postRun: [],
+        print: (function () {
+          return function (text) {
+            console.log(text);
+          };
+        })(),
+        printErr: function (text) {
+          console.error(text);
+        },
+        canvas: (function () {
+          var canvas = document.getElementById("canvas");
+          canvas.addEventListener(
+            "webglcontextlost",
+            function (e) {
+              alert("WebGL context lost. Reload page to continue.");
+              e.preventDefault();
+            },
+            false
+          );
+          return canvas;
+        })(),
+        setStatus: function (text) {
+          const statusEl = document.getElementById("status");
+          const statusText = document.getElementById("status-text");
+          const spinner = statusEl.querySelector(".spinner");
+
+          if (text) {
+            statusText.textContent = text;
+            spinner.style.display = "inline-block";
+          } else {
+            statusText.textContent = "Ready";
+            spinner.style.display = "none";
+            document.getElementById("demo-btn").disabled = false;
+            document.getElementById("pause-btn").disabled = false;
+          }
+        },
+        monitorRunDependencies: function (left) {
+          if (left === 0) {
+            Module.setStatus("");
+          }
+        },
+      };
+      Module.setStatus("Downloading...");
+      window.onerror = function (event) {
+        Module.setStatus("Error: " + event);
+      };
+
+      // File input handler
+      document
+        .getElementById("file-input")
+        .addEventListener("change", function (e) {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = function (event) {
+              const data = new Uint8Array(event.target.result);
+              FS.writeFile("/program.tiny16", data);
+
+              // Signal to C code that program is loaded
+              // We need to reset the VM and set program_loaded flag
+              if (Module._tiny16_web_reload_program) {
+                Module._tiny16_web_reload_program();
+              }
+
+              Module.setStatus("Program loaded: " + file.name);
+              console.log(
+                "Loaded program:",
+                file.name,
+                "Size:",
+                data.length,
+                "bytes"
+              );
+            };
+            reader.readAsArrayBuffer(file);
+          }
+        });
+
+      // Demo button handler
+      document
+        .getElementById("demo-btn")
+        .addEventListener("click", function () {
+          // This will be populated if you embed a demo program
+          Module.setStatus(
+            "Demo would load here - use file input to load .tiny16 files"
+          );
+        });
+
+      // Pause button handler
+      document
+        .getElementById("pause-btn")
+        .addEventListener("click", function () {
+          // Simulate P key press
+          const event = new KeyboardEvent("keydown", {
+            code: "KeyP",
+            keyCode: 80,
+          });
+          document.dispatchEvent(event);
+        });
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

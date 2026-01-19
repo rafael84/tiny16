@@ -37,6 +37,18 @@ pacman -S mingw-w64-x86_64-gcc make
 make
 ```
 
+**WebAssembly (Browser)**
+
+```bash
+# Build and run (downloads Emscripten v4.0.23 automatically on first run)
+make build-web  # Build for web
+make serve-web  # Start local server at http://localhost:8000
+
+# To upgrade or reinstall Emscripten
+make clean-emsdk
+make build-web
+```
+
 Or download pre-built binaries from [Releases](https://github.com/rafael84/tiny16/releases).
 
 ## Usage

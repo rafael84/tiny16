@@ -1,0 +1,3 @@
+emsdk/
+raylib/src/*.o
+raylib/src/*.a

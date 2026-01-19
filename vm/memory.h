@@ -94,7 +94,7 @@ typedef struct {
 //
 void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer);
 void tiny16_memory_reset(Tiny16Memory* memory);
-size_t tiny16_memory_load_from_file(Tiny16Memory* memory, char* filename);
+size_t tiny16_memory_load_from_file(Tiny16Memory* memory, const char* filename);
 
 //
 // Bus interface (used by CPU)
