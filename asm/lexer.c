@@ -21,7 +21,7 @@ LiteralToken literal_tokens[] = {
 
 #define literal_tokens_count (sizeof literal_tokens / sizeof literal_tokens[0])
 
-const char* keywords[] = {"section", "times"};
+const char* keywords[] = {"section", "times", "db"};
 
 #define keywords_count (sizeof keywords / sizeof keywords[0])
 
@@ -33,6 +33,8 @@ const char* token_kind_name(TokenKind kind) {
         return "comment";
     case TOKEN_SYMBOL:
         return "symbol";
+    case TOKEN_STRING:
+        return "string";
     case TOKEN_INVALID:
         return "invalid token";
     case TOKEN_COMMA:
@@ -53,6 +55,8 @@ const char* token_kind_name(TokenKind kind) {
         return "minus";
     case TOKEN_DOT: // REVIEW this
         return "dot";
+    case TOKEN_EOL:
+        return "end of line";
     default:
         assert(0 && "unreachable");
     }
@@ -62,15 +66,22 @@ Lexer lexer_new(const char* content, size_t content_len) {
     Lexer lexer = {0};
     lexer.content = content;
     lexer.content_len = content_len;
+    lexer.line = 1;
     return lexer;
 }
 
-bool lexer_starts_with(Lexer* lexer, const char* prefix) {
+bool lexer_starts_with(Lexer* lexer, const char* prefix, bool case_insensitive) {
     size_t prefix_len = strlen(prefix);
     if (prefix_len == 0) return true;
     if (lexer->cursor + prefix_len - 1 >= lexer->content_len) return false;
     for (size_t i = 0; i < prefix_len; ++i) {
-        if (prefix[i] != lexer->content[lexer->cursor + i]) return false;
+        char a = prefix[i];
+        char b = lexer->content[lexer->cursor + i];
+        if (case_insensitive) {
+            if (tolower((unsigned char)a) != tolower((unsigned char)b)) return false;
+        } else {
+            if (a != b) return false;
+        }
     }
     return true;
 }
@@ -88,35 +99,83 @@ void lexer_eat_chars(Lexer* lexer, size_t len) {
 }
 
 void lexer_trim_left(Lexer* lexer) {
-    while (lexer->cursor < lexer->content_len && isspace(lexer->content[lexer->cursor])) {
-        lexer_eat_chars(lexer, 1);
+    while (lexer->cursor < lexer->content_len) {
+        char c = lexer->content[lexer->cursor];
+        if (c == ' ' || c == '\t' || c == '\r') {
+            lexer_eat_chars(lexer, 1);
+        } else {
+            break;
+        }
     }
 }
 
 bool is_symbol_start(char c) { return isalpha(c) || c == '_'; }
 bool is_symbol(char c) { return isalnum(c) || c == '_'; }
 
+bool str_eq_ci(const char* a, const char* b, size_t n) {
+    for (size_t i = 0; i < n; ++i) {
+        if (tolower((unsigned char)a[i]) != tolower((unsigned char)b[i])) return false;
+    }
+    return true;
+}
+
 Token lexer_next(Lexer* lexer) {
     lexer_trim_left(lexer);
 
-    Token token = {.text = &lexer->content[lexer->cursor]};
+    Token token = {.text = &lexer->content[lexer->cursor],
+                   .line = lexer->line,
+                   .column = lexer->cursor - lexer->line_start + 1};
 
     if (lexer->cursor >= lexer->content_len) return token;
+
+    if (lexer->content[lexer->cursor] == '\n') {
+        token.kind = TOKEN_EOL;
+        while (lexer->cursor < lexer->content_len && lexer->content[lexer->cursor] == '\n')
+            lexer_eat_chars(lexer, 1);
+        token.text_len = &lexer->content[lexer->cursor] - token.text;
+        return token;
+    }
 
     if (lexer->content[lexer->cursor] == ';') {
         token.kind = TOKEN_COMMENT;
         while (lexer->cursor < lexer->content_len && lexer->content[lexer->cursor] != '\n')
             lexer_eat_chars(lexer, 1);
-        if (lexer->cursor < lexer->content_len) lexer_eat_chars(lexer, 1);
         token.text_len = &lexer->content[lexer->cursor] - token.text;
-        if (token.text[token.text_len - 1] == '\n') token.text_len -= 1; // REVIEW this
+        return token;
+    }
+
+    if (lexer->content[lexer->cursor] == '"') {
+        token.kind = TOKEN_STRING;
+        lexer_eat_chars(lexer, 1);
+        while (lexer->cursor < lexer->content_len) {
+            char c = lexer->content[lexer->cursor];
+            if (c == '"') {
+                lexer_eat_chars(lexer, 1);
+                token.text_len = &lexer->content[lexer->cursor] - token.text;
+                return token;
+            }
+            if (c == '\\') {
+                lexer_eat_chars(lexer, 1);
+                if (lexer->cursor < lexer->content_len) {
+                    lexer_eat_chars(lexer, 1);
+                }
+            } else if (c == '\n') {
+                token.kind = TOKEN_INVALID;
+                token.text_len = &lexer->content[lexer->cursor] - token.text;
+                return token;
+            } else {
+                lexer_eat_chars(lexer, 1);
+            }
+        }
+        token.kind = TOKEN_INVALID;
+        token.text_len = &lexer->content[lexer->cursor] - token.text;
         return token;
     }
 
     if (isdigit(lexer->content[lexer->cursor])) {
         token.kind = TOKEN_NUMBER;
         if (lexer->content[lexer->cursor] == '0') {
-            if (lexer_starts_with(lexer, "0x") || lexer_starts_with(lexer, "0X")) {
+            if (lexer_starts_with(lexer, "0x", true)) {
                 lexer_eat_chars(lexer, 2);
                 token.text_len += 2;
                 size_t digits = 0;
@@ -131,7 +190,7 @@ Token lexer_next(Lexer* lexer) {
                     token.text_len = 2;
                 }
                 return token;
-            } else if (lexer_starts_with(lexer, "0b") || lexer_starts_with(lexer, "0B")) {
+            } else if (lexer_starts_with(lexer, "0b", true)) {
                 lexer_eat_chars(lexer, 2);
                 token.text_len += 2;
                 size_t digits = 0;
@@ -157,7 +216,7 @@ Token lexer_next(Lexer* lexer) {
     }
 
     for (size_t i = 0; i < literal_tokens_count; ++i) {
-        if (lexer_starts_with(lexer, literal_tokens[i].text)) {
+        if (lexer_starts_with(lexer, literal_tokens[i].text, false)) {
             size_t text_len = strlen(literal_tokens[i].text);
             token.kind = literal_tokens[i].kind;
             token.text_len = text_len;
@@ -174,8 +233,7 @@ Token lexer_next(Lexer* lexer) {
         }
         for (size_t i = 0; i < keywords_count; ++i) {
             size_t keyword_len = strlen(keywords[i]);
-            if (keyword_len == token.text_len &&
-                memcmp(keywords[i], token.text, keyword_len) == 0) {
+            if (keyword_len == token.text_len && str_eq_ci(keywords[i], token.text, keyword_len)) {
                 token.kind = TOKEN_KEYWORD;
                 break;
             }

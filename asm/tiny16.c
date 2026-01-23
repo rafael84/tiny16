@@ -18,39 +18,47 @@
 #include "parser.c"
 #include "parser.h"
 
+#include "lexer.c"
+#include "lexer.h"
+
+static char* read_entire_file(const char* filename);
+
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
 
-    Tiny16AsmContext ctx = {
+    char* source_content = read_entire_file(args.source_filename);
+    if (source_content == NULL) {
+        fprintf(stderr, "Failed to read source file: %s\n", args.source_filename);
+        return EXIT_FAILURE;
+    }
+
+    Tiny16Parser parser = {
+        .source_filename = args.source_filename,
         .current_section = TINY16_PARSER_SECTION_CODE,
         .code_pc = TINY16_MEMORY_CODE_BEGIN,
         .data_pc = TINY16_MEMORY_DATA_BEGIN,
     };
 
-    ctx.output_file = fopen(args.output_filename, "wb");
-    if (ctx.output_file == NULL) {
+    parser.output_file = fopen(args.output_filename, "wb");
+    if (parser.output_file == NULL) {
         perror("could not open output file");
+        free(source_content);
         return EXIT_FAILURE;
     }
 
     // clang-format off
     uint8_t signature[16] = {
         'T', '1', '6', 0x00,                                                         // Magic
-        TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version (big-endian)
-        ((TINY16_MEMORY_CODE_BEGIN >> 8) & 0xFF), (TINY16_MEMORY_CODE_BEGIN & 0xFF), // Entrypoint addr (big-endian)
+        TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version
+        ((TINY16_MEMORY_CODE_BEGIN >> 8) & 0xFF), (TINY16_MEMORY_CODE_BEGIN & 0xFF), // Entrypoint
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                              // Reserved
     };
     // clang-format on
 
-    ctx.output_file_size = fwrite(signature, 1, sizeof signature, ctx.output_file);
-    if (ctx.output_file_size != 16) {
+    parser.output_file_size = fwrite(signature, 1, sizeof signature, parser.output_file);
+    if (parser.output_file_size != 16) {
         perror("write signature");
-        return EXIT_FAILURE;
-    }
-
-    ctx.source_file = fopen(args.source_filename, "r");
-    if (ctx.source_file == NULL) {
-        perror("could not open input file");
+        free(source_content);
         return EXIT_FAILURE;
     }
 
@@ -58,25 +66,41 @@ int main(int argc, char** argv) {
     // Pass 1: Collect labels and parse data section
     //
 
-    ctx.source_line_no = 0;
-    while (tiny16_parser_next_line(&ctx) != NULL) {
-        ctx.source_line_no++;
+    parser.lexer = lexer_new(source_content, strlen(source_content));
+    tiny16_parser_next(&parser);
 
-        if (!tiny16_parser_preprocess_line(&ctx)) continue;
-        if (tiny16_parser_parse_section(&ctx)) continue;
-        if (tiny16_parser_parse_label(&ctx)) continue;
+    while (parser.current_token.kind != TOKEN_END) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
 
-        int times = tiny16_parser_parse_times_prefix(&ctx);
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
 
-        switch (ctx.current_section) {
-        case TINY16_PARSER_SECTION_CODE:
-            ctx.code_pc += 3 * times;
-            break;
-        case TINY16_PARSER_SECTION_DATA:
-            tiny16_parser_times_do(&ctx, times, tiny16_parser_parse_data);
-            break;
-        default:
-            assert(0 && "unreachable");
+        if (tiny16_parser_parse_label(&parser)) {
+            tiny16_parser_skip_trivia(&parser);
+            if (parser.current_token.kind == TOKEN_END) break;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+
+        if (parser.current_section == TINY16_PARSER_SECTION_CODE) {
+            parser.code_pc += 3 * times;
+            tiny16_parser_skip_to_eol(&parser);
+        } else if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
+            if (parser.current_token.kind == TOKEN_KEYWORD) {
+                for (uint16_t i = 0; i < times; ++i) {
+                    Lexer saved_lexer = parser.lexer;
+                    Token saved_token = parser.current_token;
+                    tiny16_parser_parse_data(&parser);
+                    if (i < times - 1) {
+                        parser.lexer = saved_lexer;
+                        parser.current_token = saved_token;
+                    }
+                }
+            }
+            tiny16_parser_skip_to_eol(&parser);
         }
     }
 
@@ -84,38 +108,47 @@ int main(int argc, char** argv) {
     // Pass 2: Emit code section
     //
 
-    ctx.current_section = TINY16_PARSER_SECTION_CODE;
-    ctx.code_pc = TINY16_MEMORY_CODE_BEGIN;
-    ctx.data_pc = TINY16_MEMORY_DATA_BEGIN;
-    fseek(ctx.source_file, 0L, SEEK_SET);
-    ctx.source_line_no = 0;
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.lexer = lexer_new(source_content, strlen(source_content));
+    tiny16_parser_next(&parser);
 
-    while (tiny16_parser_next_line(&ctx) != NULL) {
-        ctx.source_line_no++;
+    while (parser.current_token.kind != TOKEN_END) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
 
-        if (!tiny16_parser_preprocess_line(&ctx)) continue;
-        if (tiny16_parser_parse_section(&ctx)) continue;
-        if (!tiny16_parser_skip_label(&ctx)) continue;
-
-        tiny16_parser_trim_right(&ctx);
-
-        if (ctx.current_section == TINY16_PARSER_SECTION_CODE) {
-            int times = tiny16_parser_parse_times_prefix(&ctx);
-            tiny16_parser_times_do(&ctx, times, tiny16_parser_emit_code);
-            ctx.code_pc += 3 * times;
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
         }
-        // DATA section already parsed in pass 1
+
+        if (tiny16_parser_skip_label(&parser)) {
+            tiny16_parser_skip_trivia(&parser);
+            if (parser.current_token.kind == TOKEN_END) break;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+
+        if (parser.current_section == TINY16_PARSER_SECTION_CODE) {
+            for (uint16_t i = 0; i < times; ++i) {
+                Lexer saved_lexer = parser.lexer;
+                Token saved_token = parser.current_token;
+                tiny16_parser_emit_code(&parser);
+                if (i < times - 1) {
+                    parser.lexer = saved_lexer;
+                    parser.current_token = saved_token;
+                }
+            }
+            parser.code_pc += 3 * times;
+        }
+
+        tiny16_parser_skip_to_eol(&parser);
     }
 
-    if (ctx.data_size > 0) tiny16_parser_emit_data(&ctx);
+    if (parser.data_size > 0) tiny16_parser_emit_data(&parser);
 
-    fclose(ctx.source_file);
-    if (errno) {
-        perror("could not close input file");
-        return EXIT_FAILURE;
-    }
-
-    fclose(ctx.output_file);
+    free(source_content);
+    fclose(parser.output_file);
     if (errno) {
         perror("could not close output file");
         return EXIT_FAILURE;
@@ -123,3 +156,61 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
+static char* read_entire_file(const char* filename) {
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Could not open file");
+        return NULL;
+    }
+    if (fseek(file, 0L, SEEK_END) != 0) {
+        perror("Could not seek to end of file");
+        fclose(file);
+        return NULL;
+    }
+    long file_size = ftell(file);
+    if (file_size == -1) {
+        perror("Could not get file size");
+        fclose(file);
+        return NULL;
+    }
+    if (fseek(file, 0L, SEEK_SET) != 0) {
+        perror("Could not seek to beginning of file");
+        fclose(file);
+        return NULL;
+    }
+    char* buffer = (char*)malloc(file_size + 1);
+    if (buffer == NULL) {
+        perror("Could not allocate memory");
+        fclose(file);
+        return NULL;
+    }
+    size_t bytes_read = fread(buffer, 1, file_size, file);
+    if (bytes_read != (size_t)file_size) {
+        perror("Could not read file content");
+        free(buffer);
+        fclose(file);
+        return NULL;
+    }
+    buffer[file_size] = '\0';
+    fclose(file);
+    return buffer;
+}
+
+#if 0
+int main2(int argc, char** argv) {
+    make_and_parse_args(argc, argv);
+    // char* content = read_entire_file(args.source_filename);
+    char* content = " db \"Hello World!\" SECTION seCtion 0xFFAABBCCDD 1234 0B0001 0b10 foo "
+                    "section 0b00110011 0xAA "
+                    "0xface 0x 0b ; blah\n";
+    Lexer lexer = lexer_new(content, strlen(content));
+    Token token = lexer_next(&lexer);
+    while (token.kind != TOKEN_END) {
+        printf("%20s | %02zu:%02zu | %.*s\n", token_kind_name(token.kind), token.line, token.column,
+               (int)token.text_len, token.text);
+        token = lexer_next(&lexer);
+    }
+    return 0;
+}
+#endif

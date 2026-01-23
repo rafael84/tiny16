@@ -1,12 +1,15 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 
 typedef enum {
     TOKEN_END = 0,
+    TOKEN_EOL,
     TOKEN_INVALID,
     TOKEN_COMMENT,
     TOKEN_SYMBOL,
+    TOKEN_STRING,
     TOKEN_COMMA,
     TOKEN_COLON,
     TOKEN_KEYWORD,
@@ -24,6 +27,8 @@ typedef struct {
     TokenKind kind;
     const char* text;
     size_t text_len;
+    size_t line;
+    size_t column;
 } Token;
 
 typedef struct {
@@ -36,3 +41,5 @@ typedef struct {
 
 Lexer lexer_new(const char* content, size_t content_len);
 Token lexer_next(Lexer* lexer);
+
+bool str_eq_ci(const char* a, const char* b, size_t n);
