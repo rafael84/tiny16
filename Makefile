@@ -68,9 +68,15 @@ all: tests asm emulator examples
 $(BINDIR):
 	mkdir -p $@
 
-tests: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-tests$(EXE_EXT) tests/tiny16.c
-	$(BINDIR)/tiny16-tests$(EXE_EXT) | column -t | paste - - -
+tests: tests-vm tests-asm
+
+tests-vm: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
+	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
+	$(BINDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - - -
+
+tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
+	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
+	$(BINDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - - -
 
 asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
@@ -159,7 +165,7 @@ raylib-clean:
 	@rm -f $(RAYLIB_LIB_NATIVE) $(RAYLIB_LIB_WEB)
 
 clean:
-	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-tests*
+	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-vm-tests* $(BINDIR)/tiny16-asm-tests*
 
 clean-all: clean raylib-clean
 
