@@ -174,7 +174,10 @@ int main(int argc, char** argv) {
 }
 
 static char* read_entire_file(const char* filename) {
-    FILE* file = fopen(filename, "r");
+    // Important: open in binary mode so `ftell()` matches `fread()` on Windows.
+    // In text mode, newline translation (\r\n -> \n) can make `ftell()` and `fread()` disagree,
+    // causing spurious short reads.
+    FILE* file = fopen(filename, "rb");
     if (file == NULL) {
         perror("Could not open file");
         return NULL;
@@ -190,18 +193,24 @@ static char* read_entire_file(const char* filename) {
         fclose(file);
         return NULL;
     }
+    if (file_size < 0 || (unsigned long)file_size > (size_t)-1 - 1) {
+        fprintf(stderr, "Could not read file content: file too large\n");
+        fclose(file);
+        return NULL;
+    }
     if (fseek(file, 0L, SEEK_SET) != 0) {
         perror("Could not seek to beginning of file");
         fclose(file);
         return NULL;
     }
-    char* buffer = (char*)malloc(file_size + 1);
+    char* buffer = (char*)malloc((size_t)file_size + 1);
     if (buffer == NULL) {
         perror("Could not allocate memory");
         fclose(file);
         return NULL;
     }
-    size_t bytes_read = fread(buffer, 1, file_size, file);
+    errno = 0;
+    size_t bytes_read = fread(buffer, 1, (size_t)file_size, file);
     if (bytes_read != (size_t)file_size) {
         perror("Could not read file content");
         free(buffer);
@@ -212,21 +221,3 @@ static char* read_entire_file(const char* filename) {
     fclose(file);
     return buffer;
 }
-
-#if 0
-int main2(int argc, char** argv) {
-    make_and_parse_args(argc, argv);
-    // char* content = read_entire_file(args.source_filename);
-    char* content = " db \"Hello World!\" SECTION seCtion 0xFFAABBCCDD 1234 0B0001 0b10 foo "
-                    "section 0b00110011 0xAA "
-                    "0xface 0x 0b ; blah\n";
-    Lexer lexer = lexer_new(content, strlen(content));
-    Token token = lexer_next(&lexer);
-    while (token.kind != TOKEN_END) {
-        printf("%20s | %02zu:%02zu | %.*s\n", token_kind_name(token.kind), token.line, token.column,
-               (int)token.text_len, token.text);
-        token = lexer_next(&lexer);
-    }
-    return 0;
-}
-#endif
