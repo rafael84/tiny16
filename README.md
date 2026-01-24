@@ -10,6 +10,7 @@ A minimalist 16-bit virtual machine with assembler and emulator.
 - 16-bit stack pointer with direct access (MOVSPR/MOVRSP)
 - 64KB address space with memory-mapped I/O
 - 28-instruction ISA with 3-byte fixed-length format
+- Assembler with macros and file inclusion
 - 128×128 pixel framebuffer (RGB332)
 - Gamepad + mouse input support
 
@@ -69,11 +70,12 @@ bin/tiny16-emu bin/demo.tiny16                      # Run
 
 **Code Patterns:**
 - [`call_ret.asm`](examples/call_ret.asm) — Subroutine calling patterns
+- [`macros.inc`](examples/macros.inc) — Standard macro library
 
 ## Documentation
 
 - [`specs/isa.txt`](specs/isa.txt) — Instruction set reference
-- [`specs/assembler.txt`](specs/assembler.txt) — Assembler syntax
+- [`specs/assembler.txt`](specs/assembler.txt) — Assembler syntax (with macros & includes)
 - [`tutorial/`](tutorial/) — 49 step-by-step tutorials
 
 ## License

@@ -17,18 +17,24 @@
 #include "memory.h"
 #include "parser.c"
 #include "parser.h"
+#include "preprocessor.c"
+#include "preprocessor.h"
 
 #include "lexer.c"
 #include "lexer.h"
 
-static char* read_entire_file(const char* filename);
+static char* preprocess_source(const char* filename);
 
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
 
-    char* source_content = read_entire_file(args.source_filename);
+    //
+    // Pass 0: Preprocess (expand macros and includes)
+    //
+
+    char* source_content = preprocess_source(args.source_filename);
     if (source_content == NULL) {
-        fprintf(stderr, "Failed to read source file: %s\n", args.source_filename);
+        fprintf(stderr, "Preprocessing failed\n");
         return EXIT_FAILURE;
     }
 
@@ -95,6 +101,7 @@ int main(int argc, char** argv) {
         if (tiny16_parser_parse_label(&parser)) {
             tiny16_parser_skip_trivia(&parser);
             if (parser.current_token.kind == TOKEN_END) break;
+            continue;
         }
 
         uint16_t times = tiny16_parser_parse_times_prefix(&parser);
@@ -146,6 +153,7 @@ int main(int argc, char** argv) {
         if (tiny16_parser_skip_label(&parser)) {
             tiny16_parser_skip_trivia(&parser);
             if (parser.current_token.kind == TOKEN_END) break;
+            continue;
         }
 
         if (parser.current_token.kind == TOKEN_SYMBOL &&
@@ -191,57 +199,17 @@ int main(int argc, char** argv) {
     return 0;
 }
 
-static char* read_entire_file(const char* filename) {
-    // Important: open in binary mode so `ftell()` matches `fread()` on Windows.
-    // In text mode, newline translation (\r\n -> \n) can make `ftell()` and `fread()` disagree,
-    // causing spurious short reads.
-    FILE* file = fopen(filename, "rb");
-    if (file == NULL) {
-        perror("Could not open file");
+static char* preprocess_source(const char* filename) {
+    Tiny16Preprocessor pp;
+    tiny16_pp_init(&pp);
+
+    char* preprocessed = tiny16_pp_process_file(&pp, filename);
+    if (!preprocessed) {
+        tiny16_pp_print_error(&pp);
+        tiny16_pp_free(&pp);
         return NULL;
     }
-    if (fseek(file, 0L, SEEK_END) != 0) {
-        perror("Could not seek to end of file");
-        fclose(file);
-        return NULL;
-    }
-    long file_size = ftell(file);
-    if (file_size == -1) {
-        perror("Could not get file size");
-        fclose(file);
-        return NULL;
-    }
-    if (file_size < 0) {
-        fprintf(stderr, "Could not read file content: invalid file size\n");
-        fclose(file);
-        return NULL;
-    }
-    size_t size = (size_t)file_size;
-    if ((long)size != file_size) {
-        fprintf(stderr, "Could not read file content: file too large\n");
-        fclose(file);
-        return NULL;
-    }
-    if (fseek(file, 0L, SEEK_SET) != 0) {
-        perror("Could not seek to beginning of file");
-        fclose(file);
-        return NULL;
-    }
-    char* buffer = (char*)malloc(size + 1);
-    if (buffer == NULL) {
-        perror("Could not allocate memory");
-        fclose(file);
-        return NULL;
-    }
-    errno = 0;
-    size_t bytes_read = fread(buffer, 1, size, file);
-    if (bytes_read != size) {
-        perror("Could not read file content");
-        free(buffer);
-        fclose(file);
-        return NULL;
-    }
-    buffer[size] = '\0';
-    fclose(file);
-    return buffer;
+
+    tiny16_pp_free(&pp);
+    return preprocessed;
 }

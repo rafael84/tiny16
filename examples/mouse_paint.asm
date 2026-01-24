@@ -8,6 +8,8 @@
 ; Uses line interpolation to handle fast mouse movements.
 ; Demonstrates expressions in constants for memory layout.
 
+.include "macros.inc"
+
 ; =============================================================================
 ; Constants - Memory Map
 ; =============================================================================
@@ -31,16 +33,6 @@ SY_ADDR           = USER_DATA_BASE + 20
 ABS_DY_ADDR       = USER_DATA_BASE + 21
 STEPS_ADDR        = USER_DATA_BASE + 22
 
-; MMIO base addresses
-MMIO_BASE         = 0xBF00
-
-; MMIO addresses
-KEYS_STATE_ADDR   = MMIO_BASE + 0
-KEYS_PRESSED_ADDR = MMIO_BASE + 1
-MOUSE_X_ADDR      = MMIO_BASE + 2
-MOUSE_Y_ADDR      = MMIO_BASE + 3
-MOUSE_BUTTONS_ADDR = MMIO_BASE + 4
-FRAME_COUNT_ADDR  = MMIO_BASE + 34
 
 ; Graphics
 FRAMEBUFFER_BASE  = 0xC000
@@ -61,13 +53,6 @@ ABS_DX_LO         = ABS_DX_ADDR & 0xFF
 SY_LO             = SY_ADDR & 0xFF
 ABS_DY_LO         = ABS_DY_ADDR & 0xFF
 STEPS_LO          = STEPS_ADDR & 0xFF
-MMIO_HI           = MMIO_BASE >> 8
-KEYS_STATE_LO     = KEYS_STATE_ADDR & 0xFF
-KEYS_PRESSED_LO   = KEYS_PRESSED_ADDR & 0xFF
-MOUSE_X_LO        = MOUSE_X_ADDR & 0xFF
-MOUSE_Y_LO        = MOUSE_Y_ADDR & 0xFF
-MOUSE_BUTTONS_LO  = MOUSE_BUTTONS_ADDR & 0xFF
-FRAME_COUNT_LO    = FRAME_COUNT_ADDR & 0xFF
 FRAMEBUFFER_HI    = FRAMEBUFFER_BASE >> 8
 FRAMEBUFFER_LO    = FRAMEBUFFER_BASE & 0xFF
 

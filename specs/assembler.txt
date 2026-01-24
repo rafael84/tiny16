@@ -9,6 +9,38 @@ SOURCE
 - Leading/trailing whitespace ignored
 - Empty lines ignored
 
+PREPROCESSOR
+------------
+
+Runs automatically before assembly (Pass 0).
+
+Macros:
+    .macro NAME param1, param2, ...
+        body
+    .endmacro
+
+    NAME arg1, arg2
+
+- Parameters replaced with arguments
+- Labels starting with @ are local per invocation
+- Format: __MACRONAME_N_labelname
+
+Includes:
+    .include "filename"
+
+- Inserts file contents
+- Path relative to source file directory
+- Max depth: 16
+
+Example:
+    .macro LOAD16 dest, hi, lo
+        LOADI R6, hi
+        LOADI R7, lo
+        LOAD dest, [R6:R7]
+    .endmacro
+
+    LOAD16 R0, 0xBF, 0x22
+
 COMMENTS
 --------
 
@@ -215,6 +247,12 @@ DB value1, value2, ...
 
 ASSEMBLY PASSES
 ---------------
+
+Pass 0 (Preprocessing):
+- Expand .macro definitions
+- Process .include directives
+- Replace macro invocations with expanded body
+- Generate unique labels for local labels (@label)
 
 Pass 1:
 - Remove comments

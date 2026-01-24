@@ -7,6 +7,8 @@
 #include "../asm/lexer.h"
 #include "../asm/parser.c"
 #include "../asm/parser.h"
+#include "../asm/preprocessor.c"
+#include "../asm/preprocessor.h"
 #include "cpu.c"
 #include "cpu.h"
 #include "memory.c"
@@ -74,6 +76,15 @@ void test_parser_expr_precedence(void);
 void test_parser_expr_complex(void);
 void test_parser_expr_division_by_zero(void);
 void test_parser_expr_undefined_symbol(void);
+void test_pp_no_macros(void);
+void test_pp_simple_macro(void);
+void test_pp_macro_with_multiple_params(void);
+void test_pp_macro_local_labels(void);
+void test_pp_macro_multiple_invocations(void);
+void test_pp_macro_preserves_indentation(void);
+void test_pp_passthrough_comments(void);
+void test_pp_passthrough_labels(void);
+void test_pp_passthrough_sections(void);
 
 int main(void) {
     ASM_TEST(test_lexer_empty);
@@ -128,6 +139,15 @@ int main(void) {
     ASM_TEST(test_parser_expr_undefined_symbol);
     ASM_TEST(test_integration_simple_program);
     ASM_TEST(test_integration_loop_program);
+    ASM_TEST(test_pp_no_macros);
+    ASM_TEST(test_pp_simple_macro);
+    ASM_TEST(test_pp_macro_with_multiple_params);
+    ASM_TEST(test_pp_macro_local_labels);
+    ASM_TEST(test_pp_macro_multiple_invocations);
+    ASM_TEST(test_pp_macro_preserves_indentation);
+    ASM_TEST(test_pp_passthrough_comments);
+    ASM_TEST(test_pp_passthrough_labels);
+    ASM_TEST(test_pp_passthrough_sections);
     return 0;
 }
 
@@ -1378,4 +1398,175 @@ void test_integration_subroutine_program(void) {
     parser.current_section = TINY16_PARSER_SECTION_UNKNOWN;
 
     tiny16_parser_next(&parser);
+}
+
+static char* test_preprocess_string(const char* source) {
+    FILE* temp_input = tmpfile();
+    if (!temp_input) return NULL;
+
+    fwrite(source, 1, strlen(source), temp_input);
+    fseek(temp_input, 0, SEEK_SET);
+
+    long size = strlen(source);
+    char* content = malloc(size + 1);
+    fread(content, 1, size, temp_input);
+    content[size] = '\0';
+    fclose(temp_input);
+
+    FILE* temp_output = tmpfile();
+    if (!temp_output) {
+        free(content);
+        return NULL;
+    }
+
+    Tiny16Preprocessor pp;
+    tiny16_pp_init(&pp);
+    pp.output = temp_output;
+    pp.content = content;
+    pp.content_len = size;
+    pp.cursor = 0;
+    pp.line = 1;
+    strcpy(pp.error_file, "test.asm");
+
+    while (!tiny16_pp_at_end(&pp)) {
+        tiny16_pp_read_line(&pp);
+        tiny16_pp_process_line(&pp);
+        if (tiny16_pp_has_error(&pp)) {
+            free(content);
+            fclose(temp_output);
+            tiny16_pp_free(&pp);
+            return NULL;
+        }
+    }
+
+    free(content);
+
+    fseek(temp_output, 0, SEEK_END);
+    long output_size = ftell(temp_output);
+    fseek(temp_output, 0, SEEK_SET);
+
+    char* output = malloc(output_size + 1);
+    fread(output, 1, output_size, temp_output);
+    output[output_size] = '\0';
+    fclose(temp_output);
+
+    tiny16_pp_free(&pp);
+    return output;
+}
+
+void test_pp_no_macros(void) {
+    const char* source = "LOADI R0, 42\nHALT\n";
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strcmp(result, source) == 0);
+    free(result);
+}
+
+void test_pp_simple_macro(void) {
+    const char* source = ".macro CLEAR reg\n"
+                         "    XOR reg, reg\n"
+                         ".endmacro\n"
+                         "\n"
+                         "CLEAR R0\n"
+                         "HALT\n";
+
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "XOR R0, R0") != NULL);
+    assert(strstr(result, ".macro") == NULL);
+    assert(strstr(result, "CLEAR R0") == NULL);
+    free(result);
+}
+
+void test_pp_macro_with_multiple_params(void) {
+    const char* source = ".macro LOAD16 dest, hi, lo\n"
+                         "    LOADI R6, hi\n"
+                         "    LOADI R7, lo\n"
+                         "    LOAD dest, [R6:R7]\n"
+                         ".endmacro\n"
+                         "\n"
+                         "LOAD16 R0, 0xBF, 0x22\n"
+                         "HALT\n";
+
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "LOADI R6, 0xBF") != NULL);
+    assert(strstr(result, "LOADI R7, 0x22") != NULL);
+    assert(strstr(result, "LOAD R0, [R6:R7]") != NULL);
+    free(result);
+}
+
+void test_pp_macro_local_labels(void) {
+    const char* source = ".macro WAIT reg\n"
+                         "@loop:\n"
+                         "    CMP reg, 0\n"
+                         "    JNZ @loop\n"
+                         ".endmacro\n"
+                         "\n"
+                         "WAIT R0\n"
+                         "WAIT R1\n";
+
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "__WAIT_1_loop") != NULL);
+    assert(strstr(result, "__WAIT_2_loop") != NULL);
+    assert(strstr(result, "@loop") == NULL);
+    free(result);
+}
+
+void test_pp_macro_multiple_invocations(void) {
+    const char* source = ".macro CLEAR reg\n"
+                         "    XOR reg, reg\n"
+                         ".endmacro\n"
+                         "\n"
+                         "CLEAR R0\n"
+                         "CLEAR R1\n"
+                         "CLEAR R2\n"
+                         "HALT\n";
+
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "XOR R0, R0") != NULL);
+    assert(strstr(result, "XOR R1, R1") != NULL);
+    assert(strstr(result, "XOR R2, R2") != NULL);
+    free(result);
+}
+
+void test_pp_macro_preserves_indentation(void) {
+    const char* source = ".macro TEST r\n"
+                         "    INC r\n"
+                         "    DEC r\n"
+                         ".endmacro\n"
+                         "\n"
+                         "    TEST R0\n";
+
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "    INC R0") != NULL);
+    free(result);
+}
+
+void test_pp_passthrough_comments(void) {
+    const char* source = "; comment\nLOADI R0, 42\n";
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "; comment") != NULL);
+    free(result);
+}
+
+void test_pp_passthrough_labels(void) {
+    const char* source = "START:\nLOADI R0, 42\nJMP START\n";
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "START:") != NULL);
+    free(result);
+}
+
+void test_pp_passthrough_sections(void) {
+    const char* source = "section .code\nLOADI R0, 42\nsection .data\nDB 0xFF\n";
+    char* result = test_preprocess_string(source);
+    assert(result != NULL);
+    assert(strstr(result, "section .code") != NULL);
+    assert(strstr(result, "section .data") != NULL);
+    free(result);
 }
