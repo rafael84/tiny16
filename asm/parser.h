@@ -12,6 +12,25 @@
 
 #define TINY16_PARSER_MAX_TOKEN_LENGTH 256
 #define TINY16_PARSER_MAX_LABELS       4096
+#define TINY16_PARSER_MAX_ERROR_MSG    512
+
+typedef enum {
+    TINY16_PARSER_OK = 0,
+    TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+    TINY16_PARSER_ERROR_LABEL_TOO_LONG,
+    TINY16_PARSER_ERROR_DUPLICATE_LABEL,
+    TINY16_PARSER_ERROR_TOO_MANY_LABELS,
+    TINY16_PARSER_ERROR_UNKNOWN_SECTION,
+    TINY16_PARSER_ERROR_INVALID_NUMBER,
+    TINY16_PARSER_ERROR_OUT_OF_RANGE,
+    TINY16_PARSER_ERROR_UNKNOWN_MNEMONIC,
+    TINY16_PARSER_ERROR_INVALID_REGISTER,
+    TINY16_PARSER_ERROR_EXPECTED_EVEN_REGISTER,
+    TINY16_PARSER_ERROR_WRONG_REGISTER,
+    TINY16_PARSER_ERROR_UNDEFINED_LABEL,
+    TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE,
+    TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE,
+} Tiny16ParserError;
 
 typedef struct {
     char name[TINY16_PARSER_MAX_TOKEN_LENGTH];
@@ -43,9 +62,16 @@ typedef struct {
 
     uint8_t data_buffer[TINY16_DATA_END - TINY16_DATA_BEGIN + 1];
     uint16_t data_size;
+
+    Tiny16ParserError error;
+    size_t error_line;
+    char error_msg[TINY16_PARSER_MAX_ERROR_MSG];
 } Tiny16Parser;
 
 #define TINY16_PARSER_LABEL_NOT_FOUND UINT16_MAX
+
+bool tiny16_parser_has_error(const Tiny16Parser* parser);
+void tiny16_parser_print_error(const Tiny16Parser* parser);
 
 void tiny16_parser_next(Tiny16Parser* parser);
 void tiny16_parser_skip_trivia(Tiny16Parser* parser);

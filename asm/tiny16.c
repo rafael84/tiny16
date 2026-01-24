@@ -37,6 +37,8 @@ int main(int argc, char** argv) {
         .current_section = TINY16_PARSER_SECTION_CODE,
         .code_pc = TINY16_MEMORY_CODE_BEGIN,
         .data_pc = TINY16_MEMORY_DATA_BEGIN,
+        .error = TINY16_PARSER_OK,
+        .error_line = 0,
     };
 
     parser.output_file = fopen(args.output_filename, "wb");
@@ -69,7 +71,7 @@ int main(int argc, char** argv) {
     parser.lexer = lexer_new(source_content, strlen(source_content));
     tiny16_parser_next(&parser);
 
-    while (parser.current_token.kind != TOKEN_END) {
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
         tiny16_parser_skip_trivia(&parser);
         if (parser.current_token.kind == TOKEN_END) break;
 
@@ -104,6 +106,13 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (tiny16_parser_has_error(&parser)) {
+        tiny16_parser_print_error(&parser);
+        free(source_content);
+        fclose(parser.output_file);
+        return EXIT_FAILURE;
+    }
+
     //
     // Pass 2: Emit code section
     //
@@ -113,7 +122,7 @@ int main(int argc, char** argv) {
     parser.lexer = lexer_new(source_content, strlen(source_content));
     tiny16_parser_next(&parser);
 
-    while (parser.current_token.kind != TOKEN_END) {
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
         tiny16_parser_skip_trivia(&parser);
         if (parser.current_token.kind == TOKEN_END) break;
 
@@ -143,6 +152,13 @@ int main(int argc, char** argv) {
         }
 
         tiny16_parser_skip_to_eol(&parser);
+    }
+
+    if (tiny16_parser_has_error(&parser)) {
+        tiny16_parser_print_error(&parser);
+        free(source_content);
+        fclose(parser.output_file);
+        return EXIT_FAILURE;
     }
 
     if (parser.data_size > 0) tiny16_parser_emit_data(&parser);

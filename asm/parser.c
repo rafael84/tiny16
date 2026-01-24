@@ -1,6 +1,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,19 +14,47 @@
 #include "memory.h"
 #include "parser.h"
 
-#define TINY16_PARSER_ABORT(parser, fmt)                                                           \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%zu: " fmt "\n", (parser)->source_filename,                            \
-                (parser)->current_token.line);                                                     \
-        exit(1);                                                                                   \
-    } while (0)
+static const char* tiny16_parser_error_messages[] = {
+    [TINY16_PARSER_OK] = "",
+    [TINY16_PARSER_ERROR_UNEXPECTED_TOKEN] = "expected %s, found %s",
+    [TINY16_PARSER_ERROR_LABEL_TOO_LONG] = "label name too long: %zu (max %d)",
+    [TINY16_PARSER_ERROR_DUPLICATE_LABEL] = "duplicate label: %.*s",
+    [TINY16_PARSER_ERROR_TOO_MANY_LABELS] = "too many labels",
+    [TINY16_PARSER_ERROR_UNKNOWN_SECTION] = "unknown section: %.*s",
+    [TINY16_PARSER_ERROR_INVALID_NUMBER] = "invalid number: %s",
+    [TINY16_PARSER_ERROR_OUT_OF_RANGE] = "%s out of range: %ld",
+    [TINY16_PARSER_ERROR_UNKNOWN_MNEMONIC] = "unknown mnemonic: %s",
+    [TINY16_PARSER_ERROR_INVALID_REGISTER] = "invalid register: %.*s",
+    [TINY16_PARSER_ERROR_EXPECTED_EVEN_REGISTER] = "expected even register, found R%d",
+    [TINY16_PARSER_ERROR_WRONG_REGISTER] = "expected R%d, found R%d",
+    [TINY16_PARSER_ERROR_UNDEFINED_LABEL] = "undefined label: %.*s",
+    [TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE] = "unknown directive: %.*s",
+    [TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE] = "max program size is %d bytes",
+};
 
-#define TINY16_PARSER_ABORTF(parser, fmt, ...)                                                     \
-    do {                                                                                           \
-        fprintf(stderr, "%s:%zu: " fmt "\n", (parser)->source_filename,                            \
-                (parser)->current_token.line, __VA_ARGS__);                                        \
-        exit(1);                                                                                   \
-    } while (0)
+static void tiny16_parser_set_error(Tiny16Parser* parser, Tiny16ParserError error, ...) {
+    if (parser->error != TINY16_PARSER_OK) return; // keep first error
+
+    parser->error = error;
+    parser->error_line = parser->current_token.line;
+
+    va_list args;
+    va_start(args, error);
+    vsnprintf(parser->error_msg, TINY16_PARSER_MAX_ERROR_MSG, tiny16_parser_error_messages[error],
+              args);
+    va_end(args);
+}
+
+bool tiny16_parser_has_error(const Tiny16Parser* parser) {
+    return parser->error != TINY16_PARSER_OK;
+}
+
+void tiny16_parser_print_error(const Tiny16Parser* parser) {
+    if (parser->error != TINY16_PARSER_OK) {
+        fprintf(stderr, "%s:%zu: %s\n", parser->source_filename, parser->error_line,
+                parser->error_msg);
+    }
+}
 
 void tiny16_parser_next(Tiny16Parser* parser) {
     parser->current_token = lexer_next(&parser->lexer);
@@ -39,8 +68,9 @@ void tiny16_parser_skip_trivia(Tiny16Parser* parser) {
 
 void tiny16_parser_expect(Tiny16Parser* parser, TokenKind kind) {
     if (parser->current_token.kind != kind) {
-        TINY16_PARSER_ABORTF(parser, "expected %s, found %s", token_kind_name(kind),
-                             token_kind_name(parser->current_token.kind));
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN, token_kind_name(kind),
+                                token_kind_name(parser->current_token.kind));
+        return;
     }
     tiny16_parser_next(parser);
 }
@@ -75,18 +105,22 @@ bool tiny16_parser_parse_label(Tiny16Parser* parser) {
     tiny16_parser_next(parser);         // advance past ':'
 
     if (label_token.text_len >= TINY16_PARSER_MAX_TOKEN_LENGTH) {
-        TINY16_PARSER_ABORTF(parser, "label name too long: %zu (max %d)", label_token.text_len,
-                             TINY16_PARSER_MAX_TOKEN_LENGTH);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_LABEL_TOO_LONG, label_token.text_len,
+                                TINY16_PARSER_MAX_TOKEN_LENGTH);
+        return true;
     }
 
     if (tiny16_parser_label_addr(parser, label_token.text, label_token.text_len) !=
         TINY16_PARSER_LABEL_NOT_FOUND) {
-        TINY16_PARSER_ABORTF(parser, "duplicate label: %.*s", (int)label_token.text_len,
-                             label_token.text);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_DUPLICATE_LABEL,
+                                (int)label_token.text_len, label_token.text);
+        return true;
     }
 
-    if (parser->label_count >= TINY16_PARSER_MAX_LABELS)
-        TINY16_PARSER_ABORT(parser, "too many labels");
+    if (parser->label_count >= TINY16_PARSER_MAX_LABELS) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_TOO_MANY_LABELS);
+        return true;
+    }
 
     uint16_t addr =
         (parser->current_section == TINY16_PARSER_SECTION_CODE) ? parser->code_pc : parser->data_pc;
@@ -132,8 +166,12 @@ bool tiny16_parser_parse_section(Tiny16Parser* parser) {
     tiny16_parser_next(parser);
 
     tiny16_parser_expect(parser, TOKEN_DOT);
+
     if (parser->current_token.kind != TOKEN_SYMBOL) {
-        TINY16_PARSER_ABORT(parser, "expected section name after 'section'");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_SYMBOL),
+                                token_kind_name(parser->current_token.kind));
+        return true;
     }
 
     Token section_name = parser->current_token;
@@ -143,8 +181,8 @@ bool tiny16_parser_parse_section(Tiny16Parser* parser) {
     } else if (section_name.text_len == 4 && str_eq_ci(section_name.text, "data", 4)) {
         parser->current_section = TINY16_PARSER_SECTION_DATA;
     } else {
-        TINY16_PARSER_ABORTF(parser, "unknown section: %.*s", (int)section_name.text_len,
-                             section_name.text);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNKNOWN_SECTION,
+                                (int)section_name.text_len, section_name.text);
     }
 
     return true;
@@ -157,12 +195,16 @@ uint16_t tiny16_parser_parse_times_prefix(Tiny16Parser* parser) {
     tiny16_parser_next(parser); // 'times'
 
     if (parser->current_token.kind != TOKEN_NUMBER) {
-        TINY16_PARSER_ABORT(parser, "expected number after TIMES");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_NUMBER),
+                                token_kind_name(parser->current_token.kind));
+        return 1;
     }
 
     long count = strtol(parser->current_token.text, NULL, 0);
     if (count < 0 || count > UINT16_MAX) {
-        TINY16_PARSER_ABORT(parser, "TIMES count out of range");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "TIMES count", count);
+        return 1;
     }
 
     tiny16_parser_next(parser);
@@ -171,7 +213,10 @@ uint16_t tiny16_parser_parse_times_prefix(Tiny16Parser* parser) {
 
 Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser) {
     if (parser->current_token.kind != TOKEN_SYMBOL) {
-        TINY16_PARSER_ABORT(parser, "expected mnemonic");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_SYMBOL),
+                                token_kind_name(parser->current_token.kind));
+        return TINY16_OPCODE_UNKNOWN;
     }
 
     char mnemonic[TINY16_PARSER_MAX_TOKEN_LENGTH];
@@ -182,7 +227,8 @@ Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser) {
 
     Tiny16OpCode opcode = tiny16_opcode_from_mnemonic(mnemonic);
     if (opcode == TINY16_OPCODE_UNKNOWN) {
-        TINY16_PARSER_ABORTF(parser, "unknown mnemonic: %s", mnemonic);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNKNOWN_MNEMONIC, mnemonic);
+        return TINY16_OPCODE_UNKNOWN;
     }
 
     tiny16_parser_next(parser);
@@ -191,14 +237,18 @@ Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser) {
 
 uint8_t tiny16_parser_parse_reg(Tiny16Parser* parser) {
     if (parser->current_token.kind != TOKEN_SYMBOL) {
-        TINY16_PARSER_ABORT(parser, "expected register");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_SYMBOL),
+                                token_kind_name(parser->current_token.kind));
+        return 0;
     }
 
     if (parser->current_token.text_len != 2 ||
         tolower((unsigned char)parser->current_token.text[0]) != 'r' ||
         parser->current_token.text[1] < '0' || parser->current_token.text[1] > '7') {
-        TINY16_PARSER_ABORTF(parser, "invalid register: %.*s", (int)parser->current_token.text_len,
-                             parser->current_token.text);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_REGISTER,
+                                (int)parser->current_token.text_len, parser->current_token.text);
+        return 0;
     }
 
     uint8_t reg = parser->current_token.text[1] - '0';
@@ -209,14 +259,15 @@ uint8_t tiny16_parser_parse_reg(Tiny16Parser* parser) {
 Tiny16AddrPair tiny16_parser_parse_reg_pair(Tiny16Parser* parser) {
     uint8_t rh = tiny16_parser_parse_reg(parser);
     if (rh % 2 != 0) {
-        TINY16_PARSER_ABORTF(parser, "expected even register, found R%d", rh);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_EXPECTED_EVEN_REGISTER, rh);
+        return 0;
     }
 
     tiny16_parser_expect(parser, TOKEN_COLON);
-
     uint8_t rl = tiny16_parser_parse_reg(parser);
     if (rl != rh + 1) {
-        TINY16_PARSER_ABORTF(parser, "expected R%d, found R%d", rh + 1, rl);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_WRONG_REGISTER, rh + 1, rl);
+        return 0;
     }
 
     return (Tiny16AddrPair)(rh / 2);
@@ -227,8 +278,10 @@ uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser) {
         uint16_t addr = tiny16_parser_label_addr(parser, parser->current_token.text,
                                                  parser->current_token.text_len);
         if (addr == TINY16_PARSER_LABEL_NOT_FOUND) {
-            TINY16_PARSER_ABORTF(parser, "undefined label: %.*s",
-                                 (int)parser->current_token.text_len, parser->current_token.text);
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNDEFINED_LABEL,
+                                    (int)parser->current_token.text_len,
+                                    parser->current_token.text);
+            return 0;
         }
         tiny16_parser_next(parser);
         return addr;
@@ -237,20 +290,25 @@ uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser) {
     if (parser->current_token.kind == TOKEN_NUMBER) {
         long val = strtol(parser->current_token.text, NULL, 0);
         if (val < 0 || val > UINT16_MAX) {
-            TINY16_PARSER_ABORTF(parser, "immediate out of range: %ld", val);
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "immediate", val);
+            return 0;
         }
         tiny16_parser_next(parser);
         return (uint16_t)val;
     }
 
-    TINY16_PARSER_ABORT(parser, "expected number or label");
+    tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                            token_kind_name(TOKEN_NUMBER),
+                            token_kind_name(parser->current_token.kind));
     return 0;
 }
 
 uint8_t tiny16_parser_parse_imm8(Tiny16Parser* parser) {
     uint16_t imm = tiny16_parser_parse_imm(parser);
     if (imm > UINT8_MAX) {
-        TINY16_PARSER_ABORTF(parser, "immediate out of 8-bit range: %u", imm);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "8-bit immediate",
+                                (long)imm);
+        return 0;
     }
     return (uint8_t)imm;
 }
@@ -262,7 +320,6 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser) {
     tiny16_parser_match(parser, TOKEN_COMMA); // optional
 
     tiny16_parser_expect(parser, TOKEN_OPEN_BRACKET);
-
     addr.pair = tiny16_parser_parse_reg_pair(parser);
     addr.mode = TINY16_ADDR_MODE_BASE;
     addr.offset = 0;
@@ -306,12 +363,16 @@ static char tiny16_parser_parse_escape(char c) {
 
 void tiny16_parser_parse_data(Tiny16Parser* parser) {
     if (parser->current_token.kind != TOKEN_KEYWORD) {
-        TINY16_PARSER_ABORT(parser, "expected data directive");
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_KEYWORD),
+                                token_kind_name(parser->current_token.kind));
+        return;
     }
 
     if (!str_eq_ci(parser->current_token.text, "db", parser->current_token.text_len)) {
-        TINY16_PARSER_ABORTF(parser, "unknown directive: %.*s", (int)parser->current_token.text_len,
-                             parser->current_token.text);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE,
+                                (int)parser->current_token.text_len, parser->current_token.text);
+        return;
     }
 
     tiny16_parser_next(parser); // 'db'
@@ -333,14 +394,18 @@ void tiny16_parser_parse_data(Tiny16Parser* parser) {
         } else if (parser->current_token.kind == TOKEN_NUMBER) {
             long val = strtol(parser->current_token.text, NULL, 0);
             if (val < 0 || val > 255) {
-                TINY16_PARSER_ABORTF(parser, "byte value out of range: %ld", val);
+                tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "byte value",
+                                        val);
+                return;
             }
             parser->data_buffer[parser->data_size++] = (uint8_t)val;
             tiny16_parser_next(parser);
 
         } else {
-            TINY16_PARSER_ABORTF(parser, "expected string or number, found %s",
-                                 token_kind_name(parser->current_token.kind));
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                    token_kind_name(TOKEN_STRING),
+                                    token_kind_name(parser->current_token.kind));
+            return;
         }
 
         tiny16_parser_match(parser, TOKEN_COMMA); // optional comma
@@ -352,11 +417,11 @@ void tiny16_parser_parse_data(Tiny16Parser* parser) {
 void tiny16_parser_emit_code(Tiny16Parser* parser) {
     const uint16_t max_program_size = TINY16_MEMORY_CODE_END - TINY16_MEMORY_CODE_BEGIN;
     if ((parser->output_file_size + 3) > max_program_size) {
-        TINY16_PARSER_ABORTF(parser, "max program size is %d bytes", max_program_size);
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE, max_program_size);
+        return;
     }
 
     Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(parser);
-
     uint8_t bytes[3];
     bytes[0] = opcode;
 
@@ -424,6 +489,8 @@ void tiny16_parser_emit_code(Tiny16Parser* parser) {
     case TINY16_OPCODE_UNKNOWN:
         return;
     }
+
+    if (tiny16_parser_has_error(parser)) return;
 
     size_t n = fwrite(bytes, 1, 3, parser->output_file);
     if (n != 3) {
