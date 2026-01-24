@@ -193,7 +193,13 @@ static char* read_entire_file(const char* filename) {
         fclose(file);
         return NULL;
     }
-    if (file_size < 0 || (unsigned long)file_size > (size_t)-1 - 1) {
+    if (file_size < 0) {
+        fprintf(stderr, "Could not read file content: invalid file size\n");
+        fclose(file);
+        return NULL;
+    }
+    size_t size = (size_t)file_size;
+    if ((long)size != file_size) {
         fprintf(stderr, "Could not read file content: file too large\n");
         fclose(file);
         return NULL;
@@ -203,21 +209,21 @@ static char* read_entire_file(const char* filename) {
         fclose(file);
         return NULL;
     }
-    char* buffer = (char*)malloc((size_t)file_size + 1);
+    char* buffer = (char*)malloc(size + 1);
     if (buffer == NULL) {
         perror("Could not allocate memory");
         fclose(file);
         return NULL;
     }
     errno = 0;
-    size_t bytes_read = fread(buffer, 1, (size_t)file_size, file);
-    if (bytes_read != (size_t)file_size) {
+    size_t bytes_read = fread(buffer, 1, size, file);
+    if (bytes_read != size) {
         perror("Could not read file content");
         free(buffer);
         fclose(file);
         return NULL;
     }
-    buffer[file_size] = '\0';
+    buffer[size] = '\0';
     fclose(file);
     return buffer;
 }
