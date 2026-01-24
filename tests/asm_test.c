@@ -50,6 +50,10 @@ void test_parser_data_directive_org_pads_forward(void);
 void test_parser_data_directive_org_rewind_errors(void);
 void test_parser_data_directive_org_out_of_range_errors(void);
 void test_parser_data_directive_org_updates_label_addr(void);
+void test_parser_const_simple_number(void);
+void test_parser_const_duplicate_errors(void);
+void test_parser_const_label_collision_errors(void);
+void test_parser_const_out_of_range_errors(void);
 void test_parser_complete_program(void);
 void test_parser_label_forward_reference(void);
 void test_parser_label_backward_reference(void);
@@ -88,6 +92,10 @@ int main(void) {
     ASM_TEST(test_parser_data_directive_org_rewind_errors);
     ASM_TEST(test_parser_data_directive_org_out_of_range_errors);
     ASM_TEST(test_parser_data_directive_org_updates_label_addr);
+    ASM_TEST(test_parser_const_simple_number);
+    ASM_TEST(test_parser_const_duplicate_errors);
+    ASM_TEST(test_parser_const_label_collision_errors);
+    ASM_TEST(test_parser_const_out_of_range_errors);
     ASM_TEST(test_parser_label_forward_reference);
     ASM_TEST(test_parser_label_backward_reference);
     ASM_TEST(test_integration_simple_program);
@@ -213,8 +221,8 @@ void test_lexer_punctuation(void) {
 
     assert(lexer_next(&lexer).kind == TOKEN_COMMA);
     assert(lexer_next(&lexer).kind == TOKEN_COLON);
-    assert(lexer_next(&lexer).kind == TOKEN_OPEN_BRACKET);
-    assert(lexer_next(&lexer).kind == TOKEN_CLOSE_BRACKET);
+    assert(lexer_next(&lexer).kind == TOKEN_LBRACKET);
+    assert(lexer_next(&lexer).kind == TOKEN_RBRACKET);
     assert(lexer_next(&lexer).kind == TOKEN_PLUS);
     assert(lexer_next(&lexer).kind == TOKEN_MINUS);
 }
@@ -278,9 +286,10 @@ void test_parser_label_declaration(void) {
     bool result = tiny16_parser_parse_label(&parser);
 
     assert(result == true);
-    assert(parser.label_count == 1);
-    assert(strcmp(parser.labels[0].name, "start") == 0);
-    assert(parser.labels[0].addr == TINY16_MEMORY_CODE_BEGIN);
+    assert(parser.symbol_count == 1);
+    assert(strcmp(parser.symbols[0].name, "start") == 0);
+    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+    assert(parser.symbols[0].value == TINY16_MEMORY_CODE_BEGIN);
 }
 
 void test_parser_label_resolution(void) {
@@ -288,9 +297,10 @@ void test_parser_label_resolution(void) {
     parser.source_filename = "test";
 
     // add a label
-    strcpy(parser.labels[0].name, "loop");
-    parser.labels[0].addr = 0x1000;
-    parser.label_count = 1;
+    strcpy(parser.symbols[0].name, "loop");
+    parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
+    parser.symbols[0].value = 0x1000;
+    parser.symbol_count = 1;
 
     // resolve the label
     uint16_t addr = tiny16_parser_label_addr(&parser, "loop", 4);
@@ -691,9 +701,82 @@ void test_parser_data_directive_org_updates_label_addr(void) {
 
     Tiny16Parser parser = run_pass1_data_only(input);
     assert(!tiny16_parser_has_error(&parser));
-    assert(parser.label_count == 1);
-    assert(strcmp(parser.labels[0].name, "tile0") == 0);
-    assert(parser.labels[0].addr == 0x5000);
+    assert(parser.symbol_count == 1);
+    assert(strcmp(parser.symbols[0].name, "tile0") == 0);
+    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+    assert(parser.symbols[0].value == 0x5000);
+}
+
+static Tiny16Parser run_pass1_symbols_only(const char* input) {
+    Tiny16Parser parser = {0};
+    parser.source_filename = "test";
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.data_pc = TINY16_DATA_BEGIN;
+
+    parser.lexer = lexer_new(input, strlen(input));
+    tiny16_parser_next(&parser);
+
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
+
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        if (tiny16_parser_parse_const(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        if (tiny16_parser_parse_label(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        tiny16_parser_skip_to_eol(&parser);
+    }
+
+    return parser;
+}
+
+void test_parser_const_simple_number(void) {
+    Tiny16Parser parser = run_pass1_symbols_only("X = 123\n");
+    assert(!tiny16_parser_has_error(&parser));
+    assert(parser.symbol_count == 1);
+    assert(strcmp(parser.symbols[0].name, "X") == 0);
+    assert(parser.symbols[0].kind == TINY16_SYMBOL_CONST);
+    assert(parser.symbols[0].value == 123);
+}
+
+void test_parser_const_duplicate_errors(void) {
+    Tiny16Parser parser = run_pass1_symbols_only("X = 1\nX = 2\n");
+    assert(tiny16_parser_has_error(&parser));
+    assert(parser.error == TINY16_PARSER_ERROR_DUPLICATE_CONST);
+}
+
+void test_parser_const_label_collision_errors(void) {
+    // Const first, then label
+    {
+        Tiny16Parser parser = run_pass1_symbols_only("X = 1\nX:\n");
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
+    }
+
+    // Label first, then const
+    {
+        Tiny16Parser parser = run_pass1_symbols_only("X:\nX = 1\n");
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
+    }
+}
+
+void test_parser_const_out_of_range_errors(void) {
+    Tiny16Parser parser = run_pass1_symbols_only("X = 70000\n");
+    assert(tiny16_parser_has_error(&parser));
+    assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
 }
 
 void test_parser_label_forward_reference(void) {
@@ -703,9 +786,10 @@ void test_parser_label_forward_reference(void) {
     uint16_t addr = tiny16_parser_label_addr(&parser, "end", 3);
     assert(addr == TINY16_PARSER_LABEL_NOT_FOUND);
 
-    strcpy(parser.labels[0].name, "end");
-    parser.labels[0].addr = 0x2000;
-    parser.label_count = 1;
+    strcpy(parser.symbols[0].name, "end");
+    parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
+    parser.symbols[0].value = 0x2000;
+    parser.symbol_count = 1;
 
     addr = tiny16_parser_label_addr(&parser, "end", 3);
     assert(addr == 0x2000);
@@ -715,9 +799,10 @@ void test_parser_label_backward_reference(void) {
     Tiny16Parser parser = {0};
     parser.source_filename = "test";
 
-    strcpy(parser.labels[0].name, "start");
-    parser.labels[0].addr = 0x1000;
-    parser.label_count = 1;
+    strcpy(parser.symbols[0].name, "start");
+    parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
+    parser.symbols[0].value = 0x1000;
+    parser.symbol_count = 1;
 
     uint16_t addr = tiny16_parser_label_addr(&parser, "start", 5);
     assert(addr == 0x1000);
@@ -745,8 +830,9 @@ void test_parser_complete_program(void) {
 
     result = tiny16_parser_parse_label(&parser);
     assert(result == true);
-    assert(parser.label_count == 1);
-    assert(strcmp(parser.labels[0].name, "start") == 0);
+    assert(parser.symbol_count == 1);
+    assert(strcmp(parser.symbols[0].name, "start") == 0);
+    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
 }
 
 void test_integration_simple_program(void) {

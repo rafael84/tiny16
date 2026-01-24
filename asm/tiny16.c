@@ -75,6 +75,11 @@ int main(int argc, char** argv) {
         tiny16_parser_skip_trivia(&parser);
         if (parser.current_token.kind == TOKEN_END) break;
 
+        if (tiny16_parser_parse_const(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
         if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
             if (tiny16_parser_parse_org(&parser)) {
                 tiny16_parser_skip_to_eol(&parser);
@@ -141,6 +146,12 @@ int main(int argc, char** argv) {
         if (tiny16_parser_skip_label(&parser)) {
             tiny16_parser_skip_trivia(&parser);
             if (parser.current_token.kind == TOKEN_END) break;
+        }
+
+        if (parser.current_token.kind == TOKEN_SYMBOL &&
+            tiny16_parser_peek(&parser, 1).kind == TOKEN_EQUALS) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
         }
 
         uint16_t times = tiny16_parser_parse_times_prefix(&parser);

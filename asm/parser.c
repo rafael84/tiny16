@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -20,6 +21,10 @@ static const char* tiny16_parser_error_messages[] = {
     [TINY16_PARSER_ERROR_LABEL_TOO_LONG] = "label name too long: %zu (max %d)",
     [TINY16_PARSER_ERROR_DUPLICATE_LABEL] = "duplicate label: %.*s",
     [TINY16_PARSER_ERROR_TOO_MANY_LABELS] = "too many labels",
+    [TINY16_PARSER_ERROR_CONST_TOO_LONG] = "const name too long: %zu (max %d)",
+    [TINY16_PARSER_ERROR_DUPLICATE_CONST] = "duplicate const: %.*s",
+    [TINY16_PARSER_ERROR_TOO_MANY_CONSTS] = "too many consts",
+    [TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED] = "symbol already defined: %.*s",
     [TINY16_PARSER_ERROR_UNKNOWN_SECTION] = "unknown section: %.*s",
     [TINY16_PARSER_ERROR_INVALID_NUMBER] = "invalid number: %s",
     [TINY16_PARSER_ERROR_OUT_OF_RANGE] = "%s out of range: %ld",
@@ -27,7 +32,7 @@ static const char* tiny16_parser_error_messages[] = {
     [TINY16_PARSER_ERROR_INVALID_REGISTER] = "invalid register: %.*s",
     [TINY16_PARSER_ERROR_EXPECTED_EVEN_REGISTER] = "expected even register, found R%d",
     [TINY16_PARSER_ERROR_WRONG_REGISTER] = "expected R%d, found R%d",
-    [TINY16_PARSER_ERROR_UNDEFINED_LABEL] = "undefined label: %.*s",
+    [TINY16_PARSER_ERROR_UNDEFINED_SYMBOL] = "undefined symbol: %.*s",
     [TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE] = "unknown directive: %.*s",
     [TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE] = "max program size is %d bytes",
     [TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED] =
@@ -56,6 +61,18 @@ void tiny16_parser_print_error(const Tiny16Parser* parser) {
         fprintf(stderr, "%s:%zu: %s\n", parser->source_filename, parser->error_line,
                 parser->error_msg);
     }
+}
+
+Token tiny16_parser_peek(Tiny16Parser* parser, uint8_t n) {
+    assert(n > 0);
+    Lexer saved_lexer = parser->lexer;
+    Token token = parser->current_token;
+    while (n > 0) {
+        token = lexer_next(&parser->lexer);
+        n -= 1;
+    }
+    parser->lexer = saved_lexer;
+    return token;
 }
 
 void tiny16_parser_next(Tiny16Parser* parser) {
@@ -92,71 +109,85 @@ void tiny16_parser_skip_to_eol(Tiny16Parser* parser) {
     if (parser->current_token.kind == TOKEN_EOL) tiny16_parser_next(parser);
 }
 
-bool tiny16_parser_parse_label(Tiny16Parser* parser) {
-    if (parser->current_token.kind != TOKEN_SYMBOL) return false;
+static int tiny16_parser_symbol_index(const Tiny16Parser* parser, const char* name, size_t len) {
+    for (int i = 0; i < parser->symbol_count; ++i) {
+        size_t sym_len = strlen(parser->symbols[i].name);
+        if (sym_len == len && memcmp(parser->symbols[i].name, name, len) == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
 
-    Lexer saved_lexer = parser->lexer;
-    Token next_token = lexer_next(&parser->lexer);
-    if (next_token.kind != TOKEN_COLON) {
-        parser->lexer = saved_lexer;
+static bool tiny16_parser_add_symbol(Tiny16Parser* parser, Token name_token, Tiny16SymbolKind kind,
+                                     uint16_t value) {
+    if (name_token.text_len >= TINY16_PARSER_MAX_TOKEN_LENGTH) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_LABEL_TOO_LONG, name_token.text_len,
+                                TINY16_PARSER_MAX_TOKEN_LENGTH);
         return false;
     }
 
+    int existing_idx = tiny16_parser_symbol_index(parser, name_token.text, name_token.text_len);
+    if (existing_idx != -1) {
+        Tiny16SymbolKind existing_kind = parser->symbols[existing_idx].kind;
+        if (existing_kind == kind) {
+            tiny16_parser_set_error(parser,
+                                    (kind == TINY16_SYMBOL_LABEL)
+                                        ? TINY16_PARSER_ERROR_DUPLICATE_LABEL
+                                        : TINY16_PARSER_ERROR_DUPLICATE_CONST,
+                                    (int)name_token.text_len, name_token.text);
+        } else {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED,
+                                    (int)name_token.text_len, name_token.text);
+        }
+        return false;
+    }
+
+    if (parser->symbol_count >= TINY16_PARSER_MAX_SYMBOLS) {
+        tiny16_parser_set_error(parser, (kind == TINY16_SYMBOL_LABEL)
+                                            ? TINY16_PARSER_ERROR_TOO_MANY_LABELS
+                                            : TINY16_PARSER_ERROR_TOO_MANY_CONSTS);
+        return false;
+    }
+
+    Tiny16Symbol* sym = &parser->symbols[parser->symbol_count++];
+    strncpy(sym->name, name_token.text, name_token.text_len);
+    sym->name[name_token.text_len] = '\0';
+    sym->kind = kind;
+    sym->value = value;
+    return true;
+}
+
+bool tiny16_parser_parse_label(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_SYMBOL) return false;
+
     Token label_token = parser->current_token;
-    parser->current_token = next_token; // move to ':'
-    tiny16_parser_next(parser);         // advance past ':'
+    if (tiny16_parser_peek(parser, 1).kind != TOKEN_COLON) return false;
 
-    if (label_token.text_len >= TINY16_PARSER_MAX_TOKEN_LENGTH) {
-        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_LABEL_TOO_LONG, label_token.text_len,
-                                TINY16_PARSER_MAX_TOKEN_LENGTH);
-        return true;
-    }
-
-    if (tiny16_parser_label_addr(parser, label_token.text, label_token.text_len) !=
-        TINY16_PARSER_LABEL_NOT_FOUND) {
-        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_DUPLICATE_LABEL,
-                                (int)label_token.text_len, label_token.text);
-        return true;
-    }
-
-    if (parser->label_count >= TINY16_PARSER_MAX_LABELS) {
-        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_TOO_MANY_LABELS);
-        return true;
-    }
+    tiny16_parser_next(parser);                // consume label name (now at ':')
+    tiny16_parser_expect(parser, TOKEN_COLON); // consume ':'
 
     uint16_t addr =
         (parser->current_section == TINY16_PARSER_SECTION_CODE) ? parser->code_pc : parser->data_pc;
-
-    strncpy(parser->labels[parser->label_count].name, label_token.text, label_token.text_len);
-    parser->labels[parser->label_count].name[label_token.text_len] = '\0';
-    parser->labels[parser->label_count].addr = addr;
-    parser->label_count++;
-
+    tiny16_parser_add_symbol(parser, label_token, TINY16_SYMBOL_LABEL, addr);
     return true;
 }
 
 bool tiny16_parser_skip_label(Tiny16Parser* parser) {
     if (parser->current_token.kind != TOKEN_SYMBOL) return false;
 
-    Lexer saved_lexer = parser->lexer;
-    Token next_token = lexer_next(&parser->lexer);
-    if (next_token.kind != TOKEN_COLON) {
-        parser->lexer = saved_lexer;
-        return false;
-    }
+    if (tiny16_parser_peek(parser, 1).kind != TOKEN_COLON) return false;
 
-    parser->current_token = next_token; // move to ':'
-    tiny16_parser_next(parser);         // advance past ':'
+    tiny16_parser_next(parser);                // consume label name (now at ':')
+    tiny16_parser_expect(parser, TOKEN_COLON); // consume ':'
 
     return true;
 }
 
 uint16_t tiny16_parser_label_addr(Tiny16Parser* parser, const char* name, size_t len) {
-    for (int i = 0; i < parser->label_count; ++i) {
-        size_t label_len = strlen(parser->labels[i].name);
-        if (label_len == len && memcmp(parser->labels[i].name, name, len) == 0) {
-            return parser->labels[i].addr;
-        }
+    int idx = tiny16_parser_symbol_index(parser, name, len);
+    if (idx != -1 && parser->symbols[idx].kind == TINY16_SYMBOL_LABEL) {
+        return parser->symbols[idx].value;
     }
     return TINY16_PARSER_LABEL_NOT_FOUND;
 }
@@ -313,16 +344,17 @@ Tiny16AddrPair tiny16_parser_parse_reg_pair(Tiny16Parser* parser) {
 
 uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser) {
     if (parser->current_token.kind == TOKEN_SYMBOL) {
-        uint16_t addr = tiny16_parser_label_addr(parser, parser->current_token.text,
-                                                 parser->current_token.text_len);
-        if (addr == TINY16_PARSER_LABEL_NOT_FOUND) {
-            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNDEFINED_LABEL,
+        int idx = tiny16_parser_symbol_index(parser, parser->current_token.text,
+                                             parser->current_token.text_len);
+        if (idx == -1) {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNDEFINED_SYMBOL,
                                     (int)parser->current_token.text_len,
                                     parser->current_token.text);
             return 0;
         }
+        uint16_t val = parser->symbols[idx].value;
         tiny16_parser_next(parser);
-        return addr;
+        return val;
     }
 
     if (parser->current_token.kind == TOKEN_NUMBER) {
@@ -357,7 +389,7 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser) {
     addr.reg = tiny16_parser_parse_reg(parser);
     tiny16_parser_match(parser, TOKEN_COMMA); // optional
 
-    tiny16_parser_expect(parser, TOKEN_OPEN_BRACKET);
+    tiny16_parser_expect(parser, TOKEN_LBRACKET);
     addr.pair = tiny16_parser_parse_reg_pair(parser);
     addr.mode = TINY16_ADDR_MODE_BASE;
     addr.offset = 0;
@@ -367,7 +399,7 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser) {
         addr.offset = tiny16_parser_parse_imm8(parser);
     }
 
-    tiny16_parser_expect(parser, TOKEN_CLOSE_BRACKET);
+    tiny16_parser_expect(parser, TOKEN_RBRACKET);
 
     if (addr.mode == TINY16_ADDR_MODE_BASE) {
         if (tiny16_parser_match(parser, TOKEN_PLUS)) {
@@ -550,4 +582,37 @@ void tiny16_parser_emit_data(Tiny16Parser* parser) {
         perror("write data");
         exit(1);
     }
+}
+
+long tiny16_parser_parse_expression(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_NUMBER) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_NUMBER),
+                                token_kind_name(parser->current_token.kind));
+        return 0L;
+    }
+    long v = strtol(parser->current_token.text, NULL, 0);
+    tiny16_parser_next(parser); // consume number (Pratt parser will consume tokens too)
+    return v;
+}
+
+bool tiny16_parser_parse_const(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_SYMBOL) return false;
+    if (tiny16_parser_peek(parser, 1).kind != TOKEN_EQUALS) return false;
+
+    Token const_token = parser->current_token;
+
+    tiny16_parser_next(parser); // consume symbol
+    tiny16_parser_next(parser); // consume equals
+
+    long value = tiny16_parser_parse_expression(parser);
+    if (tiny16_parser_has_error(parser)) return true;
+
+    if (value < 0 || value > UINT16_MAX) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "const value", value);
+        return true;
+    }
+    tiny16_parser_add_symbol(parser, const_token, TINY16_SYMBOL_CONST, (uint16_t)value);
+
+    return true;
 }

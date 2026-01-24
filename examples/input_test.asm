@@ -6,15 +6,86 @@
 ; - Reading keyboard input (MMIO 0xBF00, 0xBF01)
 ; - PPU sprite rendering
 ; - Palette manipulation for color changes
+; - Using constants for MMIO addresses and parameters
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section addresses
+INITIALIZED_ADDR  = 0x4000
+POS_X_ADDR        = 0x4001
+POS_Y_ADDR        = 0x4002
+LAST_FRAME_ADDR   = 0x4003
+
+; MMIO addresses
+KEYS_STATE_ADDR   = 0xBF00
+KEYS_PRESSED_ADDR = 0xBF01
+FRAME_COUNT_ADDR  = 0xBF22
+PPU_CTRL_ADDR     = 0xBF30
+
+; Graphics memory
+TILES_BASE        = 0x5000
+OAM_BASE          = 0x7800
+PALETTE_BASE      = 0x7900
+
+; Address high/low bytes
+INITIALIZED_HI    = 0x40
+INITIALIZED_LO    = 0x00
+POS_X_HI          = 0x40
+POS_X_LO          = 0x01
+POS_Y_HI          = 0x40
+POS_Y_LO          = 0x02
+LAST_FRAME_HI     = 0x40
+LAST_FRAME_LO     = 0x03
+KEYS_STATE_HI     = 0xBF
+KEYS_STATE_LO     = 0x00
+KEYS_PRESSED_HI   = 0xBF
+KEYS_PRESSED_LO   = 0x01
+FRAME_COUNT_HI    = 0xBF
+FRAME_COUNT_LO    = 0x22
+PPU_CTRL_HI       = 0xBF
+PPU_CTRL_LO       = 0x30
+OAM_HI            = 0x78
+OAM_LO            = 0x00
+PALETTE_HI        = 0x79
+PALETTE_LO        = 0x00
+PALETTE_COLOR1_LO = 0x02
+TILES_HI          = 0x50
+TILES_LO          = 0x00
+
+; =============================================================================
+; Constants - Input & Graphics
+; =============================================================================
+
+; Keyboard bit masks
+KEY_UP            = 0x40
+KEY_DOWN          = 0x80
+KEY_LEFT          = 0x20
+KEY_RIGHT         = 0x10
+KEY_BUTTON_A      = 0x04
+
+; Game parameters
+BOUNDARY          = 120
+CENTER_POS        = 60
+INITIALIZED_FLAG  = 0xAA
+PPU_SPRITES_RENDER = 0x82
+COLOR_TOGGLE_MASK = 0x1C
+TILE_SIZE_BYTES   = 32
+OAM_SPRITE_COUNT  = 64
+SOLID_PIXEL_PAIR  = 0x11
+SPRITE_HIDDEN     = 0xFF
+DEFAULT_COLOR     = 0xFC
+BG_COLOR          = 0x03
 
 section .code
 
 START:
     ; Check if already initialized
-    LOADI R6, 0x40
-    LOADI R7, 0x00
+    LOADI R6, INITIALIZED_HI
+    LOADI R7, INITIALIZED_LO
     LOAD  R0, [R6:R7]
-    LOADI R1, 0xAA
+    LOADI R1, INITIALIZED_FLAG
     CMP   R0, R1
     JZ    MAIN_LOOP
 
@@ -34,19 +105,19 @@ MAIN_LOOP:
 ; INIT_PALETTE - Set up palette colors
 ; =============================================================================
 INIT_PALETTE:
-    LOADI R6, 0x79    ; PALETTE_BASE high
-    LOADI R7, 0x00    ; PALETTE_BASE low
+    LOADI R6, PALETTE_HI
+    LOADI R7, PALETTE_LO
 
-    ; Color 0: dark blue background (0x03)
-    LOADI R0, 0x03
+    ; Color 0: dark blue background
+    LOADI R0, BG_COLOR
     STORE R0, [R6:R7]
     INC   R7
     LOADI R0, 0x00
     STORE R0, [R6:R7]
     INC   R7
 
-    ; Color 1: yellow (0xFC) - can be changed by button
-    LOADI R0, 0xFC
+    ; Color 1: yellow - can be changed by button
+    LOADI R0, DEFAULT_COLOR
     STORE R0, [R6:R7]
     INC   R7
     LOADI R0, 0x00
@@ -57,10 +128,10 @@ INIT_PALETTE:
 ; INIT_TILE - Set up solid square tile at index 0
 ; =============================================================================
 INIT_TILE:
-    LOADI R6, 0x50    ; TILES_BASE high
-    LOADI R7, 0x00    ; TILES_BASE low
-    LOADI R0, 0x11    ; Two pixels of color 1
-    LOADI R1, 32      ; 32 bytes per tile
+    LOADI R6, TILES_HI
+    LOADI R7, TILES_LO
+    LOADI R0, SOLID_PIXEL_PAIR
+    LOADI R1, TILE_SIZE_BYTES
 
 INIT_TILE_LOOP:
     STORE R0, [R6:R7]
@@ -73,10 +144,10 @@ INIT_TILE_LOOP:
 ; INIT_OAM - Hide all 64 sprites
 ; =============================================================================
 INIT_OAM:
-    LOADI R6, 0x78    ; OAM_BASE high
-    LOADI R7, 0x00    ; OAM_BASE low
-    LOADI R0, 0xFF    ; Y = 0xFF means hidden
-    LOADI R1, 64
+    LOADI R6, OAM_HI
+    LOADI R7, OAM_LO
+    LOADI R0, SPRITE_HIDDEN
+    LOADI R1, OAM_SPRITE_COUNT
 
 INIT_OAM_LOOP:
     STORE R0, [R6:R7]
@@ -92,17 +163,17 @@ INIT_OAM_LOOP:
 ; INIT_SPRITE - Initialize sprite position and mark initialized
 ; =============================================================================
 INIT_SPRITE:
-    LOADI R6, 0x40
-    LOADI R7, 0x01
-    LOADI R0, 60      ; pos_x = 60 (center)
+    LOADI R6, POS_X_HI
+    LOADI R7, POS_X_LO
+    LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
     INC   R7
-    LOADI R0, 60      ; pos_y = 60 (center)
+    LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
 
     ; Mark as initialized
-    LOADI R7, 0x00
-    LOADI R0, 0xAA
+    LOADI R7, INITIALIZED_LO
+    LOADI R0, INITIALIZED_FLAG
     STORE R0, [R6:R7]
     RET
 
@@ -111,20 +182,20 @@ INIT_SPRITE:
 ; =============================================================================
 READ_INPUT:
     ; Load current position
-    LOADI R6, 0x40
-    LOADI R7, 0x01
+    LOADI R6, POS_X_HI
+    LOADI R7, POS_X_LO
     LOAD  R1, [R6:R7]          ; R1 = pos_x
     INC   R7
     LOAD  R2, [R6:R7]          ; R2 = pos_y
 
     ; Read KEYS_STATE
-    LOADI R6, 0xBF
-    LOADI R7, 0x00
+    LOADI R6, KEYS_STATE_HI
+    LOADI R7, KEYS_STATE_LO
     LOAD  R0, [R6:R7]          ; R0 = keys
 
-    ; Check Up (bit 6)
+    ; Check Up
     MOV   R3, R0
-    LOADI R4, 0x40
+    LOADI R4, KEY_UP
     AND   R3, R4
     JZ    CHECK_DOWN
     LOADI R4, 0
@@ -134,17 +205,17 @@ READ_INPUT:
 
 CHECK_DOWN:
     MOV   R3, R0
-    LOADI R4, 0x80
+    LOADI R4, KEY_DOWN
     AND   R3, R4
     JZ    CHECK_LEFT
-    LOADI R4, 120
+    LOADI R4, BOUNDARY
     CMP   R2, R4
     JZ    CHECK_LEFT
     INC   R2
 
 CHECK_LEFT:
     MOV   R3, R0
-    LOADI R4, 0x20
+    LOADI R4, KEY_LEFT
     AND   R3, R4
     JZ    CHECK_RIGHT
     LOADI R4, 0
@@ -154,33 +225,33 @@ CHECK_LEFT:
 
 CHECK_RIGHT:
     MOV   R3, R0
-    LOADI R4, 0x10
+    LOADI R4, KEY_RIGHT
     AND   R3, R4
     JZ    CHECK_BUTTON_A
-    LOADI R4, 120
+    LOADI R4, BOUNDARY
     CMP   R1, R4
     JZ    CHECK_BUTTON_A
     INC   R1
 
 CHECK_BUTTON_A:
-    ; Check A button (bit 2) - use KEYS_PRESSED for single press
-    LOADI R6, 0xBF
-    LOADI R7, 0x01
+    ; Check A button - use KEYS_PRESSED for single press
+    LOADI R6, KEYS_PRESSED_HI
+    LOADI R7, KEYS_PRESSED_LO
     LOAD  R3, [R6:R7]
-    LOADI R4, 0x04
+    LOADI R4, KEY_BUTTON_A
     AND   R3, R4
     JZ    SAVE_POS
     ; Toggle palette color 1 (change square color)
-    LOADI R6, 0x79
-    LOADI R7, 0x02    ; Color 1 at offset 2
+    LOADI R6, PALETTE_HI
+    LOADI R7, PALETTE_COLOR1_LO
     LOAD  R3, [R6:R7]
-    LOADI R4, 0x1C
+    LOADI R4, COLOR_TOGGLE_MASK
     XOR   R3, R4
     STORE R3, [R6:R7]
 
 SAVE_POS:
-    LOADI R6, 0x40
-    LOADI R7, 0x01
+    LOADI R6, POS_X_HI
+    LOADI R7, POS_X_LO
     STORE R1, [R6:R7]          ; pos_x
     INC   R7
     STORE R2, [R6:R7]          ; pos_y
@@ -191,15 +262,15 @@ SAVE_POS:
 ; =============================================================================
 UPDATE_OAM:
     ; Load position
-    LOADI R6, 0x40
-    LOADI R7, 0x01
+    LOADI R6, POS_X_HI
+    LOADI R7, POS_X_LO
     LOAD  R0, [R6:R7]          ; x
     INC   R7
     LOAD  R1, [R6:R7]          ; y
 
     ; Write to OAM entry 0
-    LOADI R6, 0x78
-    LOADI R7, 0x00
+    LOADI R6, OAM_HI
+    LOADI R7, OAM_LO
     STORE R1, [R6:R7]          ; Y
     INC   R7
     STORE R0, [R6:R7]          ; X
@@ -214,9 +285,9 @@ UPDATE_OAM:
 ; RENDER_FRAME - Trigger PPU render
 ; =============================================================================
 RENDER_FRAME:
-    LOADI R6, 0xBF
-    LOADI R7, 0x30
-    LOADI R0, 0x82    ; ENABLE_SPRITES | RENDER_NOW
+    LOADI R6, PPU_CTRL_HI
+    LOADI R7, PPU_CTRL_LO
+    LOADI R0, PPU_SPRITES_RENDER
     STORE R0, [R6:R7]
     RET
 
@@ -224,12 +295,12 @@ RENDER_FRAME:
 ; WAIT_FRAME - Wait for next display frame
 ; =============================================================================
 WAIT_FRAME:
-    LOADI R6, 0xBF
-    LOADI R7, 0x22    ; FRAME_COUNT
+    LOADI R6, FRAME_COUNT_HI
+    LOADI R7, FRAME_COUNT_LO
     LOAD  R0, [R6:R7]
 
-    LOADI R6, 0x40
-    LOADI R7, 0x03    ; last_frame
+    LOADI R6, LAST_FRAME_HI
+    LOADI R7, LAST_FRAME_LO
     LOAD  R1, [R6:R7]
 
     CMP   R0, R1

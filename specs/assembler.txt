@@ -22,6 +22,14 @@ LABELS
 - Refer to the address of the next instruction
 - Must be unique
 
+CONSTANTS
+---------
+
+- Defined as `NAME = number`
+- Value is a 16-bit unsigned integer (0..65535)
+- Shares the same namespace as labels (a name can be either a label or a constant, not both)
+- Constants may be used where a numeric immediate is accepted (e.g. `LOADI`, jumps, offsets)
+
 REGISTERS
 ---------
 
@@ -37,7 +45,7 @@ NUMBERS
 - Hex: 0x2A
 - Binary: 0b101010
 - No signed values
-- Labels may be used where numbers are accepted
+- Symbols (labels or constants) may be used where numeric immediates are accepted
 
 SECTIONS
 --------
@@ -188,7 +196,7 @@ ASSEMBLY PASSES
 Pass 1:
 - Remove comments
 - Track section directives
-- Collect labels (both code and data labels)
+- Collect symbols (labels and constants)
 - Compute instruction addresses (code at 0x0010+, data at 0x4000+)
 - Handle ORG in .data by advancing the data location counter and padding with zeros as needed
 - Parse TIMES prefix and multiply instruction count accordingly
@@ -197,7 +205,7 @@ Pass 1:
 Pass 2:
 - Encode instructions in code section
 - Handle TIMES by emitting instruction multiple times
-- Resolve labels to addresses
+- Resolve symbols to values
 - Emit bytecode
 - Output file signature (16 bytes)
 - Output code section
@@ -212,7 +220,7 @@ Assembly fails on:
 - Invalid register
 - Invalid number
 - Immediate out of range
-- Undefined or duplicate label
+- Undefined or duplicate label/constant
 - TIMES with invalid count
 - ORG used outside .data
 - ORG address out of range
@@ -328,7 +336,7 @@ NON-GOALS
 
 - No macros
 - No includes
-- No expressions (e.g., TIMES 4*2 DB 0)
+- No expressions (e.g. `X = 1+2`, `TIMES 4*2 DB 0`, `ORG label+4`)
 - No linking or relocation
 
 DESIGN RULE

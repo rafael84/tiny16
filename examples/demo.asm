@@ -4,6 +4,7 @@
 ; - PPU tile-based rendering with data-defined tiles
 ; - Hardware sprites via OAM (32 bouncing smileys)
 ; - Using ORG to position data at specific memory addresses
+; - Using constants for memory-mapped addresses and parameters
 ; - Animation synchronized to display frame rate
 ; - New addressing modes: post-increment [PAIR]+ and offset [PAIR + imm8]
 ;
@@ -15,14 +16,55 @@
 ; 0x7900-0x7907: Palette (4 colors × 2 bytes)
 ;
 
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section addresses
+INITIALIZED_ADDR   = 0x4000
+LAST_FRAME_ADDR    = 0x4001
+SPRITE_DATA_ADDR   = 0x4010
+TILE_DATA_ADDR     = 0x5000
+OAM_ADDR           = 0x7800
+PALETTE_ADDR       = 0x7900
+
+; MMIO addresses
+FRAME_COUNT_ADDR   = 0xBF22
+PPU_CTRL_ADDR      = 0xBF30
+
+; Address high/low bytes for common locations
+INITIALIZED_HI     = 0x40
+INITIALIZED_LO     = 0x00
+SPRITE_DATA_HI     = 0x40
+SPRITE_DATA_LO     = 0x10
+FRAME_COUNT_HI     = 0xBF
+FRAME_COUNT_LO     = 0x22
+LAST_FRAME_HI      = 0x40
+LAST_FRAME_LO      = 0x01
+OAM_HI             = 0x78
+PPU_CTRL_HI        = 0xBF
+PPU_CTRL_LO        = 0x30
+
+; =============================================================================
+; Constants - Game Parameters
+; =============================================================================
+
+SPRITE_COUNT       = 32
+BOUNDARY           = 120
+MIN_POSITION       = 10
+MODULO_RANGE       = 110
+VELOCITY_BASE      = 4
+INITIALIZED_FLAG   = 0xAA
+PPU_SPRITES_RENDER = 0x82
+
 section .code
 
 START:
     ; Check if already initialized
-    LOADI R6, 0x40
-    LOADI R7, 0x00    ; initialized flag at 0x4000
+    LOADI R6, INITIALIZED_HI
+    LOADI R7, INITIALIZED_LO
     LOAD  R0, [R6:R7]
-    LOADI R1, 0xAA
+    LOADI R1, INITIALIZED_FLAG
     CMP   R0, R1
     JZ    MAIN_LOOP
 
@@ -45,16 +87,16 @@ INIT_SPRITES:
     ; Read FRAME_COUNT for pseudo-random seed
     PUSH  R6
     PUSH  R7
-    LOADI R6, 0xBF
-    LOADI R7, 0x22    ; FRAME_COUNT at 0xBF22
+    LOADI R6, FRAME_COUNT_HI
+    LOADI R7, FRAME_COUNT_LO
     LOAD  R3, [R6:R7] ; R3 = frame count (pseudo-random seed)
     POP   R7
     POP   R6
 
-    LOADI R6, 0x40
-    LOADI R7, 0x10    ; sprite data starts at 0x4010
+    LOADI R6, SPRITE_DATA_HI
+    LOADI R7, SPRITE_DATA_LO
     LOADI R4, 0       ; sprite counter (0-31)
-    LOADI R5, 32      ; total sprites
+    LOADI R5, SPRITE_COUNT
 
 INIT_SPRITE_LOOP:
     ; X = ((seed + counter * 7) * 3 + 10) % 110 (range 10-119)
@@ -64,9 +106,9 @@ INIT_SPRITE_LOOP:
     ADD   R0, R0               ; * 2
     ADD   R0, R0               ; * 2 (total * 4 from counter*7)
     ; Modulo 110 to keep in range, then add 10
-    LOADI R2, 110
+    LOADI R2, MODULO_RANGE
     CALL  MOD_R0_BY_R2
-    LOADI R2, 10
+    LOADI R2, MIN_POSITION
     ADD   R0, R2               ; R0 = x position (10-119)
     STORE R0, [R6:R7]+         ; x (post-increment)
 
@@ -77,9 +119,9 @@ INIT_SPRITE_LOOP:
     ADD   R1, R1               ; * 2
     ; Modulo 110 to keep in range, then add 10
     MOV   R0, R1               ; prepare for modulo
-    LOADI R2, 110
+    LOADI R2, MODULO_RANGE
     CALL  MOD_R0_BY_R2
-    LOADI R2, 10
+    LOADI R2, MIN_POSITION
     ADD   R0, R2               ; R0 = y position (10-119)
     MOV   R1, R0               ; restore to R1
     STORE R1, [R6:R7]+         ; y (post-increment)
@@ -89,7 +131,7 @@ INIT_SPRITE_LOOP:
     ADD   R0, R4
     LOADI R2, 0x01
     AND   R0, R2
-    LOADI R1, 4
+    LOADI R1, VELOCITY_BASE
     ADD   R0, R1               ; vel_x = 4 or 5
     STORE R0, [R6:R7]+         ; vel_x (post-increment)
 
@@ -99,7 +141,7 @@ INIT_SPRITE_LOOP:
     ADD   R0, R3               ; add seed
     LOADI R2, 0x01
     AND   R0, R2
-    LOADI R1, 4
+    LOADI R1, VELOCITY_BASE
     ADD   R0, R1               ; vel_y = 4 or 5
     STORE R0, [R6:R7]+         ; vel_y (post-increment)
 
@@ -108,9 +150,9 @@ INIT_SPRITE_LOOP:
     JNZ   INIT_SPRITE_LOOP
 
     ; Mark as initialized
-    LOADI R6, 0x40
-    LOADI R7, 0x00
-    LOADI R0, 0xAA
+    LOADI R6, INITIALIZED_HI
+    LOADI R7, INITIALIZED_LO
+    LOADI R0, INITIALIZED_FLAG
     STORE R0, [R6:R7]          ; initialized flag
 
     RET
@@ -134,14 +176,14 @@ MOD_DONE:
 ; =============================================================================
 UPDATE_ALL_OAM:
     LOADI R4, 0       ; sprite counter
-    LOADI R5, 32      ; total sprites
+    LOADI R5, SPRITE_COUNT
 
 UPDATE_OAM_LOOP:
     ; Calculate sprite data address: 0x4010 + (counter * 4)
-    LOADI R6, 0x40
+    LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
-    LOADI R0, 0x10
+    LOADI R0, SPRITE_DATA_LO
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
     ; Load x, y using offset addressing (no pointer modification needed)
@@ -149,7 +191,7 @@ UPDATE_OAM_LOOP:
     LOAD  R1, [R6:R7 + 1]      ; y at offset 1
 
     ; Calculate OAM address: 0x7800 + (counter * 4)
-    LOADI R6, 0x78
+    LOADI R6, OAM_HI
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
 
@@ -171,17 +213,17 @@ UPDATE_OAM_LOOP:
 ; =============================================================================
 UPDATE_ALL_POSITIONS:
     LOADI R4, 0       ; sprite counter
-    LOADI R5, 32      ; total sprites
+    LOADI R5, SPRITE_COUNT
 
 UPDATE_POS_LOOP:
     PUSH  R4          ; save counter
     PUSH  R5          ; save remaining
 
     ; Calculate sprite data address: 0x4010 + (counter * 4)
-    LOADI R6, 0x40
+    LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
-    LOADI R0, 0x10
+    LOADI R0, SPRITE_DATA_LO
     ADD   R7, R0      ; R7 = 0x10 + counter * 4
 
     ; Load x, y, vel_x, vel_y using offset addressing
@@ -201,7 +243,7 @@ UPDATE_POS_LOOP:
 
     ; Moving right: x += vel_x
     ADD   R0, R2
-    LOADI R5, 120     ; boundary
+    LOADI R5, BOUNDARY
     CMP   R0, R5
     JC    POS_UPDATE_Y         ; x < 120, no bounce
     ; Bounce: clamp x and reverse velocity
@@ -212,7 +254,7 @@ UPDATE_POS_LOOP:
 POS_MOVE_LEFT:
     ; Moving left: x -= speed (speed stored when we reversed)
     ; For left movement, vel_x is 0, we use a fixed speed of 4
-    LOADI R5, 4
+    LOADI R5, VELOCITY_BASE
     CMP   R0, R5
     JC    POS_BOUNCE_X_LEFT    ; x < 4, will underflow
     SUB   R0, R5
@@ -220,7 +262,7 @@ POS_MOVE_LEFT:
 
 POS_BOUNCE_X_LEFT:
     XOR   R0, R0               ; x = 0
-    LOADI R2, 4                ; vel_x = 4 (move right)
+    LOADI R2, VELOCITY_BASE    ; vel_x = 4 (move right)
 
 POS_UPDATE_Y:
     ; Update Y position: similar logic
@@ -231,7 +273,7 @@ POS_UPDATE_Y:
 
     ; Moving down: y += vel_y
     ADD   R1, R3
-    LOADI R5, 120     ; boundary
+    LOADI R5, BOUNDARY
     CMP   R1, R5
     JC    POS_SAVE             ; y < 120, no bounce
     ; Bounce: clamp y and reverse velocity
@@ -241,7 +283,7 @@ POS_UPDATE_Y:
 
 POS_MOVE_UP:
     ; Moving up: y -= speed
-    LOADI R5, 4
+    LOADI R5, VELOCITY_BASE
     CMP   R1, R5
     JC    POS_BOUNCE_Y_UP      ; y < 4, will underflow
     SUB   R1, R5
@@ -249,12 +291,12 @@ POS_MOVE_UP:
 
 POS_BOUNCE_Y_UP:
     XOR   R1, R1               ; y = 0
-    LOADI R3, 4                ; vel_y = 4 (move down)
+    LOADI R3, VELOCITY_BASE    ; vel_y = 4 (move down)
 
 POS_SAVE:
     ; Restore address and save position using post-increment
     POP   R7          ; restore address low byte
-    LOADI R6, 0x40
+    LOADI R6, SPRITE_DATA_HI
     STORE R0, [R6:R7]+         ; x
     STORE R1, [R6:R7]+         ; y
     STORE R2, [R6:R7]+         ; vel_x
@@ -271,10 +313,10 @@ POS_SAVE:
 ; RENDER_FRAME - Trigger PPU to render
 ; =============================================================================
 RENDER_FRAME:
-    LOADI R6, 0xBF    ; PPU_CTRL high
-    LOADI R7, 0x30    ; PPU_CTRL low
+    LOADI R6, PPU_CTRL_HI
+    LOADI R7, PPU_CTRL_LO
     ; Enable sprites + RENDER_NOW = 0x02 | 0x80 = 0x82 (no background)
-    LOADI R0, 0x82
+    LOADI R0, PPU_SPRITES_RENDER
     STORE R0, [R6:R7]
     RET
 
@@ -283,13 +325,13 @@ RENDER_FRAME:
 ; =============================================================================
 WAIT_FRAME:
     ; Read current FRAME_COUNT
-    LOADI R6, 0xBF
-    LOADI R7, 0x22    ; FRAME_COUNT at 0xBF22
+    LOADI R6, FRAME_COUNT_HI
+    LOADI R7, FRAME_COUNT_LO
     LOAD  R0, [R6:R7]          ; R0 = current frame count
 
     ; Load last frame count
-    LOADI R6, 0x40
-    LOADI R7, 0x01    ; last_frame at 0x4001
+    LOADI R6, LAST_FRAME_HI
+    LOADI R7, LAST_FRAME_LO
     LOAD  R1, [R6:R7]          ; R1 = last frame count
 
     ; Compare

@@ -13,10 +13,16 @@ typedef struct {
 } LiteralToken;
 
 LiteralToken literal_tokens[] = {
-    {.text = ",", .kind = TOKEN_COMMA},        {.text = ":", .kind = TOKEN_COLON},
-    {.text = "[", .kind = TOKEN_OPEN_BRACKET}, {.text = "]", .kind = TOKEN_CLOSE_BRACKET},
-    {.text = "+", .kind = TOKEN_PLUS},         {.text = "-", .kind = TOKEN_MINUS},
-    {.text = ".", .kind = TOKEN_DOT},
+    {.text = ",", .kind = TOKEN_COMMA},    {.text = ":", .kind = TOKEN_COLON},
+    {.text = "[", .kind = TOKEN_LBRACKET}, {.text = "]", .kind = TOKEN_RBRACKET},
+    {.text = "(", .kind = TOKEN_LPAREN},   {.text = ")", .kind = TOKEN_RPAREN},
+    {.text = "+", .kind = TOKEN_PLUS},     {.text = "-", .kind = TOKEN_MINUS},
+    {.text = ".", .kind = TOKEN_DOT},      {.text = "=", .kind = TOKEN_EQUALS},
+    {.text = "*", .kind = TOKEN_TIMES},    {.text = "/", .kind = TOKEN_DIV},
+    {.text = "%", .kind = TOKEN_MOD},      {.text = "&", .kind = TOKEN_AND},
+    {.text = "|", .kind = TOKEN_OR},       {.text = "^", .kind = TOKEN_XOR},
+    {.text = "~", .kind = TOKEN_NOT},      {.text = "<<", .kind = TOKEN_SHL},
+    {.text = ">>", .kind = TOKEN_SHR},
 };
 
 #define literal_tokens_count (sizeof literal_tokens / sizeof literal_tokens[0])
@@ -45,9 +51,9 @@ const char* token_kind_name(TokenKind kind) {
         return "keyword";
     case TOKEN_NUMBER:
         return "number";
-    case TOKEN_OPEN_BRACKET:
+    case TOKEN_LBRACKET:
         return "open bracket";
-    case TOKEN_CLOSE_BRACKET:
+    case TOKEN_RBRACKET:
         return "close bracket";
     case TOKEN_PLUS:
         return "plus";
