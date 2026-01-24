@@ -17,6 +17,8 @@
 ; PALETTE_ADDR:      Palette (16 colors × 2 bytes)
 ;
 
+.include "macros.inc"
+
 ; =============================================================================
 ; Constants - Memory Map
 ; =============================================================================
@@ -32,22 +34,15 @@ INITIALIZED_ADDR   = USER_DATA_BASE + 0
 LAST_FRAME_ADDR    = USER_DATA_BASE + 1
 SPRITE_DATA_ADDR   = USER_DATA_BASE + 16
 
-; MMIO addresses
-FRAME_COUNT_ADDR   = 0xBF22
-PPU_CTRL_ADDR      = 0xBF30
-
-; Address high/low bytes (computed from full addresses)
+; Address bytes used in tight loops (computed from full addresses)
 INITIALIZED_HI     = INITIALIZED_ADDR >> 8
 INITIALIZED_LO     = INITIALIZED_ADDR & 0xFF
-SPRITE_DATA_HI     = SPRITE_DATA_ADDR >> 8
-SPRITE_DATA_LO     = SPRITE_DATA_ADDR & 0xFF
-FRAME_COUNT_HI     = FRAME_COUNT_ADDR >> 8
-FRAME_COUNT_LO     = FRAME_COUNT_ADDR & 0xFF
 LAST_FRAME_HI      = LAST_FRAME_ADDR >> 8
 LAST_FRAME_LO      = LAST_FRAME_ADDR & 0xFF
+SPRITE_DATA_HI     = SPRITE_DATA_ADDR >> 8
+SPRITE_DATA_LO     = SPRITE_DATA_ADDR & 0xFF
 OAM_HI             = OAM_ADDR >> 8
-PPU_CTRL_HI        = PPU_CTRL_ADDR >> 8
-PPU_CTRL_LO        = PPU_CTRL_ADDR & 0xFF
+OAM_LO             = OAM_ADDR & 0xFF
 
 ; =============================================================================
 ; Constants - Game Parameters
@@ -62,16 +57,14 @@ MODULO_RANGE       = BOUNDARY - MIN_POSITION
 VELOCITY_BASE      = 4
 INITIALIZED_FLAG   = 0xAA
 
-; PPU control: sprites enabled (0x02) | render now (0x80)
-PPU_SPRITES_RENDER = 0x02 | 0x80
+TILE_SMILEY        = 0x00
+SPRITE_ATTR_NONE   = 0x00
 
 section .code
 
 START:
     ; Check if already initialized
-    LOADI R6, INITIALIZED_HI
-    LOADI R7, INITIALIZED_LO
-    LOAD  R0, [R6:R7]
+    LOAD16 R0, INITIALIZED_HI, INITIALIZED_LO
     LOADI R1, INITIALIZED_FLAG
     CMP   R0, R1
     JZ    MAIN_LOOP
@@ -93,16 +86,11 @@ MAIN_LOOP:
 ; =============================================================================
 INIT_SPRITES:
     ; Read FRAME_COUNT for pseudo-random seed
-    PUSH  R6
-    PUSH  R7
-    LOADI R6, FRAME_COUNT_HI
-    LOADI R7, FRAME_COUNT_LO
-    LOAD  R3, [R6:R7] ; R3 = frame count (pseudo-random seed)
-    POP   R7
-    POP   R6
+    PUSH2 R6, R7
+    READ_FRAME_COUNT R3            ; R3 = frame count (pseudo-random seed)
+    POP2  R6, R7
 
-    LOADI R6, SPRITE_DATA_HI
-    LOADI R7, SPRITE_DATA_LO
+    SETADDR SPRITE_DATA_HI, SPRITE_DATA_LO
     LOADI R4, 0       ; sprite counter (0-31)
     LOADI R5, SPRITE_COUNT
 
@@ -158,10 +146,7 @@ INIT_SPRITE_LOOP:
     JNZ   INIT_SPRITE_LOOP
 
     ; Mark as initialized
-    LOADI R6, INITIALIZED_HI
-    LOADI R7, INITIALIZED_LO
-    LOADI R0, INITIALIZED_FLAG
-    STORE R0, [R6:R7]          ; initialized flag
+    STORE16I INITIALIZED_FLAG, INITIALIZED_HI, INITIALIZED_LO
 
     RET
 
@@ -190,7 +175,7 @@ UPDATE_OAM_LOOP:
     ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
     LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
-    TIMES 2 ADD R7, R7    ; counter * 4
+    MUL4  R7                   ; counter * 4
     LOADI R0, SPRITE_DATA_LO
     ADD   R7, R0
 
@@ -201,15 +186,12 @@ UPDATE_OAM_LOOP:
     ; Calculate OAM address: 0x7800 + (counter * 4)
     LOADI R6, OAM_HI
     MOV   R7, R4
-    TIMES 2 ADD R7, R7    ; counter * 4
+    MUL4  R7                   ; counter * 4
+    LOADI R2, OAM_LO
+    ADD   R7, R2
 
-    ; Write OAM entry using post-increment: Y, X, tile, attr
-    STORE R1, [R6:R7]+         ; Y position
-    STORE R0, [R6:R7]+         ; X position
-    LOADI R0, 0x00    ; Tile index 0 (smiley)
-    STORE R0, [R6:R7]+
-    LOADI R0, 0x00    ; Attributes (no flip)
-    STORE R0, [R6:R7]
+    ; Write OAM entry: Y, X, tile, attr
+    OAM_WRITE_SPRITE R1, R0, TILE_SMILEY, SPRITE_ATTR_NONE
 
     INC   R4          ; next sprite
     DEC   R5
@@ -230,7 +212,7 @@ UPDATE_POS_LOOP:
     ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
     LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
-    TIMES 2 ADD R7, R7    ; counter * 4
+    MUL4  R7                   ; counter * 4
     LOADI R0, SPRITE_DATA_LO
     ADD   R7, R0
 
@@ -321,33 +303,14 @@ POS_SAVE:
 ; RENDER_FRAME - Trigger PPU to render
 ; =============================================================================
 RENDER_FRAME:
-    LOADI R6, PPU_CTRL_HI
-    LOADI R7, PPU_CTRL_LO
-    ; Enable sprites + RENDER_NOW = 0x02 | 0x80 = 0x82 (no background)
-    LOADI R0, PPU_SPRITES_RENDER
-    STORE R0, [R6:R7]
+    PPU_SPRITES_ON
     RET
 
 ; =============================================================================
 ; WAIT_FRAME - Wait for FRAME_COUNT to change (syncs to 60 FPS)
 ; =============================================================================
 WAIT_FRAME:
-    ; Read current FRAME_COUNT
-    LOADI R6, FRAME_COUNT_HI
-    LOADI R7, FRAME_COUNT_LO
-    LOAD  R0, [R6:R7]          ; R0 = current frame count
-
-    ; Load last frame count
-    LOADI R6, LAST_FRAME_HI
-    LOADI R7, LAST_FRAME_LO
-    LOAD  R1, [R6:R7]          ; R1 = last frame count
-
-    ; Compare
-    CMP   R0, R1
-    JZ    WAIT_FRAME  ; If same, keep waiting
-
-    ; Frame changed - save new frame count
-    STORE R0, [R6:R7]
+    WAIT_VSYNC LAST_FRAME_HI, LAST_FRAME_LO
     RET
 
 ; =============================================================================

@@ -36,6 +36,22 @@ PPU_CTRL_HI         = PPU_CTRL_ADDR >> 8
 PPU_CTRL_LO         = PPU_CTRL_ADDR & 0xFF
 
 ; =============================================================================
+; Default Graphics Memory Map
+; =============================================================================
+
+GFX_TILES_BASE      = 0x5000
+GFX_OAM_BASE        = 0x7800
+GFX_PALETTE_BASE    = 0x7900
+
+GFX_OAM_SPRITE_COUNT = 64
+GFX_OAM_ENTRY_SIZE   = 4
+
+; PPU control bits
+PPU_CTRL_SPRITES    = 0x02
+PPU_CTRL_RENDER_NOW = 0x80
+PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
+
+; =============================================================================
 ; Memory & Register Utilities
 ; =============================================================================
 
@@ -222,7 +238,7 @@ PPU_CTRL_LO         = PPU_CTRL_ADDR & 0xFF
 .endmacro
 
 .macro PPU_SPRITES_ON
-    LOADI R0, 0x82
+    LOADI R0, PPU_CTRL_SPRITES_ON
     LOADI R6, PPU_CTRL_HI
     LOADI R7, PPU_CTRL_LO
     STORE R0, [R6:R7]

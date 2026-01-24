@@ -19,6 +19,7 @@
 
 ; Data section base address
 USER_DATA_BASE    = 0x4000
+DATA_HI           = USER_DATA_BASE >> 8
 
 ; Data layout offsets
 INITIALIZED_ADDR  = USER_DATA_BASE + 0
@@ -28,18 +29,14 @@ LAST_FRAME_ADDR   = USER_DATA_BASE + 3
 
 
 ; Graphics memory
-TILES_BASE        = 0x5000
-OAM_BASE          = 0x7800
-PALETTE_BASE      = 0x7900
+TILES_BASE        = GFX_TILES_BASE
+OAM_BASE          = GFX_OAM_BASE
+PALETTE_BASE      = GFX_PALETTE_BASE
 
-; Address high/low bytes (computed from full addresses)
-INITIALIZED_HI    = INITIALIZED_ADDR >> 8
+; Address bytes (computed from full addresses)
 INITIALIZED_LO    = INITIALIZED_ADDR & 0xFF
-POS_X_HI          = POS_X_ADDR >> 8
 POS_X_LO          = POS_X_ADDR & 0xFF
-POS_Y_HI          = POS_Y_ADDR >> 8
 POS_Y_LO          = POS_Y_ADDR & 0xFF
-LAST_FRAME_HI     = LAST_FRAME_ADDR >> 8
 LAST_FRAME_LO     = LAST_FRAME_ADDR & 0xFF
 OAM_HI            = OAM_BASE >> 8
 OAM_LO            = OAM_BASE & 0xFF
@@ -66,12 +63,10 @@ CENTER_POS        = BOUNDARY / 2
 INITIALIZED_FLAG  = 0xAA
 COLOR_TOGGLE_MASK = 0x1C
 TILE_SIZE_BYTES   = 32
-OAM_SPRITE_COUNT  = 64
+OAM_SPRITE_COUNT  = GFX_OAM_SPRITE_COUNT
 SOLID_PIXEL_PAIR  = 0x11
-SPRITE_HIDDEN     = 0xFF
-
-; PPU control: sprites enabled (0x02) | render now (0x80)
-PPU_SPRITES_RENDER = 0x02 | 0x80
+TILE_SQUARE       = 0x00
+SPRITE_ATTR_NONE  = 0x00
 
 ; Palette colors (RGB332 format)
 BG_COLOR          = 0x03
@@ -81,7 +76,7 @@ section .code
 
 START:
     ; Check if already initialized
-    LOAD16 R0, INITIALIZED_HI, INITIALIZED_LO
+    LOAD16 R0, DATA_HI, INITIALIZED_LO
     LOADI R1, INITIALIZED_FLAG
     CMP R0, R1
     JZ MAIN_LOOP
@@ -144,13 +139,13 @@ INIT_OAM_LOOP:
 ; INIT_SPRITE - Initialize sprite position and mark initialized
 ; =============================================================================
 INIT_SPRITE:
-    SETADDR POS_X_HI, POS_X_LO
+    SETADDR DATA_HI, POS_X_LO
     LOADI R0, CENTER_POS
     STORE R0, [R6:R7]+
     LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
 
-    STORE16I INITIALIZED_FLAG, INITIALIZED_HI, INITIALIZED_LO
+    STORE16I INITIALIZED_FLAG, DATA_HI, INITIALIZED_LO
     RET
 
 ; =============================================================================
@@ -158,7 +153,7 @@ INIT_SPRITE:
 ; =============================================================================
 READ_INPUT:
     ; Load current position
-    SETADDR POS_X_HI, POS_X_LO
+    SETADDR DATA_HI, POS_X_LO
     LOAD R1, [R6:R7]+
     LOAD R2, [R6:R7]
 
@@ -202,7 +197,7 @@ CHECK_BUTTON_A:
     STORE16 R3, PALETTE_HI, PALETTE_COLOR1_LO
 
 SAVE_POS:
-    SETADDR POS_X_HI, POS_X_LO
+    SETADDR DATA_HI, POS_X_LO
     STORE R1, [R6:R7]+
     STORE R2, [R6:R7]
     RET
@@ -212,13 +207,13 @@ SAVE_POS:
 ; =============================================================================
 UPDATE_OAM:
     ; Load position
-    SETADDR POS_X_HI, POS_X_LO
+    SETADDR DATA_HI, POS_X_LO
     LOAD R0, [R6:R7]+
     LOAD R1, [R6:R7]
 
     ; Write to OAM entry 0
     SETADDR OAM_HI, OAM_LO
-    OAM_WRITE_SPRITE R1, R0, 0x00, 0x00
+    OAM_WRITE_SPRITE R1, R0, TILE_SQUARE, SPRITE_ATTR_NONE
     RET
 
 ; =============================================================================
@@ -232,7 +227,7 @@ RENDER_FRAME:
 ; WAIT_FRAME - Wait for next display frame
 ; =============================================================================
 WAIT_FRAME:
-    WAIT_VSYNC LAST_FRAME_HI, LAST_FRAME_LO
+    WAIT_VSYNC DATA_HI, LAST_FRAME_LO
     RET
 
 section .data
