@@ -133,10 +133,12 @@ $(WEBDIR):
 	mkdir -p $@
 
 EXAMPLES := $(wildcard examples/*.asm)
-examples: asm
-	@for F in $(EXAMPLES); do \
-		$(BINDIR)/tiny16-asm$(EXE_EXT) $$F $(BINDIR)/$$(basename $$F .asm).tiny16; \
-	done
+EXAMPLE_OUTPUTS := $(patsubst examples/%.asm,$(BINDIR)/%.tiny16,$(EXAMPLES))
+
+examples: asm $(EXAMPLE_OUTPUTS)
+
+$(BINDIR)/%.tiny16: examples/%.asm | $(BINDIR)
+	$(BINDIR)/tiny16-asm$(EXE_EXT) $< $@
 
 $(RAYLIB_LIB_NATIVE):
 	@echo "Building raylib for native..."
