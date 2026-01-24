@@ -160,8 +160,11 @@ STORE R, [PAIR]
       STORE R1, [R2:R3]+       -> 0x12 0x2A 0x00  (reg=1, mode=1, pair=1)
       LOAD  R3, [R4:R5 + 10]   -> 0x11 0x7C 0x0A  (reg=3, mode=3, pair=2)
 
+MOV R1, R2
 ADD R1, R2
 SUB R1, R2
+ADC R1, R2
+SBC R1, R2
 AND R1, R2
 OR  R1, R2
 XOR R1, R2
