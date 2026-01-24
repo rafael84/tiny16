@@ -706,6 +706,59 @@ loop:
     HALT
 
 
+LEVEL 8: ASSEMBLER POWER FEATURES (50-53)
+=========================================
+
+Tutorial 50: Constants and Expressions
+---------------------------------------
+VALUE = (6 + 2) * 3
+MASK  = (1 << 4) | 0x03
+
+section .code
+    LOADI R0, VALUE
+    LOADI R1, MASK
+    HALT
+
+
+Tutorial 51: Sections and ORG
+------------------------------
+DATA_ADDR = 0x4010
+
+section .code
+    LOADI R6, DATA_ADDR >> 8
+    LOADI R7, DATA_ADDR & 0xFF
+    LOAD  R0, [R6:R7]
+    HALT
+
+section .data
+    ORG DATA_ADDR
+    value: DB 0x2A
+
+
+Tutorial 52: Macros
+--------------------
+.macro ADD_IMM reg, imm
+    LOADI R7, imm
+    ADD   reg, R7
+.endmacro
+
+section .code
+    LOADI R0, 10
+    ADD_IMM R0, 5
+    ADD_IMM R0, 7
+    HALT
+
+
+Tutorial 53: Includes
+----------------------
+.include "includes/constants.inc"
+
+section .code
+    LOADI R0, 4
+    ADD_BASE R0
+    HALT
+
+
 ================================================================================
 End of Solutions
 

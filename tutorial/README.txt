@@ -139,16 +139,16 @@ Concepts: Memory-mapped I/O (MMIO), hardware registers, input devices
           (keyboard, mouse), framebuffer, RGB332 color format
 
 
-Level 8: Advanced Topics (50+)
--------------------------------
-Optional challenge exercises for mastery.
+Level 8: Assembler Power Features (50-53)
+-----------------------------------------
+Use the new assembler features to build cleaner, reusable programs.
 
-    50  TIMES Directive        Repeat instructions    Efficient code
-    51  Multi-Section Program  .code + .data          Structured code
-    52  String Operations      String copying         Text handling
-    53  Nested Data Structures Struct-like access     Complex data
+    50  Constants & Expressions  Named values          Computed immediates
+    51  Sections & ORG           Data placement        Custom layout
+    52  Macros                   Reusable instruction  Parameterized blocks
+    53  Includes                 Shared definitions    Multi-file programs
 
-Concepts: TIMES pseudo-instruction, section organization, real-world patterns
+Concepts: constants, expressions, ORG, macros, includes, reusable code patterns
 
 
 COMMON PATTERNS
@@ -353,6 +353,32 @@ Numbers
     Decimal:  42
     Hex:      0x2A
     Binary:   0b00101010
+
+Constants & Expressions
+------------------------
+    VALUE = (6 + 2) * 3
+    MASK  = (1 << 4) | 0x03
+    LOADI R0, VALUE
+    LOADI R1, MASK
+
+ORG (Set Origin)
+-----------------
+    section .data
+    ORG 0x4010
+    value: DB 0x2A
+
+Macros
+------
+    .macro ADD_IMM reg, imm
+        LOADI R7, imm
+        ADD   reg, R7
+    .endmacro
+
+    ADD_IMM R0, 5
+
+Includes
+--------
+    .include "includes/constants.inc"
 
 
 TIPS & TRICKS
