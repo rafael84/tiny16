@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 static const char* tiny16_pp_error_messages[] = {
     [TINY16_PP_OK] = "",
@@ -21,6 +22,15 @@ static const char* tiny16_pp_error_messages[] = {
     [TINY16_PP_ERROR_ARGUMENT_COUNT_MISMATCH] = "expected %d arguments, found %d",
     [TINY16_PP_ERROR_INVALID_INCLUDE] = "invalid .include directive",
 };
+
+static char* tiny16_strdup(const char* s) {
+    if (!s) return NULL;
+    size_t n = strlen(s) + 1;
+    char* out = malloc(n);
+    if (!out) return NULL;
+    memcpy(out, s, n);
+    return out;
+}
 
 static void tiny16_pp_set_error(Tiny16Preprocessor* pp, Tiny16PPError error, ...) {
     if (pp->error != TINY16_PP_OK) return; // keep first error
@@ -437,7 +447,7 @@ static void tiny16_pp_process_line(Tiny16Preprocessor* pp) {
             pp->error_line = pp->line;
             return;
         }
-        pp->current_macro->lines[pp->current_macro->line_count++] = strdup(pp->current_line);
+        pp->current_macro->lines[pp->current_macro->line_count++] = tiny16_strdup(pp->current_line);
         return;
     }
 
