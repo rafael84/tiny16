@@ -38,14 +38,16 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    Tiny16Parser parser = {
-        .source_filename = args.source_filename,
-        .current_section = TINY16_PARSER_SECTION_CODE,
-        .code_pc = TINY16_MEMORY_CODE_BEGIN,
-        .data_pc = TINY16_MEMORY_DATA_BEGIN,
-        .error = TINY16_PARSER_OK,
-        .error_line = 0,
-    };
+    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
+    // Tiny16Parser contains large fixed-size buffers (symbols table, data buffer, etc).
+    static Tiny16Parser parser;
+    memset(&parser, 0, sizeof(parser));
+    parser.source_filename = args.source_filename;
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.data_pc = TINY16_MEMORY_DATA_BEGIN;
+    parser.error = TINY16_PARSER_OK;
+    parser.error_line = 0;
 
     parser.output_file = fopen(args.output_filename, "wb");
     if (parser.output_file == NULL) {
@@ -200,7 +202,9 @@ int main(int argc, char** argv) {
 }
 
 static char* preprocess_source(const char* filename) {
-    Tiny16Preprocessor pp;
+    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
+    // Tiny16Preprocessor contains a large fixed-size macro table and buffers.
+    static Tiny16Preprocessor pp;
     tiny16_pp_init(&pp);
 
     char* preprocessed = tiny16_pp_process_file(&pp, filename);

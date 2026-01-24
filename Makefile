@@ -23,6 +23,7 @@ EMSDK_URL = https://github.com/emscripten-core/emsdk/archive/refs/tags/$(EMSDK_V
 ifeq ($(PLATFORM),macos)
     CC = clang
     EXE_EXT =
+    TINY16_LDFLAGS =
     RAYLIB_LDFLAGS = $(RAYLIB_LIB_NATIVE) \
         -framework OpenGL \
         -framework Cocoa \
@@ -34,6 +35,7 @@ endif
 ifeq ($(PLATFORM),linux)
     CC = gcc
     EXE_EXT =
+    TINY16_LDFLAGS =
     RAYLIB_LDFLAGS = $(RAYLIB_LIB_NATIVE) \
         -lGL -lm -lpthread -ldl -lrt -lX11
 endif
@@ -41,6 +43,9 @@ endif
 ifeq ($(PLATFORM),windows)
     CC = gcc
     EXE_EXT = .exe
+    # Windows binaries get a small default stack; increase it to avoid
+    # crashing with STATUS_STACK_OVERFLOW (0xC00000FD) when assembling large files.
+    TINY16_LDFLAGS = -Wl,--stack,8388608
     RAYLIB_LDFLAGS = $(RAYLIB_LIB_NATIVE) \
         -static -lopengl32 -lgdi32 -lwinmm -lshell32
 endif
@@ -71,18 +76,18 @@ $(BINDIR):
 tests: tests-vm tests-asm
 
 tests-vm: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
 	$(BINDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - - -
 
 tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
 	$(BINDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
 
 asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
 
 emulator: $(BINDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BINDIR)
-	$(CC) $(CFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) \
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) \
 		emulator/tiny16_core.c emulator/tiny16_native.c $(RAYLIB_LDFLAGS)
 
 emulator-web: $(EMSDK_ENV) $(RAYLIB_LIB_WEB) $(WEBDIR) vm/*.c vm/*.h emulator/*.c | $(WEBDIR)
