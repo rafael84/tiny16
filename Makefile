@@ -76,7 +76,7 @@ tests-vm: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
 
 tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
-	$(BINDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - - -
+	$(BINDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
 
 asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c

@@ -30,6 +30,7 @@ typedef enum {
     TINY16_PARSER_ERROR_UNDEFINED_LABEL,
     TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE,
     TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE,
+    TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED,
 } Tiny16ParserError;
 
 typedef struct {
@@ -84,6 +85,7 @@ bool tiny16_parser_skip_label(Tiny16Parser* parser);
 uint16_t tiny16_parser_label_addr(Tiny16Parser* parser, const char* name, size_t len);
 
 bool tiny16_parser_parse_section(Tiny16Parser* parser);
+bool tiny16_parser_parse_org(Tiny16Parser* parser);
 uint16_t tiny16_parser_parse_times_prefix(Tiny16Parser* parser);
 
 Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser);

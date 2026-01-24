@@ -30,6 +30,8 @@ static const char* tiny16_parser_error_messages[] = {
     [TINY16_PARSER_ERROR_UNDEFINED_LABEL] = "undefined label: %.*s",
     [TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE] = "unknown directive: %.*s",
     [TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE] = "max program size is %d bytes",
+    [TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED] =
+        "org rewind to 0x%04X not allowed, data at 0x%04X",
 };
 
 static void tiny16_parser_set_error(Tiny16Parser* parser, Tiny16ParserError error, ...) {
@@ -184,6 +186,42 @@ bool tiny16_parser_parse_section(Tiny16Parser* parser) {
         tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNKNOWN_SECTION,
                                 (int)section_name.text_len, section_name.text);
     }
+
+    return true;
+}
+
+bool tiny16_parser_parse_org(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_KEYWORD) return false;
+    if (!str_eq_ci(parser->current_token.text, "org", parser->current_token.text_len)) return false;
+
+    tiny16_parser_next(parser);
+    if (parser->current_token.kind != TOKEN_NUMBER) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_NUMBER),
+                                token_kind_name(parser->current_token.kind));
+        return true;
+    }
+
+    long addr16 = strtol(parser->current_token.text, NULL, 0);
+    if (addr16 < TINY16_DATA_BEGIN || addr16 > TINY16_DATA_END) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "ORG addr16", addr16);
+        return true;
+    }
+
+    uint16_t target = addr16 - TINY16_DATA_BEGIN;
+    if (target < parser->data_size) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED,
+                                (unsigned)addr16,
+                                (unsigned)(TINY16_DATA_BEGIN + parser->data_size));
+        return true;
+    }
+
+    while (parser->data_size < target) {
+        parser->data_buffer[parser->data_size++] = 0;
+    }
+
+    parser->data_pc = TINY16_DATA_BEGIN + parser->data_size;
+    tiny16_parser_next(parser); // consume addr16
 
     return true;
 }

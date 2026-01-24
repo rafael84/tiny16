@@ -3,7 +3,7 @@
 ; This demo demonstrates:
 ; - PPU tile-based rendering with data-defined tiles
 ; - Hardware sprites via OAM (32 bouncing smileys)
-; - Using TIMES to position data at specific memory addresses
+; - Using ORG to position data at specific memory addresses
 ; - Animation synchronized to display frame rate
 ; - New addressing modes: post-increment [PAIR]+ and offset [PAIR + imm8]
 ;
@@ -301,7 +301,7 @@ WAIT_FRAME:
     RET
 
 ; =============================================================================
-; DATA SECTION - All graphics data defined here using TIMES for positioning
+; DATA SECTION - All graphics data defined here using ORG for positioning
 ; =============================================================================
 
 section .data
@@ -310,22 +310,16 @@ section .data
 ; User Data (0x4000 - 0x408F)
 ; ============================================================================
 
+ORG 0x4000
+
 ; State at 0x4000
 initialized:  DB 0                ; 0x4000 - initialization flag (0xAA when done)
 last_frame:   DB 0                ; 0x4001 - last known frame count
 
-; Padding to align sprite data at 0x4010
-              TIMES 14 DB 0       ; 0x4002-0x400F
-
 ; Sprite data array (32 sprites × 4 bytes = 128 bytes)
 ; Each sprite: [x, y, vel_x, vel_y]
+ORG 0x4010
 sprite_data:  TIMES 128 DB 0      ; 0x4010-0x408F
-
-; ============================================================================
-; Padding to reach Tile Memory (0x5000)
-; From 0x4090 to 0x4FFF = 0x0F70 = 3952 bytes
-; ============================================================================
-              TIMES 3952 DB 0
 
 ; ============================================================================
 ; Tile 0: Smiley Face at 0x5000 (32 bytes)
@@ -342,6 +336,7 @@ sprite_data:  TIMES 128 DB 0      ; 0x4010-0x408F
 ;   12222221    Row 6
 ;   01111110    Row 7
 ; ============================================================================
+ORG 0x5000
 tile_smiley:
     ; Row 0: 0 1 1 1 1 1 1 0
     DB 0x01, 0x11, 0x11, 0x10
@@ -361,16 +356,11 @@ tile_smiley:
     DB 0x01, 0x11, 0x11, 0x10
 
 ; ============================================================================
-; Padding to reach OAM (0x7800)
-; From 0x5020 to 0x77FF = 0x27E0 = 10208 bytes
-; ============================================================================
-              TIMES 10208 DB 0
-
-; ============================================================================
 ; OAM at 0x7800 (64 entries × 4 bytes = 256 bytes)
 ; Format: [Y, X, tile, attr] - Y=0xFF means hidden
 ; All 64 sprites start hidden (Y = 0xFF)
 ; ============================================================================
+ORG 0x7800
 oam_data:
     ; Each OAM entry: Y=0xFF (hidden), X=0, tile=0, attr=0
     TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
@@ -379,6 +369,7 @@ oam_data:
 ; Palette at 0x7900 (16 colors × 2 bytes = 32 bytes, using first 4)
 ; Format: [color_RGB332, padding]
 ; ============================================================================
+ORG 0x7900
 palette:
     ; Color 0: dark blue background (RGB332: 0x03)
     DB 0x03, 0x00

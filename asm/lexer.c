@@ -21,7 +21,7 @@ LiteralToken literal_tokens[] = {
 
 #define literal_tokens_count (sizeof literal_tokens / sizeof literal_tokens[0])
 
-const char* keywords[] = {"section", "times", "db"};
+const char* keywords[] = {"section", "org", "times", "db"};
 
 #define keywords_count (sizeof keywords / sizeof keywords[0])
 

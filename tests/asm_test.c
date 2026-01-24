@@ -46,6 +46,10 @@ void test_parser_addressing_modes(void);
 void test_parser_data_directive_db(void);
 void test_parser_data_directive_string(void);
 void test_parser_data_directive_times(void);
+void test_parser_data_directive_org_pads_forward(void);
+void test_parser_data_directive_org_rewind_errors(void);
+void test_parser_data_directive_org_out_of_range_errors(void);
+void test_parser_data_directive_org_updates_label_addr(void);
 void test_parser_complete_program(void);
 void test_parser_label_forward_reference(void);
 void test_parser_label_backward_reference(void);
@@ -80,6 +84,10 @@ int main(void) {
     ASM_TEST(test_parser_data_directive_db);
     ASM_TEST(test_parser_data_directive_string);
     ASM_TEST(test_parser_data_directive_times);
+    ASM_TEST(test_parser_data_directive_org_pads_forward);
+    ASM_TEST(test_parser_data_directive_org_rewind_errors);
+    ASM_TEST(test_parser_data_directive_org_out_of_range_errors);
+    ASM_TEST(test_parser_data_directive_org_updates_label_addr);
     ASM_TEST(test_parser_label_forward_reference);
     ASM_TEST(test_parser_label_backward_reference);
     ASM_TEST(test_integration_simple_program);
@@ -212,10 +220,12 @@ void test_lexer_punctuation(void) {
 }
 
 void test_lexer_keywords(void) {
-    const char* input = "section times db SECTION TIMES DB";
+    const char* input = "section org times db SECTION ORG TIMES DB";
     Lexer lexer = lexer_new(input, strlen(input));
 
     // Keywords are case-insensitive
+    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
     assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
     assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
     assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
@@ -311,7 +321,7 @@ void test_parser_duplicate_label(void) {
 
     // second label (duplicate) should set an error
     result = tiny16_parser_parse_label(&parser);
-    assert(result == true);  // Still returns true (consumed the label)
+    assert(result == true); // Still returns true (consumed the label)
     assert(tiny16_parser_has_error(&parser));
     assert(parser.error == TINY16_PARSER_ERROR_DUPLICATE_LABEL);
 }
@@ -568,6 +578,122 @@ void test_parser_data_directive_times(void) {
     assert(parser.data_buffer[0] == 0xFF);
     assert(parser.data_buffer[1] == 0xFF);
     assert(parser.data_buffer[2] == 0xFF);
+}
+
+static Tiny16Parser run_pass1_data_only(const char* input) {
+    Tiny16Parser parser = {0};
+    parser.source_filename = "test";
+    parser.current_section = TINY16_PARSER_SECTION_DATA;
+    parser.data_pc = TINY16_DATA_BEGIN;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+
+    parser.lexer = lexer_new(input, strlen(input));
+    tiny16_parser_next(&parser);
+
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
+
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
+            if (tiny16_parser_parse_org(&parser)) {
+                tiny16_parser_skip_to_eol(&parser);
+                continue;
+            }
+        }
+
+        if (tiny16_parser_parse_label(&parser)) {
+            tiny16_parser_skip_trivia(&parser);
+            if (parser.current_token.kind == TOKEN_END) break;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+
+        if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
+            if (parser.current_token.kind == TOKEN_KEYWORD) {
+                for (uint16_t i = 0; i < times; ++i) {
+                    Lexer saved_lexer = parser.lexer;
+                    Token saved_token = parser.current_token;
+                    tiny16_parser_parse_data(&parser);
+                    if (i < times - 1) {
+                        parser.lexer = saved_lexer;
+                        parser.current_token = saved_token;
+                    }
+                }
+            }
+            tiny16_parser_skip_to_eol(&parser);
+        } else {
+            // Not used by these tests, but keep progress sane.
+            parser.code_pc += 3 * times;
+            tiny16_parser_skip_to_eol(&parser);
+        }
+    }
+
+    return parser;
+}
+
+void test_parser_data_directive_org_pads_forward(void) {
+    const char* input = "section .data\n"
+                        "db 0x10, 0x11\n"
+                        "org 0x4004\n"
+                        "db 0x12\n";
+
+    Tiny16Parser parser = run_pass1_data_only(input);
+    assert(!tiny16_parser_has_error(&parser));
+    assert(parser.data_size == 5);
+    assert(parser.data_buffer[0] == 0x10);
+    assert(parser.data_buffer[1] == 0x11);
+    assert(parser.data_buffer[2] == 0x00);
+    assert(parser.data_buffer[3] == 0x00);
+    assert(parser.data_buffer[4] == 0x12);
+    assert(parser.data_pc == (TINY16_DATA_BEGIN + parser.data_size));
+}
+
+void test_parser_data_directive_org_rewind_errors(void) {
+    const char* input = "section .data\n"
+                        "db 0x10\n"
+                        "org 0x4000\n";
+
+    Tiny16Parser parser = run_pass1_data_only(input);
+    assert(tiny16_parser_has_error(&parser));
+    assert(parser.error == TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED);
+}
+
+void test_parser_data_directive_org_out_of_range_errors(void) {
+    // Below data begin (0x4000)
+    {
+        const char* input = "section .data\n"
+                            "org 0x3FFF\n";
+        Tiny16Parser parser = run_pass1_data_only(input);
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
+    }
+
+    // Above data end (0x791F)
+    {
+        const char* input = "section .data\n"
+                            "org 0x7920\n";
+        Tiny16Parser parser = run_pass1_data_only(input);
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
+    }
+}
+
+void test_parser_data_directive_org_updates_label_addr(void) {
+    const char* input = "section .data\n"
+                        "org 0x5000\n"
+                        "tile0:\n"
+                        "db 0xAA\n";
+
+    Tiny16Parser parser = run_pass1_data_only(input);
+    assert(!tiny16_parser_has_error(&parser));
+    assert(parser.label_count == 1);
+    assert(strcmp(parser.labels[0].name, "tile0") == 0);
+    assert(parser.labels[0].addr == 0x5000);
 }
 
 void test_parser_label_forward_reference(void) {
