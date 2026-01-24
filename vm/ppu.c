@@ -13,15 +13,9 @@ void tiny16_ppu_reset(Tiny16PPU* ppu) {
 
 void tiny16_ppu_mmio_write(Tiny16PPU* ppu, uint16_t addr, uint8_t value) {
     switch (addr) {
-    case TINY16_MMIO_PPU_CTRL:
-        ppu->ctrl = value;
-        break;
-    case TINY16_MMIO_PPU_SCROLL_X:
-        ppu->scroll_x = value;
-        break;
-    case TINY16_MMIO_PPU_SCROLL_Y:
-        ppu->scroll_y = value;
-        break;
+    case TINY16_MMIO_PPU_CTRL: ppu->ctrl = value; break;
+    case TINY16_MMIO_PPU_SCROLL_X: ppu->scroll_x = value; break;
+    case TINY16_MMIO_PPU_SCROLL_Y: ppu->scroll_y = value; break;
     case TINY16_MMIO_PPU_STATUS:
         // Status is read-only from CPU side, but allow clearing VBLANK
         ppu->status &= ~value; // Writing 1 clears bits
@@ -31,12 +25,9 @@ void tiny16_ppu_mmio_write(Tiny16PPU* ppu, uint16_t addr, uint8_t value) {
 
 uint8_t tiny16_ppu_mmio_read(Tiny16PPU* ppu, uint16_t addr) {
     switch (addr) {
-    case TINY16_MMIO_PPU_CTRL:
-        return ppu->ctrl;
-    case TINY16_MMIO_PPU_SCROLL_X:
-        return ppu->scroll_x;
-    case TINY16_MMIO_PPU_SCROLL_Y:
-        return ppu->scroll_y;
+    case TINY16_MMIO_PPU_CTRL: return ppu->ctrl;
+    case TINY16_MMIO_PPU_SCROLL_X: return ppu->scroll_x;
+    case TINY16_MMIO_PPU_SCROLL_Y: return ppu->scroll_y;
     case TINY16_MMIO_PPU_STATUS: {
         uint8_t status = ppu->status;
         ppu->status &= ~TINY16_PPU_STATUS_VBLANK; // clear VBLANK

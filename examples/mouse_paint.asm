@@ -6,63 +6,70 @@
 ; - Space key: Clear screen
 ;
 ; Uses line interpolation to handle fast mouse movements.
+; Demonstrates expressions in constants for memory layout.
 
 ; =============================================================================
 ; Constants - Memory Map
 ; =============================================================================
 
-; Data section addresses
-INITIALIZED_ADDR  = 0x4000
-CUR_X_ADDR        = 0x4001
-CUR_Y_ADDR        = 0x4002
-LAST_FRAME_ADDR   = 0x4003
-PREV_X_ADDR       = 0x4004
-PREV_Y_ADDR       = 0x4005
-DRAW_COLOR_ADDR   = 0x4006
-DRAW_X_ADDR       = 0x4010
-DRAW_Y_ADDR       = 0x4011
-SX_ADDR           = 0x4012
-ABS_DX_ADDR       = 0x4013
-SY_ADDR           = 0x4014
-ABS_DY_ADDR       = 0x4015
-STEPS_ADDR        = 0x4016
+; Data section base address
+USER_DATA_BASE    = 0x4000
+
+; Data layout offsets
+INITIALIZED_ADDR  = USER_DATA_BASE + 0
+CUR_X_ADDR        = USER_DATA_BASE + 1
+CUR_Y_ADDR        = USER_DATA_BASE + 2
+LAST_FRAME_ADDR   = USER_DATA_BASE + 3
+PREV_X_ADDR       = USER_DATA_BASE + 4
+PREV_Y_ADDR       = USER_DATA_BASE + 5
+DRAW_COLOR_ADDR   = USER_DATA_BASE + 6
+DRAW_X_ADDR       = USER_DATA_BASE + 16
+DRAW_Y_ADDR       = USER_DATA_BASE + 17
+SX_ADDR           = USER_DATA_BASE + 18
+ABS_DX_ADDR       = USER_DATA_BASE + 19
+SY_ADDR           = USER_DATA_BASE + 20
+ABS_DY_ADDR       = USER_DATA_BASE + 21
+STEPS_ADDR        = USER_DATA_BASE + 22
+
+; MMIO base addresses
+MMIO_BASE         = 0xBF00
 
 ; MMIO addresses
-KEYS_STATE_ADDR   = 0xBF00
-KEYS_PRESSED_ADDR = 0xBF01
-MOUSE_X_ADDR      = 0xBF02
-MOUSE_Y_ADDR      = 0xBF03
-MOUSE_BUTTONS_ADDR = 0xBF04
-FRAME_COUNT_ADDR  = 0xBF22
+KEYS_STATE_ADDR   = MMIO_BASE + 0
+KEYS_PRESSED_ADDR = MMIO_BASE + 1
+MOUSE_X_ADDR      = MMIO_BASE + 2
+MOUSE_Y_ADDR      = MMIO_BASE + 3
+MOUSE_BUTTONS_ADDR = MMIO_BASE + 4
+FRAME_COUNT_ADDR  = MMIO_BASE + 34
 
 ; Graphics
 FRAMEBUFFER_BASE  = 0xC000
 
-; Address high/low bytes
-DATA_HI           = 0x40
-INITIALIZED_LO    = 0x00
-CUR_X_LO          = 0x01
-CUR_Y_LO          = 0x02
-LAST_FRAME_LO     = 0x03
-PREV_X_LO         = 0x04
-PREV_Y_LO         = 0x05
-DRAW_COLOR_LO     = 0x06
-DRAW_X_LO         = 0x10
-DRAW_Y_LO         = 0x11
-SX_LO             = 0x12
-ABS_DX_LO         = 0x13
-SY_LO             = 0x14
-ABS_DY_LO         = 0x15
-STEPS_LO          = 0x16
-MMIO_HI           = 0xBF
-KEYS_STATE_LO     = 0x00
-KEYS_PRESSED_LO   = 0x01
-MOUSE_X_LO        = 0x02
-MOUSE_Y_LO        = 0x03
-MOUSE_BUTTONS_LO  = 0x04
-FRAME_COUNT_LO    = 0x22
-FRAMEBUFFER_HI    = 0xC0
-FRAMEBUFFER_LO    = 0x00
+; Address high/low bytes (computed from full addresses)
+DATA_HI           = USER_DATA_BASE >> 8
+INITIALIZED_LO    = INITIALIZED_ADDR & 0xFF
+CUR_X_LO          = CUR_X_ADDR & 0xFF
+CUR_Y_LO          = CUR_Y_ADDR & 0xFF
+LAST_FRAME_LO     = LAST_FRAME_ADDR & 0xFF
+PREV_X_LO         = PREV_X_ADDR & 0xFF
+PREV_Y_LO         = PREV_Y_ADDR & 0xFF
+DRAW_COLOR_LO     = DRAW_COLOR_ADDR & 0xFF
+DRAW_X_LO         = DRAW_X_ADDR & 0xFF
+DRAW_Y_LO         = DRAW_Y_ADDR & 0xFF
+SX_LO             = SX_ADDR & 0xFF
+ABS_DX_LO         = ABS_DX_ADDR & 0xFF
+SY_LO             = SY_ADDR & 0xFF
+ABS_DY_LO         = ABS_DY_ADDR & 0xFF
+STEPS_LO          = STEPS_ADDR & 0xFF
+MMIO_HI           = MMIO_BASE >> 8
+KEYS_STATE_LO     = KEYS_STATE_ADDR & 0xFF
+KEYS_PRESSED_LO   = KEYS_PRESSED_ADDR & 0xFF
+MOUSE_X_LO        = MOUSE_X_ADDR & 0xFF
+MOUSE_Y_LO        = MOUSE_Y_ADDR & 0xFF
+MOUSE_BUTTONS_LO  = MOUSE_BUTTONS_ADDR & 0xFF
+FRAME_COUNT_LO    = FRAME_COUNT_ADDR & 0xFF
+FRAMEBUFFER_HI    = FRAMEBUFFER_BASE >> 8
+FRAMEBUFFER_LO    = FRAMEBUFFER_BASE & 0xFF
 
 ; =============================================================================
 ; Constants - Input & Graphics

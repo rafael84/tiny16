@@ -25,10 +25,10 @@ LABELS
 CONSTANTS
 ---------
 
-- Defined as `NAME = number`
-- Value is a 16-bit unsigned integer (0..65535)
-- Shares the same namespace as labels (a name can be either a label or a constant, not both)
-- Constants may be used where a numeric immediate is accepted (e.g. `LOADI`, jumps, offsets)
+- Syntax: `NAME = expression`
+- Value must be 0..65535
+- Shares namespace with labels (no duplicates)
+- Can use expressions (see EXPRESSIONS)
 
 REGISTERS
 ---------
@@ -41,11 +41,30 @@ REGISTERS
 NUMBERS
 -------
 
-- Decimal: 42
-- Hex: 0x2A
-- Binary: 0b101010
-- No signed values
-- Symbols (labels or constants) may be used where numeric immediates are accepted
+- Decimal: 42, Hex: 0x2A, Binary: 0b101010
+- Symbols and expressions accepted where immediates are used
+
+EXPRESSIONS
+-----------
+
+Expressions can be used in constants and immediates.
+
+Operators (precedence: high to low):
+    -expr  ~expr           Unary minus, bitwise NOT
+    * / %                  Multiply, divide, modulo
+    + -                    Add, subtract
+    << >>                  Shift left, right
+    &                      Bitwise AND
+    ^                      Bitwise XOR
+    |                      Bitwise OR
+    (expr)                 Parentheses
+
+Examples:
+    SIZE = 8 * 8 / 2                ; 32
+    MASK = (1 << 4) | 0x0F          ; 0x1F
+    LOADI R0, 5 + 3 * 2             ; 11 (precedence: * before +)
+    LOADI R1, (5 + 3) * 2           ; 16
+    ORG 0x4000 + 256
 
 SECTIONS
 --------
@@ -64,11 +83,12 @@ ORG (Set Origin)
     - Sets the data location counter to addr16:
         - If addr16 > current: pad with 0x00 up to addr16
         - If addr16 < current: error (no rewinding/overwrites)
-    - addr16 must be a numeric literal in 0x4000..0x791F (no expressions)
+    - addr16 can be a number or expression, must evaluate to 0x4000..0x791F
 
 TIMES (Repeat)
     - Works in both .code and .data sections
     - Syntax: TIMES count instruction
+    - count can be a number or expression
     - Repeats the following instruction count times
     - Useful for shifts, increments, and buffer allocation
 
@@ -225,6 +245,7 @@ Assembly fails on:
 - ORG used outside .data
 - ORG address out of range
 - ORG that rewinds data (address < current data location counter)
+- Expression errors (division by zero, undefined symbols, syntax errors)
 
 OUTPUT
 ------
@@ -331,13 +352,27 @@ Mixed data types:
     header: DB 0xFF, 0xFE, "ID"
     values: DB 1, 2, 3, 4
 
+Using expressions:
+
+    TILE_SIZE = 8
+    TILE_BYTES = TILE_SIZE * TILE_SIZE / 2  ; 32
+
+    section .code
+    LOADI R0, (5 + 3) * 2        ; R0 = 16
+    JMP start + 12
+
+    section .data
+    ORG 0x4000 + 256
+    buffer: TIMES TILE_SIZE * 4 DB 0
+
 NON-GOALS
 ---------
 
 - No macros
 - No includes
-- No expressions (e.g. `X = 1+2`, `TIMES 4*2 DB 0`, `ORG label+4`)
 - No linking or relocation
+- No conditional assembly
+- No string manipulation or concatenation
 
 DESIGN RULE
 -----------

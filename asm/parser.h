@@ -110,3 +110,5 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser);
 void tiny16_parser_parse_data(Tiny16Parser* parser);
 void tiny16_parser_emit_code(Tiny16Parser* parser);
 void tiny16_parser_emit_data(Tiny16Parser* parser);
+
+long tiny16_parser_parse_expression(Tiny16Parser* parser);

@@ -33,38 +33,22 @@ const char* keywords[] = {"section", "org", "times", "db"};
 
 const char* token_kind_name(TokenKind kind) {
     switch (kind) {
-    case TOKEN_END:
-        return "end of content";
-    case TOKEN_COMMENT:
-        return "comment";
-    case TOKEN_SYMBOL:
-        return "symbol";
-    case TOKEN_STRING:
-        return "string";
-    case TOKEN_INVALID:
-        return "invalid token";
-    case TOKEN_COMMA:
-        return "comma";
-    case TOKEN_COLON:
-        return "colon";
-    case TOKEN_KEYWORD:
-        return "keyword";
-    case TOKEN_NUMBER:
-        return "number";
-    case TOKEN_LBRACKET:
-        return "open bracket";
-    case TOKEN_RBRACKET:
-        return "close bracket";
-    case TOKEN_PLUS:
-        return "plus";
-    case TOKEN_MINUS:
-        return "minus";
-    case TOKEN_DOT: // REVIEW this
-        return "dot";
-    case TOKEN_EOL:
-        return "end of line";
-    default:
-        assert(0 && "unreachable");
+    case TOKEN_END: return "end of content";
+    case TOKEN_COMMENT: return "comment";
+    case TOKEN_SYMBOL: return "symbol";
+    case TOKEN_STRING: return "string";
+    case TOKEN_INVALID: return "invalid token";
+    case TOKEN_COMMA: return "comma";
+    case TOKEN_COLON: return "colon";
+    case TOKEN_KEYWORD: return "keyword";
+    case TOKEN_NUMBER: return "number";
+    case TOKEN_LBRACKET: return "open bracket";
+    case TOKEN_RBRACKET: return "close bracket";
+    case TOKEN_PLUS: return "plus";
+    case TOKEN_MINUS: return "minus";
+    case TOKEN_DOT: return "dot"; // REVIEW this
+    case TOKEN_EOL: return "end of line";
+    default: assert(0 && "unreachable");
     }
 }
 

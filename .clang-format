@@ -12,6 +12,7 @@ AlignConsecutiveMacros: true
 AllowShortFunctionsOnASingleLine: All
 AllowShortIfStatementsOnASingleLine: true
 AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
 
 SortIncludes: true
 ---

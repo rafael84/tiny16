@@ -4,58 +4,66 @@
 ; - PPU tile-based rendering with data-defined tiles
 ; - Hardware sprites via OAM (32 bouncing smileys)
 ; - Using ORG to position data at specific memory addresses
-; - Using constants for memory-mapped addresses and parameters
+; - Using expressions in constants for computed values
 ; - Animation synchronized to display frame rate
 ; - New addressing modes: post-increment [PAIR]+ and offset [PAIR + imm8]
 ;
 ; Memory layout (all defined in data section):
-; 0x4000-0x4001: initialized flag, last_frame
-; 0x4010-0x408F: sprite data (32 sprites × 4 bytes each)
-; 0x5000-0x501F: Tile 0 (smiley face, 32 bytes)
-; 0x7800-0x78FF: OAM (64 entries × 4 bytes, hidden by default)
-; 0x7900-0x7907: Palette (4 colors × 2 bytes)
+; USER_DATA_BASE+0:  initialized flag
+; USER_DATA_BASE+1:  last_frame counter
+; USER_DATA_BASE+16: sprite data (SPRITE_COUNT × SPRITE_SIZE bytes)
+; TILE_DATA_ADDR:    Tile 0 (smiley, 32 bytes)
+; OAM_ADDR:          OAM (64 entries × 4 bytes)
+; PALETTE_ADDR:      Palette (16 colors × 2 bytes)
 ;
 
 ; =============================================================================
 ; Constants - Memory Map
 ; =============================================================================
 
-; Data section addresses
-INITIALIZED_ADDR   = 0x4000
-LAST_FRAME_ADDR    = 0x4001
-SPRITE_DATA_ADDR   = 0x4010
+; Data section base addresses
+USER_DATA_BASE     = 0x4000
 TILE_DATA_ADDR     = 0x5000
 OAM_ADDR           = 0x7800
 PALETTE_ADDR       = 0x7900
+
+; Data layout offsets
+INITIALIZED_ADDR   = USER_DATA_BASE + 0
+LAST_FRAME_ADDR    = USER_DATA_BASE + 1
+SPRITE_DATA_ADDR   = USER_DATA_BASE + 16
 
 ; MMIO addresses
 FRAME_COUNT_ADDR   = 0xBF22
 PPU_CTRL_ADDR      = 0xBF30
 
-; Address high/low bytes for common locations
-INITIALIZED_HI     = 0x40
-INITIALIZED_LO     = 0x00
-SPRITE_DATA_HI     = 0x40
-SPRITE_DATA_LO     = 0x10
-FRAME_COUNT_HI     = 0xBF
-FRAME_COUNT_LO     = 0x22
-LAST_FRAME_HI      = 0x40
-LAST_FRAME_LO      = 0x01
-OAM_HI             = 0x78
-PPU_CTRL_HI        = 0xBF
-PPU_CTRL_LO        = 0x30
+; Address high/low bytes (computed from full addresses)
+INITIALIZED_HI     = INITIALIZED_ADDR >> 8
+INITIALIZED_LO     = INITIALIZED_ADDR & 0xFF
+SPRITE_DATA_HI     = SPRITE_DATA_ADDR >> 8
+SPRITE_DATA_LO     = SPRITE_DATA_ADDR & 0xFF
+FRAME_COUNT_HI     = FRAME_COUNT_ADDR >> 8
+FRAME_COUNT_LO     = FRAME_COUNT_ADDR & 0xFF
+LAST_FRAME_HI      = LAST_FRAME_ADDR >> 8
+LAST_FRAME_LO      = LAST_FRAME_ADDR & 0xFF
+OAM_HI             = OAM_ADDR >> 8
+PPU_CTRL_HI        = PPU_CTRL_ADDR >> 8
+PPU_CTRL_LO        = PPU_CTRL_ADDR & 0xFF
 
 ; =============================================================================
 ; Constants - Game Parameters
 ; =============================================================================
 
 SPRITE_COUNT       = 32
+SPRITE_SIZE        = 4
+SPRITE_DATA_SIZE   = SPRITE_COUNT * SPRITE_SIZE
 BOUNDARY           = 120
 MIN_POSITION       = 10
-MODULO_RANGE       = 110
+MODULO_RANGE       = BOUNDARY - MIN_POSITION
 VELOCITY_BASE      = 4
 INITIALIZED_FLAG   = 0xAA
-PPU_SPRITES_RENDER = 0x82
+
+; PPU control: sprites enabled (0x02) | render now (0x80)
+PPU_SPRITES_RENDER = 0x02 | 0x80
 
 section .code
 
@@ -179,12 +187,12 @@ UPDATE_ALL_OAM:
     LOADI R5, SPRITE_COUNT
 
 UPDATE_OAM_LOOP:
-    ; Calculate sprite data address: 0x4010 + (counter * 4)
+    ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
     LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
     LOADI R0, SPRITE_DATA_LO
-    ADD   R7, R0      ; R7 = 0x10 + counter * 4
+    ADD   R7, R0
 
     ; Load x, y using offset addressing (no pointer modification needed)
     LOAD  R0, [R6:R7 + 0]      ; x at offset 0
@@ -219,12 +227,12 @@ UPDATE_POS_LOOP:
     PUSH  R4          ; save counter
     PUSH  R5          ; save remaining
 
-    ; Calculate sprite data address: 0x4010 + (counter * 4)
+    ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
     LOADI R6, SPRITE_DATA_HI
     MOV   R7, R4
     TIMES 2 ADD R7, R7    ; counter * 4
     LOADI R0, SPRITE_DATA_LO
-    ADD   R7, R0      ; R7 = 0x10 + counter * 4
+    ADD   R7, R0
 
     ; Load x, y, vel_x, vel_y using offset addressing
     LOAD  R0, [R6:R7 + 0]      ; x
@@ -352,19 +360,19 @@ section .data
 ; User Data (0x4000 - 0x408F)
 ; ============================================================================
 
-ORG 0x4000
+ORG USER_DATA_BASE
 
-; State at 0x4000
-initialized:  DB 0                ; 0x4000 - initialization flag (0xAA when done)
-last_frame:   DB 0                ; 0x4001 - last known frame count
+; State flags
+initialized:  DB 0                ; initialization flag (0xAA when done)
+last_frame:   DB 0                ; last known frame count
 
 ; Sprite data array (32 sprites × 4 bytes = 128 bytes)
 ; Each sprite: [x, y, vel_x, vel_y]
-ORG 0x4010
-sprite_data:  TIMES 128 DB 0      ; 0x4010-0x408F
+ORG SPRITE_DATA_ADDR
+sprite_data:  TIMES SPRITE_DATA_SIZE DB 0
 
 ; ============================================================================
-; Tile 0: Smiley Face at 0x5000 (32 bytes)
+; Tile 0: Smiley Face (32 bytes)
 ; 8x8 pixels, 4bpp format (2 pixels per byte)
 ;
 ; Pixel values: 0=transparent, 1=border(blue), 2=face(yellow), 3=eyes(black)
@@ -378,7 +386,7 @@ sprite_data:  TIMES 128 DB 0      ; 0x4010-0x408F
 ;   12222221    Row 6
 ;   01111110    Row 7
 ; ============================================================================
-ORG 0x5000
+ORG TILE_DATA_ADDR
 tile_smiley:
     ; Row 0: 0 1 1 1 1 1 1 0
     DB 0x01, 0x11, 0x11, 0x10
@@ -398,20 +406,20 @@ tile_smiley:
     DB 0x01, 0x11, 0x11, 0x10
 
 ; ============================================================================
-; OAM at 0x7800 (64 entries × 4 bytes = 256 bytes)
+; OAM (64 entries × 4 bytes = 256 bytes)
 ; Format: [Y, X, tile, attr] - Y=0xFF means hidden
 ; All 64 sprites start hidden (Y = 0xFF)
 ; ============================================================================
-ORG 0x7800
+ORG OAM_ADDR
 oam_data:
     ; Each OAM entry: Y=0xFF (hidden), X=0, tile=0, attr=0
     TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
 
 ; ============================================================================
-; Palette at 0x7900 (16 colors × 2 bytes = 32 bytes, using first 4)
+; Palette (16 colors × 2 bytes = 32 bytes, using first 4)
 ; Format: [color_RGB332, padding]
 ; ============================================================================
-ORG 0x7900
+ORG PALETTE_ADDR
 palette:
     ; Color 0: dark blue background (RGB332: 0x03)
     DB 0x03, 0x00

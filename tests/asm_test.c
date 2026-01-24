@@ -60,6 +60,20 @@ void test_parser_label_backward_reference(void);
 void test_integration_simple_program(void);
 void test_integration_loop_program(void);
 void test_integration_subroutine_program(void);
+void test_parser_expr_simple_number(void);
+void test_parser_expr_hex_binary_numbers(void);
+void test_parser_expr_symbol_reference(void);
+void test_parser_expr_addition_subtraction(void);
+void test_parser_expr_multiplication_division_modulo(void);
+void test_parser_expr_bitwise_operators(void);
+void test_parser_expr_shift_operators(void);
+void test_parser_expr_unary_minus(void);
+void test_parser_expr_unary_not(void);
+void test_parser_expr_parentheses(void);
+void test_parser_expr_precedence(void);
+void test_parser_expr_complex(void);
+void test_parser_expr_division_by_zero(void);
+void test_parser_expr_undefined_symbol(void);
 
 int main(void) {
     ASM_TEST(test_lexer_empty);
@@ -98,6 +112,20 @@ int main(void) {
     ASM_TEST(test_parser_const_out_of_range_errors);
     ASM_TEST(test_parser_label_forward_reference);
     ASM_TEST(test_parser_label_backward_reference);
+    ASM_TEST(test_parser_expr_simple_number);
+    ASM_TEST(test_parser_expr_hex_binary_numbers);
+    ASM_TEST(test_parser_expr_symbol_reference);
+    ASM_TEST(test_parser_expr_addition_subtraction);
+    ASM_TEST(test_parser_expr_multiplication_division_modulo);
+    ASM_TEST(test_parser_expr_bitwise_operators);
+    ASM_TEST(test_parser_expr_shift_operators);
+    ASM_TEST(test_parser_expr_unary_minus);
+    ASM_TEST(test_parser_expr_unary_not);
+    ASM_TEST(test_parser_expr_parentheses);
+    ASM_TEST(test_parser_expr_precedence);
+    ASM_TEST(test_parser_expr_complex);
+    ASM_TEST(test_parser_expr_division_by_zero);
+    ASM_TEST(test_parser_expr_undefined_symbol);
     ASM_TEST(test_integration_simple_program);
     ASM_TEST(test_integration_loop_program);
     return 0;
@@ -833,6 +861,472 @@ void test_parser_complete_program(void) {
     assert(parser.symbol_count == 1);
     assert(strcmp(parser.symbols[0].name, "start") == 0);
     assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+}
+
+void test_parser_expr_simple_number(void) {
+    const char* input = "42";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    parser.source_filename = "test";
+
+    tiny16_parser_next(&parser);
+    long result = tiny16_parser_parse_expression(&parser);
+
+    assert(!tiny16_parser_has_error(&parser));
+    assert(result == 42);
+}
+
+void test_parser_expr_hex_binary_numbers(void) {
+    // Hex number
+    {
+        const char* input = "0xFF";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 255);
+    }
+
+    // Binary number
+    {
+        const char* input = "0b1010";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 10);
+    }
+}
+
+void test_parser_expr_symbol_reference(void) {
+    const char* input = "SCREEN_WIDTH";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    parser.source_filename = "test";
+
+    // Add symbol
+    strcpy(parser.symbols[0].name, "SCREEN_WIDTH");
+    parser.symbols[0].kind = TINY16_SYMBOL_CONST;
+    parser.symbols[0].value = 320;
+    parser.symbol_count = 1;
+
+    tiny16_parser_next(&parser);
+    long result = tiny16_parser_parse_expression(&parser);
+
+    assert(!tiny16_parser_has_error(&parser));
+    assert(result == 320);
+}
+
+void test_parser_expr_addition_subtraction(void) {
+    // Addition
+    {
+        const char* input = "10 + 5";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 15);
+    }
+
+    // Subtraction
+    {
+        const char* input = "10 - 3";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 7);
+    }
+
+    // Chained operations
+    {
+        const char* input = "100 - 20 + 5";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 85);
+    }
+}
+
+void test_parser_expr_multiplication_division_modulo(void) {
+    // Multiplication
+    {
+        const char* input = "8 * 4";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 32);
+    }
+
+    // Division
+    {
+        const char* input = "20 / 4";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 5);
+    }
+
+    // Modulo
+    {
+        const char* input = "17 % 5";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 2);
+    }
+}
+
+void test_parser_expr_bitwise_operators(void) {
+    // AND
+    {
+        const char* input = "0xFF & 0x0F";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 0x0F);
+    }
+
+    // OR
+    {
+        const char* input = "0xF0 | 0x0F";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 0xFF);
+    }
+
+    // XOR
+    {
+        const char* input = "0xFF ^ 0x0F";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 0xF0);
+    }
+}
+
+void test_parser_expr_shift_operators(void) {
+    // Left shift
+    {
+        const char* input = "1 << 4";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 16);
+    }
+
+    // Right shift
+    {
+        const char* input = "64 >> 2";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 16);
+    }
+}
+
+void test_parser_expr_unary_minus(void) {
+    // Simple unary minus
+    {
+        const char* input = "-42";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == -42);
+    }
+
+    // Unary minus in expression
+    {
+        const char* input = "10 + -5";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 5);
+    }
+}
+
+void test_parser_expr_unary_not(void) {
+    const char* input = "~0xFF";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    parser.source_filename = "test";
+
+    tiny16_parser_next(&parser);
+    long result = tiny16_parser_parse_expression(&parser);
+
+    assert(!tiny16_parser_has_error(&parser));
+    assert(result == ~0xFF);
+}
+
+void test_parser_expr_parentheses(void) {
+    // Basic parentheses
+    {
+        const char* input = "(5 + 3)";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 8);
+    }
+
+    // Parentheses changing precedence
+    {
+        const char* input = "(5 + 3) * 2";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 16);
+    }
+
+    // Nested parentheses
+    {
+        const char* input = "((10 + 5) * 2) - 3";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 27);
+    }
+}
+
+void test_parser_expr_precedence(void) {
+    // Multiplication before addition
+    {
+        const char* input = "2 + 3 * 4";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 14); // Not 20
+    }
+
+    // Shift before addition
+    {
+        const char* input = "1 + 2 << 2";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 12); // (1 + 2) << 2 = 3 << 2 = 12
+    }
+
+    // Bitwise AND before OR
+    {
+        const char* input = "0xFF | 0x0F & 0xF0";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 0xFF); // 0xFF | (0x0F & 0xF0) = 0xFF | 0 = 0xFF
+    }
+}
+
+void test_parser_expr_complex(void) {
+    // Complex expression with symbols
+    {
+        const char* input = "WIDTH * HEIGHT / 8";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        // Add symbols
+        strcpy(parser.symbols[0].name, "WIDTH");
+        parser.symbols[0].kind = TINY16_SYMBOL_CONST;
+        parser.symbols[0].value = 320;
+        strcpy(parser.symbols[1].name, "HEIGHT");
+        parser.symbols[1].kind = TINY16_SYMBOL_CONST;
+        parser.symbols[1].value = 200;
+        parser.symbol_count = 2;
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 8000); // 320 * 200 / 8
+    }
+
+    // Complex expression with all operator types
+    {
+        const char* input = "(10 + 20) * 2 >> 2 & 0xFF";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        long result = tiny16_parser_parse_expression(&parser);
+
+        assert(!tiny16_parser_has_error(&parser));
+        assert(result == 15); // ((10 + 20) * 2) >> 2 & 0xFF = 60 >> 2 & 0xFF = 15 & 0xFF = 15
+    }
+}
+
+void test_parser_expr_division_by_zero(void) {
+    // Division by zero
+    {
+        const char* input = "10 / 0";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        tiny16_parser_parse_expression(&parser);
+
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
+    }
+
+    // Modulo by zero
+    {
+        const char* input = "10 % 0";
+        Lexer lexer = lexer_new(input, strlen(input));
+        Tiny16Parser parser = {0};
+        parser.lexer = lexer;
+        parser.source_filename = "test";
+
+        tiny16_parser_next(&parser);
+        tiny16_parser_parse_expression(&parser);
+
+        assert(tiny16_parser_has_error(&parser));
+        assert(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
+    }
+}
+
+void test_parser_expr_undefined_symbol(void) {
+    const char* input = "UNDEFINED_SYMBOL";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    parser.source_filename = "test";
+
+    tiny16_parser_next(&parser);
+    tiny16_parser_parse_expression(&parser);
+
+    assert(tiny16_parser_has_error(&parser));
+    assert(parser.error == TINY16_PARSER_ERROR_UNDEFINED_SYMBOL);
 }
 
 void test_integration_simple_program(void) {

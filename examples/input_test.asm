@@ -6,17 +6,20 @@
 ; - Reading keyboard input (MMIO 0xBF00, 0xBF01)
 ; - PPU sprite rendering
 ; - Palette manipulation for color changes
-; - Using constants for MMIO addresses and parameters
+; - Using expressions in constants for computed values
 
 ; =============================================================================
 ; Constants - Memory Map
 ; =============================================================================
 
-; Data section addresses
-INITIALIZED_ADDR  = 0x4000
-POS_X_ADDR        = 0x4001
-POS_Y_ADDR        = 0x4002
-LAST_FRAME_ADDR   = 0x4003
+; Data section base address
+USER_DATA_BASE    = 0x4000
+
+; Data layout offsets
+INITIALIZED_ADDR  = USER_DATA_BASE + 0
+POS_X_ADDR        = USER_DATA_BASE + 1
+POS_Y_ADDR        = USER_DATA_BASE + 2
+LAST_FRAME_ADDR   = USER_DATA_BASE + 3
 
 ; MMIO addresses
 KEYS_STATE_ADDR   = 0xBF00
@@ -29,54 +32,58 @@ TILES_BASE        = 0x5000
 OAM_BASE          = 0x7800
 PALETTE_BASE      = 0x7900
 
-; Address high/low bytes
-INITIALIZED_HI    = 0x40
-INITIALIZED_LO    = 0x00
-POS_X_HI          = 0x40
-POS_X_LO          = 0x01
-POS_Y_HI          = 0x40
-POS_Y_LO          = 0x02
-LAST_FRAME_HI     = 0x40
-LAST_FRAME_LO     = 0x03
-KEYS_STATE_HI     = 0xBF
-KEYS_STATE_LO     = 0x00
-KEYS_PRESSED_HI   = 0xBF
-KEYS_PRESSED_LO   = 0x01
-FRAME_COUNT_HI    = 0xBF
-FRAME_COUNT_LO    = 0x22
-PPU_CTRL_HI       = 0xBF
-PPU_CTRL_LO       = 0x30
-OAM_HI            = 0x78
-OAM_LO            = 0x00
-PALETTE_HI        = 0x79
-PALETTE_LO        = 0x00
-PALETTE_COLOR1_LO = 0x02
-TILES_HI          = 0x50
-TILES_LO          = 0x00
+; Address high/low bytes (computed from full addresses)
+INITIALIZED_HI    = INITIALIZED_ADDR >> 8
+INITIALIZED_LO    = INITIALIZED_ADDR & 0xFF
+POS_X_HI          = POS_X_ADDR >> 8
+POS_X_LO          = POS_X_ADDR & 0xFF
+POS_Y_HI          = POS_Y_ADDR >> 8
+POS_Y_LO          = POS_Y_ADDR & 0xFF
+LAST_FRAME_HI     = LAST_FRAME_ADDR >> 8
+LAST_FRAME_LO     = LAST_FRAME_ADDR & 0xFF
+KEYS_STATE_HI     = KEYS_STATE_ADDR >> 8
+KEYS_STATE_LO     = KEYS_STATE_ADDR & 0xFF
+KEYS_PRESSED_HI   = KEYS_PRESSED_ADDR >> 8
+KEYS_PRESSED_LO   = KEYS_PRESSED_ADDR & 0xFF
+FRAME_COUNT_HI    = FRAME_COUNT_ADDR >> 8
+FRAME_COUNT_LO    = FRAME_COUNT_ADDR & 0xFF
+PPU_CTRL_HI       = PPU_CTRL_ADDR >> 8
+PPU_CTRL_LO       = PPU_CTRL_ADDR & 0xFF
+OAM_HI            = OAM_BASE >> 8
+OAM_LO            = OAM_BASE & 0xFF
+PALETTE_HI        = PALETTE_BASE >> 8
+PALETTE_LO        = PALETTE_BASE & 0xFF
+PALETTE_COLOR1_LO = PALETTE_LO + 2
+TILES_HI          = TILES_BASE >> 8
+TILES_LO          = TILES_BASE & 0xFF
 
 ; =============================================================================
 ; Constants - Input & Graphics
 ; =============================================================================
 
-; Keyboard bit masks
-KEY_UP            = 0x40
-KEY_DOWN          = 0x80
-KEY_LEFT          = 0x20
-KEY_RIGHT         = 0x10
-KEY_BUTTON_A      = 0x04
+; Keyboard bit masks (bit positions in KEYS_STATE/KEYS_PRESSED)
+KEY_UP            = 1 << 6
+KEY_DOWN          = 1 << 7
+KEY_LEFT          = 1 << 5
+KEY_RIGHT         = 1 << 4
+KEY_BUTTON_A      = 1 << 2
 
 ; Game parameters
 BOUNDARY          = 120
-CENTER_POS        = 60
+CENTER_POS        = BOUNDARY / 2
 INITIALIZED_FLAG  = 0xAA
-PPU_SPRITES_RENDER = 0x82
 COLOR_TOGGLE_MASK = 0x1C
 TILE_SIZE_BYTES   = 32
 OAM_SPRITE_COUNT  = 64
 SOLID_PIXEL_PAIR  = 0x11
 SPRITE_HIDDEN     = 0xFF
-DEFAULT_COLOR     = 0xFC
+
+; PPU control: sprites enabled (0x02) | render now (0x80)
+PPU_SPRITES_RENDER = 0x02 | 0x80
+
+; Palette colors (RGB332 format)
 BG_COLOR          = 0x03
+DEFAULT_COLOR     = 0xFC
 
 section .code
 
