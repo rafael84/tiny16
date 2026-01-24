@@ -2,8 +2,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/wait.h>
-#include <unistd.h>
 
 #include "../asm/lexer.c"
 #include "../asm/lexer.h"
@@ -294,50 +292,28 @@ void test_parser_label_resolution(void) {
 }
 
 void test_parser_duplicate_label(void) {
-    // fork to test error condition that calls exit()
-    pid_t pid = fork();
+    const char* input = "start:\nstart:\n";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    parser.source_filename = "test";
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
 
-    if (pid == -1) {
-        perror("fork");
-        assert(0 && "fork failed");
-    } else if (pid == 0) {
-        // child process - this should exit with error
-        // redirect stderr to /dev/null to avoid cluttering test output
-        FILE* devnull = fopen("/dev/null", "w");
-        if (devnull) {
-            stderr = devnull;
-        }
+    tiny16_parser_next(&parser);
 
-        const char* input = "start:\nstart:\n";
-        Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
-        parser.lexer = lexer;
-        parser.source_filename = "test";
-        parser.current_section = TINY16_PARSER_SECTION_CODE;
-        parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    // first label should succeed
+    bool result = tiny16_parser_parse_label(&parser);
+    assert(result == true);
+    assert(!tiny16_parser_has_error(&parser));
 
-        tiny16_parser_next(&parser);
+    tiny16_parser_skip_trivia(&parser);
 
-        // first label should succeed
-        bool result = tiny16_parser_parse_label(&parser);
-        assert(result == true);
-
-        tiny16_parser_skip_trivia(&parser);
-
-        // second label (duplicate) should call exit(1)
-        tiny16_parser_parse_label(&parser);
-
-        // should never reach here
-        _exit(0);
-    } else {
-        // parent process - wait for child and check exit status
-        int status;
-        waitpid(pid, &status, 0);
-
-        // child should have exited with status 1 (error)
-        assert(WIFEXITED(status));
-        assert(WEXITSTATUS(status) == 1);
-    }
+    // second label (duplicate) should set an error
+    result = tiny16_parser_parse_label(&parser);
+    assert(result == true);  // Still returns true (consumed the label)
+    assert(tiny16_parser_has_error(&parser));
+    assert(parser.error == TINY16_PARSER_ERROR_DUPLICATE_LABEL);
 }
 
 void test_parser_section_code(void) {
