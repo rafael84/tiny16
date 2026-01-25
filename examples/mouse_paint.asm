@@ -8,7 +8,7 @@
 ; Uses line interpolation to handle fast mouse movements.
 ; Demonstrates expressions in constants for memory layout.
 
-.include "macros.inc"
+.include "../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map
@@ -34,8 +34,7 @@ ABS_DY_ADDR       = USER_DATA_BASE + 21
 STEPS_ADDR        = USER_DATA_BASE + 22
 
 
-; Graphics
-FRAMEBUFFER_BASE  = 0xC000
+; FRAMEBUFFER_BASE, FRAMEBUFFER_HI, FRAMEBUFFER_LO provided by stdlib
 
 ; Address high/low bytes (computed from full addresses)
 DATA_HI           = USER_DATA_BASE >> 8
@@ -53,8 +52,6 @@ ABS_DX_LO         = ABS_DX_ADDR & 0xFF
 SY_LO             = SY_ADDR & 0xFF
 ABS_DY_LO         = ABS_DY_ADDR & 0xFF
 STEPS_LO          = STEPS_ADDR & 0xFF
-FRAMEBUFFER_HI    = FRAMEBUFFER_BASE >> 8
-FRAMEBUFFER_LO    = FRAMEBUFFER_BASE & 0xFF
 
 ; =============================================================================
 ; Constants - Input & Graphics
@@ -79,14 +76,11 @@ SIGN_NEGATIVE     = 0xFF
 section .code
 
 START:
-    LOADI R6, DATA_HI
-    LOADI R7, INITIALIZED_LO
-    LOAD  R0, [R6:R7]
-    LOADI R1, INITIALIZED_FLAG
-    CMP   R0, R1
+    LOAD16 R0, DATA_HI, INITIALIZED_LO
+    CMP_IMM R0, INITIALIZED_FLAG
     JZ    MAIN_LOOP
 
-    CALL  CLEAR_SCREEN
+    CLEAR_SCREEN COLOR_BG
 
     ; Init prev position
     LOADI R6, DATA_HI
@@ -108,28 +102,10 @@ MAIN_LOOP:
     JMP   MAIN_LOOP
 
 ; =============================================================================
-CLEAR_SCREEN:
-    LOADI R0, COLOR_BG
-    LOADI R6, FRAMEBUFFER_HI
-    LOADI R7, FRAMEBUFFER_LO
-CLEAR_LOOP:
-    STORE R0, [R6:R7]
-    INC   R7
-    JNZ   CLEAR_LOOP
-    INC   R6
-    LOADI R1, 0
-    CMP   R6, R1
-    JNZ   CLEAR_LOOP
-    RET
-
-; =============================================================================
 READ_MOUSE:
     ; Read mouse position
-    LOADI R6, MMIO_HI
-    LOADI R7, MOUSE_X_LO
-    LOAD  R0, [R6:R7]
-    LOADI R7, MOUSE_Y_LO
-    LOAD  R1, [R6:R7]
+    READ_MOUSE_X R0
+    READ_MOUSE_Y R1
 
     ; Save current position
     LOADI R6, DATA_HI
@@ -139,15 +115,10 @@ READ_MOUSE:
     STORE R1, [R6:R7]
 
     ; Read buttons
-    LOADI R6, MMIO_HI
-    LOADI R7, MOUSE_BUTTONS_LO
-    LOAD  R2, [R6:R7]
+    READ_MOUSE_BUTTONS R2
 
     ; Left button - draw white
-    MOV   R3, R2
-    LOADI R4, MOUSE_LEFT
-    AND   R3, R4
-    JZ    CHECK_RIGHT
+    SKIP_IF_CLEAR R2, MOUSE_LEFT, CHECK_RIGHT
     LOADI R0, COLOR_WHITE
     LOADI R6, DATA_HI
     LOADI R7, DRAW_COLOR_LO
@@ -156,10 +127,7 @@ READ_MOUSE:
     JMP   UPDATE_PREV
 
 CHECK_RIGHT:
-    MOV   R3, R2
-    LOADI R4, MOUSE_RIGHT
-    AND   R3, R4
-    JZ    CHECK_SPACE
+    SKIP_IF_CLEAR R2, MOUSE_RIGHT, CHECK_SPACE
     LOADI R0, COLOR_BG
     LOADI R6, DATA_HI
     LOADI R7, DRAW_COLOR_LO
@@ -168,13 +136,9 @@ CHECK_RIGHT:
     JMP   UPDATE_PREV
 
 CHECK_SPACE:
-    LOADI R6, MMIO_HI
-    LOADI R7, KEYS_PRESSED_LO
-    LOAD  R3, [R6:R7]
-    LOADI R4, KEY_SPACE
-    AND   R3, R4
-    JZ    UPDATE_PREV
-    CALL  CLEAR_SCREEN
+    READ_KEYS_PRESSED R3
+    SKIP_IF_CLEAR R3, KEY_SPACE, UPDATE_PREV
+    CLEAR_SCREEN COLOR_BG
 
 UPDATE_PREV:
     LOADI R6, DATA_HI

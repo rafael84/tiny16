@@ -1,4 +1,4 @@
-.include "macros.inc"
+.include "../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Boing Ball (Atari 2600-inspired) - Tiny16 framebuffer port
@@ -20,9 +20,7 @@
 USER_DATA_BASE     = 0x4000
 DATA_HI            = USER_DATA_BASE >> 8
 
-FRAMEBUFFER_BASE   = 0xC000
-FRAMEBUFFER_HI     = FRAMEBUFFER_BASE >> 8
-FRAMEBUFFER_LO     = FRAMEBUFFER_BASE & 0xFF
+; FRAMEBUFFER_BASE, FRAMEBUFFER_HI, FRAMEBUFFER_LO provided by stdlib
 
 INITIALIZED_FLAG   = 0xAA
 
@@ -42,9 +40,9 @@ SKIP_ANIM_RESET    = 3              ; match boing26 "skip a few frames"
 ; so keep these as simple constants.
 KEY_SELECT         = 0x01
 
-START_X            = 44             ; MAX_X / 2  (88/2)
-START_Y            = 39             ; MAX_Y / 2  (78/2)
-ROW_ADV            = 88             ; 128 - BALL_W
+START_X            = MAX_X / 2
+START_Y            = MAX_Y / 2
+ROW_ADV            = 128 - BALL_W
 
 FRAME_PTR_TABLE_HI = 0x40           ; 0x4000 + 15 bytes of state = 0x400F
 FRAME_PTR_TABLE_LO = 0x11           ; 0x4000 + 17 bytes of state = 0x4011
@@ -100,7 +98,7 @@ START:
     CMP   R0, R1
     JZ    MAIN_LOOP
 
-    CALL  CLEAR_SCREEN
+    CLEAR_SCREEN BG_COLOR
     CALL  INIT_STATE
     STORE16I INITIALIZED_FLAG, DATA_HI, INITIALIZED_LO
 
@@ -355,19 +353,6 @@ RENDER_FRAME_DO_UPDATE:
 RENDER_FRAME_DONE:
     RET
 
-CLEAR_SCREEN:
-    LOADI R0, BG_COLOR
-    LOADI R6, FRAMEBUFFER_HI
-    LOADI R7, FRAMEBUFFER_LO
-CLEAR_SCREEN_LOOP:
-    STORE R0, [R6:R7]
-    INC   R7
-    JNZ   CLEAR_SCREEN_LOOP
-    INC   R6
-    CLEAR R1
-    CMP   R6, R1
-    JNZ   CLEAR_SCREEN_LOOP
-    RET
 
 ; DRAW_BALL - draw 40x50 1bpp bitmap to framebuffer (masked: only 1-bits)
 ; Also updates prev bitmap pointer (for next frame's clear pass).
@@ -418,7 +403,7 @@ SELECT_BITMAP_PTR:
 SELECT_BITMAP_PTR_ANIM:
     SETADDR DATA_HI, ANIM_IDX_LO
     LOAD  R3, [R6:R7]               ; 0..7
-    ADD   R3, R3                    ; *2
+    MUL2  R3                        ; *2
     LOADI R6, FRAME_PTR_TABLE_HI
     LOADI R7, FRAME_PTR_TABLE_LO
     ADD   R7, R3
@@ -517,24 +502,8 @@ DRAW_MASKED_NO_CARRY_ROW:
 ; FB_PTR_FROM_XY - compute framebuffer pointer for (x,y)
 ; Input: R0=x, R1=y
 ; Output: R6:R7 = 0xC000 + y*128 + x
-; Optimized: y*128 = y<<7 = (y>>1)<<8 | (y<<7 & 0xFF)
 FB_PTR_FROM_XY:
-    ; Compute low byte: (y<<7) + x
-    MOV   R7, R1
-    SHL   R7
-    SHL   R7
-    SHL   R7
-    SHL   R7
-    SHL   R7
-    SHL   R7
-    SHL   R7
-    ADD   R7, R0                    ; + x
-
-    ; Compute high byte: 0xC0 + (y>>1)
-    MOV   R6, R1
-    SHR   R6
-    LOADI R3, FRAMEBUFFER_HI
-    ADD   R6, R3
+    FB_ADDR_FROM_XY
     RET
 
 section .data

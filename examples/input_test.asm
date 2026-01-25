@@ -11,7 +11,7 @@
 ; - Boundary checking
 ; - Using macros for cleaner input code
 
-.include "macros.inc"
+.include "../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map
@@ -112,14 +112,7 @@ INIT_PALETTE:
 ; INIT_TILE - Set up solid square tile at index 0
 ; =============================================================================
 INIT_TILE:
-    SETADDR TILES_HI, TILES_LO
-    LOADI R0, SOLID_PIXEL_PAIR
-    LOADI R1, TILE_SIZE_BYTES
-
-INIT_TILE_LOOP:
-    STORE R0, [R6:R7]+
-    DEC R1
-    JNZ INIT_TILE_LOOP
+    MEMSET TILES_HI, TILES_LO, TILE_SIZE_BYTES, SOLID_PIXEL_PAIR
     RET
 
 ; =============================================================================
@@ -161,29 +154,25 @@ READ_INPUT:
 
     ; Check Up
     SKIP_IF_CLEAR R0, KEY_UP, CHECK_DOWN
-    LOADI R5, 0
-    CMP R2, R5
+    CMP_IMM R2, 0
     JZ CHECK_DOWN
     DEC R2
 
 CHECK_DOWN:
     SKIP_IF_CLEAR R0, KEY_DOWN, CHECK_LEFT
-    LOADI R5, BOUNDARY
-    CMP R2, R5
+    CMP_IMM R2, BOUNDARY
     JZ CHECK_LEFT
     INC R2
 
 CHECK_LEFT:
     SKIP_IF_CLEAR R0, KEY_LEFT, CHECK_RIGHT
-    LOADI R5, 0
-    CMP R1, R5
+    CMP_IMM R1, 0
     JZ CHECK_RIGHT
     DEC R1
 
 CHECK_RIGHT:
     SKIP_IF_CLEAR R0, KEY_RIGHT, CHECK_BUTTON_A
-    LOADI R5, BOUNDARY
-    CMP R1, R5
+    CMP_IMM R1, BOUNDARY
     JZ CHECK_BUTTON_A
     INC R1
 

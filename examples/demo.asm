@@ -17,7 +17,7 @@
 ; PALETTE_ADDR:      Palette (16 colors × 2 bytes)
 ;
 
-.include "macros.inc"
+.include "../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map
@@ -226,61 +226,55 @@ UPDATE_POS_LOOP:
 
     ; Update X position: add velocity, check bounds
     ; vel_x > 1 means moving right, vel_x = 0 means moving left
-    LOADI R5, 1
-    CMP   R2, R5
+    CMP_IMM R2, 1
     JC    POS_MOVE_LEFT        ; vel_x < 1 means moving left (vel_x = 0)
     JZ    POS_MOVE_LEFT        ; vel_x == 1 also left
 
     ; Moving right: x += vel_x
     ADD   R0, R2
-    LOADI R5, BOUNDARY
-    CMP   R0, R5
+    CMP_IMM R0, BOUNDARY
     JC    POS_UPDATE_Y         ; x < 120, no bounce
     ; Bounce: clamp x and reverse velocity
-    MOV   R0, R5               ; x = 120
-    XOR   R2, R2               ; vel_x = 0 (move left)
+    LOADI R0, BOUNDARY         ; x = 120
+    CLEAR R2                   ; vel_x = 0 (move left)
     JMP   POS_UPDATE_Y
 
 POS_MOVE_LEFT:
     ; Moving left: x -= speed (speed stored when we reversed)
     ; For left movement, vel_x is 0, we use a fixed speed of 4
-    LOADI R5, VELOCITY_BASE
-    CMP   R0, R5
+    CMP_IMM R0, VELOCITY_BASE
     JC    POS_BOUNCE_X_LEFT    ; x < 4, will underflow
-    SUB   R0, R5
+    SUB_IMM R0, VELOCITY_BASE
     JMP   POS_UPDATE_Y
 
 POS_BOUNCE_X_LEFT:
-    XOR   R0, R0               ; x = 0
+    CLEAR R0                   ; x = 0
     LOADI R2, VELOCITY_BASE    ; vel_x = 4 (move right)
 
 POS_UPDATE_Y:
     ; Update Y position: similar logic
-    LOADI R5, 1
-    CMP   R3, R5
+    CMP_IMM R3, 1
     JC    POS_MOVE_UP          ; vel_y < 1 means moving up
     JZ    POS_MOVE_UP          ; vel_y == 1 also up
 
     ; Moving down: y += vel_y
     ADD   R1, R3
-    LOADI R5, BOUNDARY
-    CMP   R1, R5
+    CMP_IMM R1, BOUNDARY
     JC    POS_SAVE             ; y < 120, no bounce
     ; Bounce: clamp y and reverse velocity
-    MOV   R1, R5               ; y = 120
-    XOR   R3, R3               ; vel_y = 0 (move up)
+    LOADI R1, BOUNDARY         ; y = 120
+    CLEAR R3                   ; vel_y = 0 (move up)
     JMP   POS_SAVE
 
 POS_MOVE_UP:
     ; Moving up: y -= speed
-    LOADI R5, VELOCITY_BASE
-    CMP   R1, R5
+    CMP_IMM R1, VELOCITY_BASE
     JC    POS_BOUNCE_Y_UP      ; y < 4, will underflow
-    SUB   R1, R5
+    SUB_IMM R1, VELOCITY_BASE
     JMP   POS_SAVE
 
 POS_BOUNCE_Y_UP:
-    XOR   R1, R1               ; y = 0
+    CLEAR R1                   ; y = 0
     LOADI R3, VELOCITY_BASE    ; vel_y = 4 (move down)
 
 POS_SAVE:
