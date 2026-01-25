@@ -2,7 +2,7 @@ tiny16se Language Specification
 ===============================
 
 VERSION
-    tiny16se v0.5
+    tiny16se v0.5 (NOT IMPLEMENTED YET)
 
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
