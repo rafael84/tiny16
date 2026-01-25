@@ -77,7 +77,7 @@ tests: tests-vm tests-asm
 
 tests-vm: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
-	$(BINDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - - -
+	$(BINDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - -
 
 tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
