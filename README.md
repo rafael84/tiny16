@@ -65,17 +65,14 @@ bin/tiny16-emu bin/demo.tiny16                      # Run
 
 **Visual Demos:**
 - [`demo.asm`](examples/demo.asm) — 32 bouncing sprites with PPU
+- [`boing_ball.asm`](examples/boing_ball.asm) — Bouncing ball animation
 - [`input_test.asm`](examples/input_test.asm) — Keyboard-controlled sprite
 - [`mouse_paint.asm`](examples/mouse_paint.asm) — Drawing with mouse
 
-**Code Patterns:**
-- [`call_ret.asm`](examples/call_ret.asm) — Subroutine calling patterns
-- [`macros.inc`](examples/macros.inc) — Standard macro library
-
 ## Documentation
 
-- [`specs/isa.txt`](specs/isa.txt) — Instruction set reference
-- [`specs/assembler.txt`](specs/assembler.txt) — Assembler syntax (with macros & includes)
+- [`stdlib/tiny16.inc`](stdlib/tiny16.inc) — Standard library (60+ macros, fully documented)
+- [`specs/`](specs/) — ISA and assembler reference
 - [`tutorial/`](tutorial/) — 49 step-by-step tutorials
 
 ## License
