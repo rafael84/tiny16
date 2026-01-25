@@ -18,7 +18,7 @@
 static long parse_number(const char* text) {
     if (text[0] == '0' && (text[1] == 'b' || text[1] == 'B')) {
         long result = 0;
-        for (const char* p = text + 2; *p; ++p) {
+        for (const char* p = text + 2; *p == '0' || *p == '1'; ++p) {
             result = (result << 1) | (*p - '0');
         }
         return result;
