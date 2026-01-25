@@ -46,8 +46,20 @@ const char* token_kind_name(TokenKind kind) {
     case TOKEN_RBRACKET: return "close bracket";
     case TOKEN_PLUS: return "plus";
     case TOKEN_MINUS: return "minus";
-    case TOKEN_DOT: return "dot"; // REVIEW this
+    case TOKEN_DOT: return "dot";
     case TOKEN_EOL: return "end of line";
+    case TOKEN_LPAREN: return "open paren";
+    case TOKEN_RPAREN: return "close paren";
+    case TOKEN_EQUALS: return "equals";
+    case TOKEN_TIMES: return "times";
+    case TOKEN_DIV: return "divide";
+    case TOKEN_MOD: return "modulo";
+    case TOKEN_AND: return "and";
+    case TOKEN_OR: return "or";
+    case TOKEN_XOR: return "xor";
+    case TOKEN_NOT: return "not";
+    case TOKEN_SHL: return "shift left";
+    case TOKEN_SHR: return "shift right";
     default: assert(0 && "unreachable");
     }
 }
