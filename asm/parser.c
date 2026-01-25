@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -14,17 +15,6 @@
 #include "lexer.h"
 #include "memory.h"
 #include "parser.h"
-
-static long parse_number(const char* text) {
-    if (text[0] == '0' && (text[1] == 'b' || text[1] == 'B')) {
-        long result = 0;
-        for (const char* p = text + 2; *p == '0' || *p == '1'; ++p) {
-            result = (result << 1) | (*p - '0');
-        }
-        return result;
-    }
-    return strtol(text, NULL, 0);
-}
 
 static const char* tiny16_parser_error_messages[] = {
     [TINY16_PARSER_OK] = "",
@@ -72,6 +62,70 @@ void tiny16_parser_print_error(const Tiny16Parser* parser) {
         fprintf(stderr, "%s:%zu: %s\n", parser->source_filename, parser->error_line,
                 parser->error_msg);
     }
+}
+
+static long parse_number(Tiny16Parser* parser, const char* text, size_t len) {
+    // `Token.text` is a slice into the source buffer and is not null-terminated.
+    // Parse strictly within `len` and reject malformed/overflowing literals.
+    char buf[TINY16_PARSER_MAX_TOKEN_LENGTH + 1];
+    size_t n = len;
+    if (n > TINY16_PARSER_MAX_TOKEN_LENGTH) n = TINY16_PARSER_MAX_TOKEN_LENGTH;
+    memcpy(buf, text, n);
+    buf[n] = '\0';
+
+    if (len == 0) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+        return 0;
+    }
+
+    int base = 10;
+    size_t i = 0;
+    if (len >= 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+        base = 16;
+        i = 2;
+    } else if (len >= 2 && text[0] == '0' && (text[1] == 'b' || text[1] == 'B')) {
+        base = 2;
+        i = 2;
+    }
+
+    if (i == len) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+        return 0;
+    }
+
+    unsigned long acc = 0;
+    for (; i < len; ++i) {
+        unsigned char c = (unsigned char)text[i];
+        unsigned digit;
+        if (c >= '0' && c <= '9')
+            digit = (unsigned)(c - '0');
+        else if (base == 16 && c >= 'a' && c <= 'f')
+            digit = 10u + (unsigned)(c - 'a');
+        else if (base == 16 && c >= 'A' && c <= 'F')
+            digit = 10u + (unsigned)(c - 'A');
+        else {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+            return 0;
+        }
+
+        if (digit >= (unsigned)base) {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+            return 0;
+        }
+
+        if (acc > (ULONG_MAX - digit) / (unsigned)base) {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+            return 0;
+        }
+        acc = acc * (unsigned)base + digit;
+    }
+
+    if (acc > (unsigned long)LONG_MAX) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_INVALID_NUMBER, buf);
+        return 0;
+    }
+
+    return (long)acc;
 }
 
 Token tiny16_parser_peek(Tiny16Parser* parser, uint8_t n) {
@@ -357,7 +411,7 @@ uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser) {
     }
 
     if (parser->current_token.kind == TOKEN_NUMBER) {
-        long val = parse_number(parser->current_token.text);
+        long val = parse_number(parser, parser->current_token.text, parser->current_token.text_len);
         if (val < 0 || val > UINT16_MAX) {
             tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "immediate", val);
             return 0;
@@ -454,7 +508,8 @@ void tiny16_parser_parse_data(Tiny16Parser* parser) {
             tiny16_parser_next(parser);
 
         } else if (parser->current_token.kind == TOKEN_NUMBER) {
-            long val = parse_number(parser->current_token.text);
+            long val =
+                parse_number(parser, parser->current_token.text, parser->current_token.text_len);
             if (val < 0 || val > 255) {
                 tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "byte value",
                                         val);
@@ -601,7 +656,7 @@ static long tiny16_parser_expr_value(Tiny16Parser* parser, int min_prec) {
     TokenKind kind = parser->current_token.kind;
 
     if (kind == TOKEN_NUMBER) {
-        left = parse_number(parser->current_token.text);
+        left = parse_number(parser, parser->current_token.text, parser->current_token.text_len);
         tiny16_parser_next(parser);
     } else if (kind == TOKEN_SYMBOL) {
         int idx = tiny16_parser_symbol_index(parser, parser->current_token.text,
