@@ -126,6 +126,15 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
             emu->instr_acc -= instr_this_frame;
         }
 
+        // Classic double-buffer approach:
+        // 1. Capture the PREVIOUS complete frame (game is blocked in WAIT_VSYNC)
+        // 2. Signal vsync to let game render the NEXT frame
+        // This ensures we always display complete frames
+
+        memcpy(emu->back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(emu->back_buffer));
+        tiny16_emu_update_texture(emu, emu->back_buffer);
+
+        emu->frame_counter++;
         tiny16_vm_mem_write(vm, TINY16_MMIO_FRAME_COUNT, emu->frame_counter & 0xFF);
 
         tiny16_emu_update_input(vm);
@@ -136,11 +145,6 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
                 break;
             }
         }
-        emu->frame_counter++;
-
-        // always update texture from framebuffer (PPU renders synchronously)
-        memcpy(emu->back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(emu->back_buffer));
-        tiny16_emu_update_texture(emu, emu->back_buffer);
     }
 
     BeginDrawing();

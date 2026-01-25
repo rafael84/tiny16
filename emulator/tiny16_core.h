@@ -10,7 +10,7 @@
 #define TINY16_EMU_PIXEL_HEIGHT  128
 #define TINY16_EMU_SCREEN_WIDTH  (TINY16_EMU_PIXEL_WIDTH * 8)
 #define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
-#define TINY16_EMU_TARGET_IPS    (60.0f * 10000) // 600k IPS = ~10000 instr/frame at 60 FPS
+#define TINY16_EMU_TARGET_IPS    (60.0f * 30000) // 1.8M IPS = ~30000 instr/frame at 60 FPS
 
 typedef struct {
     Tiny16VM* vm;
