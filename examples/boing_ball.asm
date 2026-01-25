@@ -216,6 +216,7 @@ UPDATE_STATE_SKIP_ANIM_DONE:
 
 UPDATE_STATE_X_RIGHT:
     LOADI R2, MAX_X
+    DEC   R2                        ; Compare with MAX_X - 1
     CMP   R0, R2
     JZ    UPDATE_STATE_X_BOUNCE_RIGHT
     INC   R0
@@ -263,6 +264,7 @@ UPDATE_STATE_X_STORE:
 
 UPDATE_STATE_Y_DOWN:
     LOADI R2, MAX_Y
+    DEC   R2                        ; Compare with MAX_Y - 1
     CMP   R0, R2
     JZ    UPDATE_STATE_Y_BOUNCE_DOWN
     INC   R0
