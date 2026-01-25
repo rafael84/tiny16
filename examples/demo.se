@@ -1,0 +1,237 @@
+; Bouncing Smileys Demo - tiny16se
+;
+; This is a tiny16se rewrite of examples/demo.asm. The logic matches the
+; original demo but uses S-expression syntax and tiny16se helpers instead of
+; assembly macros. This file is intended to gauge how ergonomic a tiny16se
+; compiler would be for real programs.
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+(def USER_DATA_BASE 0x4000)
+(def TILE_DATA_ADDR 0x5000)
+(def OAM_ADDR 0x7800)
+(def PALETTE_ADDR 0x7900)
+
+(def INITIALIZED_ADDR (+ USER_DATA_BASE 0))
+(def LAST_FRAME_ADDR (+ USER_DATA_BASE 1))
+(def SPRITE_DATA_ADDR (+ USER_DATA_BASE 16))
+
+(def INITIALIZED_HI (hi INITIALIZED_ADDR))
+(def INITIALIZED_LO (lo INITIALIZED_ADDR))
+(def LAST_FRAME_HI (hi LAST_FRAME_ADDR))
+(def LAST_FRAME_LO (lo LAST_FRAME_ADDR))
+(def SPRITE_DATA_HI (hi SPRITE_DATA_ADDR))
+(def SPRITE_DATA_LO (lo SPRITE_DATA_ADDR))
+(def OAM_HI (hi OAM_ADDR))
+(def OAM_LO (lo OAM_ADDR))
+
+; =============================================================================
+; Constants - MMIO/PPU
+; =============================================================================
+
+(def MMIO_BASE 0xBF00)
+(def FRAME_COUNT_ADDR (+ MMIO_BASE 0x22))
+(def PPU_CTRL_ADDR (+ MMIO_BASE 0x30))
+
+(def FRAME_COUNT_HI (hi FRAME_COUNT_ADDR))
+(def FRAME_COUNT_LO (lo FRAME_COUNT_ADDR))
+(def PPU_CTRL_HI (hi PPU_CTRL_ADDR))
+(def PPU_CTRL_LO (lo PPU_CTRL_ADDR))
+
+(def PPU_CTRL_SPRITES 0x02)
+(def PPU_CTRL_RENDER_NOW 0x80)
+(def PPU_CTRL_SPRITES_ON (| PPU_CTRL_SPRITES PPU_CTRL_RENDER_NOW))
+
+; =============================================================================
+; Constants - Game Parameters
+; =============================================================================
+
+(def SPRITE_COUNT 32)
+(def SPRITE_SIZE 4)
+(def SPRITE_DATA_SIZE (<< SPRITE_COUNT 2))
+(def BOUNDARY 120)
+(def MIN_POSITION 10)
+(def MODULO_RANGE (- BOUNDARY MIN_POSITION))
+(def VELOCITY_BASE 4)
+(def INITIALIZED_FLAG 0xAA)
+
+(def TILE_SMILEY 0x00)
+(def SPRITE_ATTR_NONE 0x00)
+
+; =============================================================================
+; Helpers
+; =============================================================================
+
+(defn read-frame-count ()
+  (load (addr FRAME_COUNT_HI FRAME_COUNT_LO)))
+
+(defn wait-frame ()
+  (let (current (read-frame-count)
+        last (load (addr LAST_FRAME_HI LAST_FRAME_LO)))
+    (while (= current last)
+      (set current (read-frame-count))
+      (set last (load (addr LAST_FRAME_HI LAST_FRAME_LO))))
+    (store (addr LAST_FRAME_HI LAST_FRAME_LO) current)
+    0))
+
+(defn render-frame ()
+  (store (addr PPU_CTRL_HI PPU_CTRL_LO) PPU_CTRL_SPRITES_ON)
+  0)
+
+(defn mod-by (value modulus)
+  (let (result value)
+    (while (>= result modulus)
+      (set result (- result modulus)))
+    result))
+
+(defn sprite-offset (index)
+  (<< index 2))
+
+(defn sprite-low (index)
+  (+ SPRITE_DATA_LO (sprite-offset index)))
+
+(defn oam-low (index)
+  (+ OAM_LO (sprite-offset index)))
+
+; =============================================================================
+; INIT_SPRITES - Initialize 32 sprites with varied positions and velocities
+; =============================================================================
+
+(defn init-sprites ()
+  (let (seed 0
+        counter 0)
+    (set seed (read-frame-count))
+    (while (< counter SPRITE_COUNT)
+      (let (counter7 (+ (<< counter 2) (+ (<< counter 1) counter))
+            counter11 (+ (<< counter 3) (+ (<< counter 1) counter))
+            counter3 (+ (<< counter 1) counter)
+            base-x (+ seed counter7)
+            base-y (+ seed counter11)
+            tripled-x (+ base-x (<< base-x 1))
+            doubled-y (<< base-y 1)
+            x (+ (mod-by tripled-x MODULO_RANGE) MIN_POSITION)
+            y (+ (mod-by doubled-y MODULO_RANGE) MIN_POSITION)
+            vel-x (+ VELOCITY_BASE (& (+ seed counter) 1))
+            vel-y (+ VELOCITY_BASE (& (+ seed counter3) 1))
+            low (sprite-low counter))
+        (store (addr SPRITE_DATA_HI low) x)
+        (store (addr SPRITE_DATA_HI (+ low 1)) y)
+        (store (addr SPRITE_DATA_HI (+ low 2)) vel-x)
+        (store (addr SPRITE_DATA_HI (+ low 3)) vel-y))
+      (set counter (inc counter)))
+    (store (addr INITIALIZED_HI INITIALIZED_LO) INITIALIZED_FLAG)
+    0))
+
+; =============================================================================
+; UPDATE_ALL_OAM - Update OAM for all 32 sprites
+; =============================================================================
+
+(defn update-all-oam ()
+  (let (counter 0)
+    (while (< counter SPRITE_COUNT)
+      (let (data-low (sprite-low counter)
+            x (load (addr SPRITE_DATA_HI data-low))
+            y (load (addr SPRITE_DATA_HI (+ data-low 1)))
+            oam-low (oam-low counter))
+        (store (addr OAM_HI oam-low) y)
+        (store (addr OAM_HI (+ oam-low 1)) x)
+        (store (addr OAM_HI (+ oam-low 2)) TILE_SMILEY)
+        (store (addr OAM_HI (+ oam-low 3)) SPRITE_ATTR_NONE))
+      (set counter (inc counter)))
+    0))
+
+; =============================================================================
+; UPDATE_ALL_POSITIONS - Update positions for all 32 sprites
+; =============================================================================
+
+(defn update-all-positions ()
+  (let (counter 0)
+    (while (< counter SPRITE_COUNT)
+      (let (data-low (sprite-low counter)
+            x (load (addr SPRITE_DATA_HI data-low))
+            y (load (addr SPRITE_DATA_HI (+ data-low 1)))
+            vel-x (load (addr SPRITE_DATA_HI (+ data-low 2)))
+            vel-y (load (addr SPRITE_DATA_HI (+ data-low 3))))
+        (if (<= vel-x 1)
+            (do
+              (if (< x VELOCITY_BASE)
+                  (do
+                    (set x 0)
+                    (set vel-x VELOCITY_BASE))
+                  (set x (- x VELOCITY_BASE))))
+            (do
+              (set x (+ x vel-x))
+              (if (>= x BOUNDARY)
+                  (do
+                    (set x BOUNDARY)
+                    (set vel-x 0))
+                  0)))
+        (if (<= vel-y 1)
+            (do
+              (if (< y VELOCITY_BASE)
+                  (do
+                    (set y 0)
+                    (set vel-y VELOCITY_BASE))
+                  (set y (- y VELOCITY_BASE))))
+            (do
+              (set y (+ y vel-y))
+              (if (>= y BOUNDARY)
+                  (do
+                    (set y BOUNDARY)
+                    (set vel-y 0))
+                  0)))
+        (store (addr SPRITE_DATA_HI data-low) x)
+        (store (addr SPRITE_DATA_HI (+ data-low 1)) y)
+        (store (addr SPRITE_DATA_HI (+ data-low 2)) vel-x)
+        (store (addr SPRITE_DATA_HI (+ data-low 3)) vel-y))
+      (set counter (inc counter)))
+    0))
+
+; =============================================================================
+; Program Entry
+; =============================================================================
+
+(defn main ()
+  (if (= (load (addr INITIALIZED_HI INITIALIZED_LO)) INITIALIZED_FLAG)
+      0
+      (init-sprites))
+  (while 1
+    (wait-frame)
+    (update-all-oam)
+    (update-all-positions)
+    (render-frame))
+  0)
+
+; =============================================================================
+; DATA SECTION
+; =============================================================================
+
+(data initialized USER_DATA_BASE
+  (db 0))
+
+(data last-frame LAST_FRAME_ADDR
+  (db 0))
+
+(data sprite-data SPRITE_DATA_ADDR
+  (repeat SPRITE_DATA_SIZE (db 0)))
+
+(data tile-smiley TILE_DATA_ADDR
+  (db 0x01 0x11 0x11 0x10)
+  (db 0x12 0x22 0x22 0x21)
+  (db 0x12 0x32 0x23 0x21)
+  (db 0x12 0x22 0x22 0x21)
+  (db 0x12 0x32 0x23 0x21)
+  (db 0x12 0x23 0x32 0x21)
+  (db 0x12 0x22 0x22 0x21)
+  (db 0x01 0x11 0x11 0x10))
+
+(data oam-data OAM_ADDR
+  (repeat 64 (db 0xFF 0x00 0x00 0x00)))
+
+(data palette PALETTE_ADDR
+  (db 0x03 0x00)
+  (db 0x1F 0x00)
+  (db 0xFC 0x00)
+  (db 0x00 0x00))
