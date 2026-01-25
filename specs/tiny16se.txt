@@ -2,7 +2,7 @@ tiny16se Language Specification
 ===============================
 
 VERSION
-    tiny16se v0.2
+    tiny16se v0.5
 
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
@@ -22,6 +22,7 @@ Comments
 Tokens
     "(" , ")"           parentheses
     number              decimal (0-255) or hex (0x00-0xFF)
+    string              double-quoted UTF-8 (compiler emits bytes)
     symbol              [^0-9();\s][^();\s]* (case-sensitive)
 
 ------------------------------------------------------------
@@ -31,7 +32,7 @@ Tokens
     program     := form*
     form        := atom | list
     list        := "(" form* ")"
-    atom        := number | symbol
+    atom        := number | string | symbol
 
 ------------------------------------------------------------
 3. SEMANTIC MODEL
@@ -61,8 +62,10 @@ Registers
     PC      program counter (16-bit)
 
 Data Model
-    - All values are 8-bit integers.
+    - All runtime values are 8-bit integers.
     - Addresses are 16-bit (Rhigh:Rlow => (Rhigh << 8) | Rlow).
+    - Compile-time constant expressions may use 16-bit intermediates when
+      forming addresses or assembler expressions.
 
 ------------------------------------------------------------
 5. VARIABLES AND SCOPING
@@ -77,7 +80,11 @@ Scope
 6. SPECIAL FORMS
 ------------------------------------------------------------
 
-(def name (arg*) body...)
+(def name expr)
+    Define a compile-time constant. The compiler emits
+    "name = expr" in the output assembly.
+
+(defn name (arg*) body...)
     Define function `name`. Returns the value of the last body form.
 
 (let (var1 val1 var2 val2 ... varN valN) body...)
@@ -95,6 +102,20 @@ Scope
 (do expr...)
     Sequence expressions. Returns last value.
 
+(data name [addr16] form...)
+    Emit a data region. The compiler switches to section .data,
+    emits a label for name, and returns 0. If addr16 is provided,
+    emit ORG addr16 before the label. The label can be referenced
+    from code. Multiple data forms are allowed in a program.
+
+(db value1 value2 ...)
+    Emit DB bytes within a data region. Values are truncated to 8-bit.
+    Strings expand to their byte sequence (no implicit terminator).
+
+(repeat count form)
+    Repeat a data form count times. Intended for data emission like
+    (repeat 64 (db 0)).
+
 ------------------------------------------------------------
 7. PRIMITIVES
 ------------------------------------------------------------
@@ -102,14 +123,39 @@ Scope
 Arithmetic
     add sub neg inc dec
 
+Arithmetic Aliases
+    (+ a b ...)  -> add (left associative)
+    (- a b)      -> sub
+    (- a)        -> neg
+    (inc a) and (dec a) are unchanged
+
 Bitwise
     and or xor not shl shr
+
+Bitwise Aliases
+    (& a b)  -> and
+    (| a b)  -> or
+    (^ a b)  -> xor
+    (~ a)    -> not
+    (<< a b) -> shl
+    (>> a b) -> shr
 
 Comparison (return 1 or 0)
     eq ne lt gt le ge
 
+Comparison Aliases
+    (= a b)  -> eq
+    (!= a b) -> ne
+    (< a b)  -> lt
+    (> a b)  -> gt
+    (<= a b) -> le
+    (>= a b) -> ge
+
 Logical
     lnot
+
+Logical Alias
+    (! a) -> lnot
 
 Memory
     load store addr addr+
@@ -117,6 +163,16 @@ Memory
 Address Expressions
     (addr high low)     -> R6=high, R7=low, R0=low
     (addr+ base off)    -> base address + 8-bit offset
+
+Memory Primitives
+    (load addr-expr)
+        Load byte at addr-expr into R0 and return it.
+    (store addr-expr value)
+        Store value to addr-expr and return value.
+
+Const Helpers (compile-time only)
+    (hi addr) -> upper 8 bits of addr
+    (lo addr) -> lower 8 bits of addr
 
 ------------------------------------------------------------
 8. FUNCTION CALLS
@@ -159,7 +215,8 @@ Constants & Expressions
     - Use expressions in immediates (e.g. LOADI R0, FRAME_SIZE + 1).
 
 Sections & Data
-    - Emit section .code and section .data explicitly.
+    - Emit section .code for function bodies and constants.
+    - Emit section .data for (data ...) forms.
     - Use DB for data blobs and strings (if the compiler creates data
       for tables, jump lists, or runtime constants).
     - Use ORG to place data when needed, and TIMES for repetition.
@@ -191,7 +248,20 @@ Concise Lowering Example
         RET
 
 ------------------------------------------------------------
-11. ERROR CONDITIONS
+11. TOP-LEVEL FORMS & PROGRAM LAYOUT
+------------------------------------------------------------
+
+Top-Level Forms
+    - def, defn, data
+
+Typical Layout
+    (defn main (...) ...)
+    ...
+    (data my-bytes 0x4000
+      (db 1 2 3 "OK"))
+
+------------------------------------------------------------
+12. ERROR CONDITIONS
 ------------------------------------------------------------
 
 Compile-time
