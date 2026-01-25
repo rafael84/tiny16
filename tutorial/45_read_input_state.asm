@@ -4,7 +4,7 @@
 ; Goal: Read keyboard/gamepad state from MMIO register and test specific key
 ;       Check if the "Up" key (bit 6) is pressed
 ;
-; Instructions to use: LOADI, LOAD, AND, JZ, HALT
+; Instructions to use: LOADI, LOAD, AND, JZ, JMP, HALT
 ; Expected result: R0 = 1 if Up pressed, 0 if not
 ;
 ; Hint: KEYS_STATE at 0xBF00 contains current button states
@@ -21,7 +21,7 @@ section .code
 ; TODO: AND R0 with R1 (isolate Up bit)
 ; TODO: If result is 0 (Z=1), jump to not_pressed
 ; TODO: Load 1 into R0 (Up is pressed)
-; TODO: Jump to done
+; TODO: JMP done
 not_pressed:
     ; TODO: Load 0 into R0 (Up is not pressed)
 done:

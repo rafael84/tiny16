@@ -4,7 +4,7 @@
 ; Goal: Detect button press using KEYS_PRESSED register
 ;       This register gives edge detection - triggers once per press
 ;
-; Instructions to use: LOADI, LOAD, AND, JZ, HALT
+; Instructions to use: LOADI, LOAD, AND, JZ, JMP, HALT
 ; Expected result: R0 = 1 if A button just pressed, 0 if not
 ;
 ; Hint: KEYS_PRESSED at 0xBF01 is cleared after reading
@@ -21,7 +21,7 @@ section .code
 ; TODO: AND R0 with R1 (isolate A button bit)
 ; TODO: If result is 0 (Z=1), jump to not_pressed
 ; TODO: Load 1 into R0 (A was just pressed)
-; TODO: Jump to done
+; TODO: JMP done
 not_pressed:
     ; TODO: Load 0 into R0 (A not pressed this frame)
 done:
