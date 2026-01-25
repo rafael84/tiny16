@@ -50,7 +50,7 @@ ifeq ($(PLATFORM),windows)
         -static -lopengl32 -lgdi32 -lwinmm -lshell32
 endif
 
-CFLAGS = -std=c99 -Wall -Wextra -Wpedantic -Ivm -Ithirdparty
+CFLAGS = -std=c99 -O3 -Wall -Wextra -Wpedantic -Ivm -Ithirdparty
 RAYLIB_INCLUDE = -I$(RAYLIB_SRC_PATH)
 
 # Emscripten settings for web build

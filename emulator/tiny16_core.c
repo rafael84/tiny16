@@ -12,6 +12,14 @@ Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
     emu->program_loaded = program_loaded;
     memset(emu->back_buffer, 0, sizeof(emu->back_buffer));
 
+    // Pre-compute RGB332 -> RGBA lookup table
+    for (int i = 0; i < 256; i++) {
+        uint8_t r = ((i >> 5) & 0x07) * 36; // 3 bits -> 0-252
+        uint8_t g = ((i >> 2) & 0x07) * 36; // 3 bits -> 0-252
+        uint8_t b = (i & 0x03) * 85;        // 2 bits -> 0-255
+        emu->rgb332_lut[i] = (Color){r, g, b, 255};
+    }
+
     // Create texture
     emu->fb_texture =
         LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
@@ -26,18 +34,13 @@ void tiny16_emu_destroy(Tiny16Emulator* emu) {
     }
 }
 
-void tiny16_emu_update_texture(Texture2D* texture, const uint8_t* framebuffer) {
-    uint16_t size = TINY16_EMU_PIXEL_WIDTH * TINY16_EMU_PIXEL_HEIGHT;
-    Color pixels[size];
+void tiny16_emu_update_texture(Tiny16Emulator* emu, const uint8_t* framebuffer) {
+    // Use pre-computed lookup table for RGB332 -> RGBA conversion
+    const int size = TINY16_EMU_PIXEL_WIDTH * TINY16_EMU_PIXEL_HEIGHT;
     for (int i = 0; i < size; ++i) {
-        uint8_t value = framebuffer[i];
-        // RGB332: RRRGGGBB
-        uint8_t r = ((value >> 5) & 0x07) * 36; // 3 bits -> 0-252
-        uint8_t g = ((value >> 2) & 0x07) * 36; // 3 bits -> 0-252
-        uint8_t b = (value & 0x03) * 85;        // 2 bits -> 0-255
-        pixels[i] = (Color){r, g, b, 255};
+        emu->pixel_buffer[i] = emu->rgb332_lut[framebuffer[i]];
     }
-    UpdateTexture(*texture, pixels);
+    UpdateTexture(emu->fb_texture, emu->pixel_buffer);
 }
 
 void tiny16_emu_update_input(Tiny16VM* vm) {
@@ -137,7 +140,7 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
 
         // always update texture from framebuffer (PPU renders synchronously)
         memcpy(emu->back_buffer, &vm->memory.bytes[TINY16_FRAMEBUFFER], sizeof(emu->back_buffer));
-        tiny16_emu_update_texture(&emu->fb_texture, emu->back_buffer);
+        tiny16_emu_update_texture(emu, emu->back_buffer);
     }
 
     BeginDrawing();
