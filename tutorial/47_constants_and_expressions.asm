@@ -1,4 +1,4 @@
-; Tutorial 50: Constants and Expressions
+; Tutorial 47: Constants and Expressions
 ; Level: 8 - Assembler Power Features
 ;
 ; Goal: Use constants and expressions to compute immediates

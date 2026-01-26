@@ -1,4 +1,4 @@
-; Tutorial 51: Sections and ORG
+; Tutorial 48: Sections and ORG
 ; Level: 8 - Assembler Power Features
 ;
 ; Goal: Place data at a specific address with ORG and read it back

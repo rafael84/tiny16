@@ -1,4 +1,4 @@
-; Tutorial 52: Macros
+; Tutorial 49: Macros
 ; Level: 8 - Assembler Power Features
 ;
 ; Goal: Use a macro to add immediate values to a register
