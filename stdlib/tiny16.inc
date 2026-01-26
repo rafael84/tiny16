@@ -280,13 +280,13 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ; =============================================================================
 
 ; -----------------------------------------------------------------------------
-; ADD_IMM reg, imm - Add immediate value to register
+; ADDI reg, imm - Add immediate value to register
 ; Clobbers: R7 (temporary)
 ; Example:
 ;   LOADI R0, 10
-;   ADD_IMM R0, 5    ; R0 = 15
+;   ADDI R0, 5    ; R0 = 15
 ; -----------------------------------------------------------------------------
-.macro ADD_IMM reg, imm
+.macro ADDI reg, imm
     PUSH R7
     LOADI R7, imm
     ADD reg, R7
@@ -294,13 +294,13 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; SUB_IMM reg, imm - Subtract immediate value from register
+; SUBI reg, imm - Subtract immediate value from register
 ; Clobbers: R7 (temporary)
 ; Example:
 ;   LOADI R0, 20
-;   SUB_IMM R0, 5    ; R0 = 15
+;   SUBI R0, 5    ; R0 = 15
 ; -----------------------------------------------------------------------------
-.macro SUB_IMM reg, imm
+.macro SUBI reg, imm
     PUSH R7
     LOADI R7, imm
     SUB reg, R7
@@ -308,14 +308,14 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; CMP_IMM reg, imm - Compare register with immediate value
+; CMPI reg, imm - Compare register with immediate value
 ; Clobbers: R7 (temporary), flags
 ; Example:
 ;   LOADI R0, 42
-;   CMP_IMM R0, 42
+;   CMPI R0, 42
 ;   JZ EQUAL    ; Jump if R0 == 42
 ; -----------------------------------------------------------------------------
-.macro CMP_IMM reg, imm
+.macro CMPI reg, imm
     PUSH R7
     LOADI R7, imm
     CMP reg, R7
@@ -440,8 +440,20 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ;   CLAMP_RANGE R0, 10, 100    ; R0 = 100
 ; -----------------------------------------------------------------------------
 .macro CLAMP_RANGE reg, min_val, max_val
-    CLAMP_MIN reg, min_val
-    CLAMP_MAX reg, max_val
+    PUSH R5
+    ; Clamp to minimum
+    LOADI R5, min_val
+    CMP reg, R5
+    JNC @skip_min
+    MOV reg, R5
+@skip_min:
+    ; Clamp to maximum
+    LOADI R5, max_val
+    CMP reg, R5
+    JC @skip_max
+    MOV reg, R5
+@skip_max:
+    POP R5
 .endmacro
 
 ; =============================================================================
@@ -622,8 +634,12 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ;   READ_MOUSE R0, R1    ; R0=x, R1=y
 ; -----------------------------------------------------------------------------
 .macro READ_MOUSE dest_x, dest_y
-    READ_MOUSE_X dest_x
-    READ_MOUSE_Y dest_y
+    LOADI R6, MOUSE_X_HI
+    LOADI R7, MOUSE_X_LO
+    LOAD dest_x, [R6:R7]
+    LOADI R6, MOUSE_Y_HI
+    LOADI R7, MOUSE_Y_LO
+    LOAD dest_y, [R6:R7]
 .endmacro
 
 ; =============================================================================
@@ -706,7 +722,7 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ;   PPU_OFF    ; Turn off display
 ; -----------------------------------------------------------------------------
 .macro PPU_OFF
-    CLEAR R0
+    XOR R0, R0
     LOADI R6, PPU_CTRL_HI
     LOADI R7, PPU_CTRL_LO
     STORE R0, [R6:R7]
@@ -798,7 +814,8 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ;   MEMCPY 0x50, 0x00, 0x40, 0x00, 50    ; Copy 50 bytes: 0x4000 -> 0x5000
 ; -----------------------------------------------------------------------------
 .macro MEMCPY dst_hi, dst_lo, src_hi, src_lo, count
-    PUSH2 R2, R3
+    PUSH R2
+    PUSH R3
     LOADI R2, src_hi
     LOADI R3, src_lo
     LOADI R6, dst_hi
@@ -809,7 +826,8 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
     STORE R0, [R6:R7]+
     DEC R1
     JNZ @loop
-    POP2 R2, R3
+    POP R3
+    POP R2
 .endmacro
 
 ; -----------------------------------------------------------------------------
@@ -875,7 +893,17 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .macro DRAW_PIXEL x_reg, y_reg, color
     MOV R0, x_reg
     MOV R1, y_reg
-    FB_ADDR_FROM_XY
+    ; Calculate framebuffer address in R6:R7
+    ; Low byte: (y<<7) + x
+    MOV R7, R1
+    TIMES 7 SHL R7
+    ADD R7, R0
+    ; High byte: 0xC0 + (y>>1)
+    MOV R6, R1
+    SHR R6
+    LOADI R3, FRAMEBUFFER_HI
+    ADD R6, R3
+    ; Store pixel
     LOADI R0, color
     STORE R0, [R6:R7]
 .endmacro
@@ -941,7 +969,7 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ;
 ; CLAMPED VELOCITY:
 ;   LOAD16 R0, 0x40, 0x10    ; Load velocity
-;   ADD_IMM R0, 5            ; Accelerate
+;   ADDI R0, 5               ; Accelerate
 ;   CLAMP_MAX R0, 50         ; Max speed
 ;
 ; =============================================================================

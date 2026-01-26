@@ -369,12 +369,12 @@ ORG (Set Origin)
 
 Macros
 ------
-    .macro ADD_IMM reg, imm
+    .macro ADDI reg, imm
         LOADI R7, imm
         ADD   reg, R7
     .endmacro
 
-    ADD_IMM R0, 5
+    ADDI R0, 5
 
 Includes
 --------

@@ -226,13 +226,13 @@ UPDATE_POS_LOOP:
 
     ; Update X position: add velocity, check bounds
     ; vel_x > 1 means moving right, vel_x = 0 means moving left
-    CMP_IMM R2, 1
+    CMPI R2, 1
     JC    POS_MOVE_LEFT        ; vel_x < 1 means moving left (vel_x = 0)
     JZ    POS_MOVE_LEFT        ; vel_x == 1 also left
 
     ; Moving right: x += vel_x
     ADD   R0, R2
-    CMP_IMM R0, BOUNDARY
+    CMPI R0, BOUNDARY
     JC    POS_UPDATE_Y         ; x < 120, no bounce
     ; Bounce: clamp x and reverse velocity
     LOADI R0, BOUNDARY         ; x = 120
@@ -242,9 +242,9 @@ UPDATE_POS_LOOP:
 POS_MOVE_LEFT:
     ; Moving left: x -= speed (speed stored when we reversed)
     ; For left movement, vel_x is 0, we use a fixed speed of 4
-    CMP_IMM R0, VELOCITY_BASE
+    CMPI R0, VELOCITY_BASE
     JC    POS_BOUNCE_X_LEFT    ; x < 4, will underflow
-    SUB_IMM R0, VELOCITY_BASE
+    SUBI R0, VELOCITY_BASE
     JMP   POS_UPDATE_Y
 
 POS_BOUNCE_X_LEFT:
@@ -253,13 +253,13 @@ POS_BOUNCE_X_LEFT:
 
 POS_UPDATE_Y:
     ; Update Y position: similar logic
-    CMP_IMM R3, 1
+    CMPI R3, 1
     JC    POS_MOVE_UP          ; vel_y < 1 means moving up
     JZ    POS_MOVE_UP          ; vel_y == 1 also up
 
     ; Moving down: y += vel_y
     ADD   R1, R3
-    CMP_IMM R1, BOUNDARY
+    CMPI R1, BOUNDARY
     JC    POS_SAVE             ; y < 120, no bounce
     ; Bounce: clamp y and reverse velocity
     LOADI R1, BOUNDARY         ; y = 120
@@ -268,9 +268,9 @@ POS_UPDATE_Y:
 
 POS_MOVE_UP:
     ; Moving up: y -= speed
-    CMP_IMM R1, VELOCITY_BASE
+    CMPI R1, VELOCITY_BASE
     JC    POS_BOUNCE_Y_UP      ; y < 4, will underflow
-    SUB_IMM R1, VELOCITY_BASE
+    SUBI R1, VELOCITY_BASE
     JMP   POS_SAVE
 
 POS_BOUNCE_Y_UP:

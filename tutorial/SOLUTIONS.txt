@@ -737,15 +737,15 @@ section .data
 
 Tutorial 52: Macros
 --------------------
-.macro ADD_IMM reg, imm
+.macro ADDI reg, imm
     LOADI R7, imm
     ADD   reg, R7
 .endmacro
 
 section .code
     LOADI R0, 10
-    ADD_IMM R0, 5
-    ADD_IMM R0, 7
+    ADDI R0, 5
+    ADDI R0, 7
     HALT
 
 
