@@ -1,5 +1,5 @@
-; Tutorial 47: Constants and Expressions
-; Level: 8 - Assembler Power Features
+; Tutorial 45: Constants and Expressions
+; Level: 7 - Assembler Power Features
 ;
 ; Goal: Use constants and expressions to compute immediates
 ; Expected result: R0 = 24, R1 = 0x13

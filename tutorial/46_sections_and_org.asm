@@ -1,5 +1,5 @@
-; Tutorial 48: Sections and ORG
-; Level: 8 - Assembler Power Features
+; Tutorial 46: Sections and ORG
+; Level: 7 - Assembler Power Features
 ;
 ; Goal: Place data at a specific address with ORG and read it back
 ; Expected result: R0 = 0x2A

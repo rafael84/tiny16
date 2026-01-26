@@ -1,5 +1,5 @@
-; Tutorial 49: Macros
-; Level: 8 - Assembler Power Features
+; Tutorial 47: Macros
+; Level: 7 - Assembler Power Features
 ;
 ; Goal: Use a macro to add immediate values to a register
 ; Expected result: R0 = 22

@@ -78,16 +78,11 @@ Level 6: Bit Manipulation (39-44) - Bitwise ops, masking, shifts
     44  Byte Swap              Nibble manipulation  Swap high/low
 
 
-Level 7: Hardware Input (45-46) - Reading keyboard/gamepad state
-    45  Read Input State       MMIO read            Get key state
-    46  Button Press           Edge detection       Single press
-
-
-Level 8: Assembler (47-50) - Constants, macros, includes
-    47  Constants/Expressions  Named values         Computed values
-    48  Sections & ORG         Data placement       Custom layout
-    49  Macros                 Reusable code        Parameterized
-    50  Includes               Shared definitions   Multi-file
+Level 7: Assembler (45-48) - Constants, macros, includes
+    45  Constants/Expressions  Named values         Computed values
+    46  Sections & ORG         Data placement       Custom layout
+    47  Macros                 Reusable code        Parameterized
+    48  Includes               Shared definitions   Multi-file
 
 
 COMMON PATTERNS
@@ -121,8 +116,7 @@ CMP:    CMP R0,R1 sets Z if equal, C if R0<R1
 MEMORY MAP
 ==========
 0x0000-0x000F: Signature         0x0010-0x3FFF: Code
-0x4000-0x4FFF: Data              0x5000-0x791F: Graphics
-0x8000-0xBEFF: Stack (down)      0xBF00-0xBFFF: MMIO
+0x4000-0x4FFF: Data              0x8000-0xBEFF: Stack (down)
 
 
 ASSEMBLER FEATURES
