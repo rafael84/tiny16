@@ -1,4 +1,5 @@
-.PHONY: all asm tests examples emulator emulator-web build-web serve-web clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web
+.PHONY: all asm tests examples emulator emulator-web build-web serve-web
+.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -67,8 +68,9 @@ EMCC_FLAGS = -std=c99 -Wall -Ivm -Ithirdparty $(RAYLIB_INCLUDE) \
 
 BINDIR = bin
 WEBDIR = emulator/web
+TOOLSDIR = tools
 
-all: tests asm emulator examples
+all: tests asm emulator examples tools
 
 $(BINDIR):
 	mkdir -p $@
@@ -85,6 +87,9 @@ tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
 
 asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
+
+tools: $(BINDIR) $(TOOLSDIR)/*.c vm/*.h | $(BINDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c
 
 emulator: $(BINDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) \
