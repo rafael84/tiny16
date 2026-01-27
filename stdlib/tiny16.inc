@@ -12,7 +12,8 @@
 ;   section .code
 ;   START:
 ;       CLEAR_SCREEN 0x03        ; Dark blue background
-;       WAIT_VSYNC 0x40, 0x00    ; Wait for frame
+;       STORE16I 42, 0x4000      ; Store value at 0x4000
+;       LOAD16 R0, 0x4000        ; Load it back
 ;       HALT
 ;
 ; CONVENTIONS:
@@ -22,17 +23,24 @@
 ;   - Most macros preserve registers (documented if not)
 ;   - Register pairs: high byte first, low byte second (e.g., R0:R1 = 0x1234)
 ;
+; EXPRESSION SUPPORT:
+;   The assembler supports expressions in immediate values. Macros automatically
+;   split 16-bit addresses using >> and & operators:
+;     LOAD16 R0, 0x4010        ; R0 = [0x4010]
+;     SETADDR 0x4020           ; R6:R7 = 0x4020
+;     MEMCPY 0x5000, 0x4000, 50  ; Copy memory
+;
 ; TABLE OF CONTENTS:
 ;   1. Hardware Constants (MMIO addresses, graphics memory)
-;   2. Memory & Register Utilities (load/store, address setup)
+;   2. Memory & Register Utilities (SETADDR, LOAD16, STORE16, STORE16I, LOAD16I)
 ;   3. Stack Operations (multi-register push/pop)
 ;   4. Arithmetic & Logic (immediate ops, fast multiply/divide, clamping)
 ;   5. 16-bit Operations (add/sub/cmp with carry/borrow)
 ;   6. Input Utilities (keyboard, mouse)
-;   7. VSync & Timing (frame counter, vsync wait)
+;   7. VSync & Timing (frame counter, WAIT_VSYNC)
 ;   8. PPU & Graphics (sprite rendering control)
 ;   9. OAM/Sprite Utilities (sprite management)
-;   10. Memory Operations (memset, memcpy, screen clear)
+;   10. Memory Operations (MEMSET, MEMCPY, screen clear)
 ;   11. Framebuffer Utilities (pixel drawing, address calculation)
 ;   12. Debugging & Development (nop, breakpoint)
 ;
@@ -96,52 +104,64 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ; =============================================================================
 
 ; -----------------------------------------------------------------------------
-; SETADDR hi, lo - Set R6:R7 to 16-bit address
+; SETADDR addr16 - Set R6:R7 to 16-bit address
+; Uses expressions to automatically split address into high/low bytes
 ; Clobbers: R6, R7
 ; Example:
-;   SETADDR 0x40, 0x10    ; R6:R7 = 0x4010
-;   LOAD R0, [R6:R7]      ; Load from 0x4010
+;   DATA_ADDR = 0x4010
+;   SETADDR DATA_ADDR       ; R6:R7 = 0x4010
+;   SETADDR 0x4020          ; R6:R7 = 0x4020
+;   LOAD R0, [R6:R7]        ; Load from address
 ; -----------------------------------------------------------------------------
-.macro SETADDR hi, lo
-    LOADI R6, hi
-    LOADI R7, lo
+.macro SETADDR addr16
+    LOADI R6, addr16 >> 8
+    LOADI R7, addr16 & 0xFF
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; LOAD16 dest, hi, lo - Load from 16-bit address into register
+; LOAD16 dest, addr16 - Load from 16-bit address
+; Uses expressions to automatically split address into high/low bytes
 ; Clobbers: R6, R7
 ; Example:
-;   LOAD16 R0, 0x40, 0x00    ; R0 = [0x4000]
+;   DATA_ADDR = 0x4000
+;   LOAD16 R0, DATA_ADDR      ; R0 = [0x4000]
+;   LOAD16 R1, 0x4010         ; R1 = [0x4010]
 ; -----------------------------------------------------------------------------
-.macro LOAD16 dest, hi, lo
-    LOADI R6, hi
-    LOADI R7, lo
+.macro LOAD16 dest, addr16
+    LOADI R6, addr16 >> 8
+    LOADI R7, addr16 & 0xFF
     LOAD dest, [R6:R7]
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; STORE16 src, hi, lo - Store register to 16-bit address
+; STORE16 src, addr16 - Store register to 16-bit address
+; Uses expressions to automatically split address into high/low bytes
 ; Clobbers: R6, R7
 ; Example:
+;   DATA_ADDR = 0x4000
 ;   LOADI R0, 42
-;   STORE16 R0, 0x40, 0x00   ; [0x4000] = 42
+;   STORE16 R0, DATA_ADDR     ; [0x4000] = 42
+;   STORE16 R1, 0x4010        ; [0x4010] = R1
 ; -----------------------------------------------------------------------------
-.macro STORE16 src, hi, lo
-    LOADI R6, hi
-    LOADI R7, lo
+.macro STORE16 src, addr16
+    LOADI R6, addr16 >> 8
+    LOADI R7, addr16 & 0xFF
     STORE src, [R6:R7]
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; STORE16I imm, hi, lo - Store immediate value to 16-bit address
+; STORE16I imm, addr16 - Store immediate to 16-bit address
+; Uses expressions to automatically split address into high/low bytes
 ; Clobbers: R0, R6, R7
 ; Example:
-;   STORE16I 0xAA, 0x40, 0x00    ; [0x4000] = 0xAA
+;   DATA_ADDR = 0x4000
+;   STORE16I 0xAA, DATA_ADDR      ; [0x4000] = 0xAA
+;   STORE16I 42, 0x4010           ; [0x4010] = 42
 ; -----------------------------------------------------------------------------
-.macro STORE16I imm, hi, lo
+.macro STORE16I imm, addr16
     LOADI R0, imm
-    LOADI R6, hi
-    LOADI R7, lo
+    LOADI R6, addr16 >> 8
+    LOADI R7, addr16 & 0xFF
     STORE R0, [R6:R7]
 .endmacro
 
@@ -552,13 +572,16 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; LOAD16I reg_hi, reg_lo, hi_val, lo_val - Load 16-bit immediate
+; LOAD16I reg_hi, reg_lo, value16 - Load 16-bit immediate into register pair
+; Uses expressions to automatically split 16-bit value into high/low bytes
 ; Example:
-;   LOAD16I R0, R1, 0x12, 0x34    ; R0:R1 = 0x1234
+;   ADDR = 0x1234
+;   LOAD16I R0, R1, ADDR         ; R0:R1 = 0x1234
+;   LOAD16I R6, R7, 0x4020       ; R6:R7 = 0x4020
 ; -----------------------------------------------------------------------------
-.macro LOAD16I reg_hi, reg_lo, hi_val, lo_val
-    LOADI reg_hi, hi_val
-    LOADI reg_lo, lo_val
+.macro LOAD16I reg_hi, reg_lo, value16
+    LOADI reg_hi, value16 >> 8
+    LOADI reg_lo, value16 & 0xFF
 .endmacro
 
 ; =============================================================================
@@ -661,24 +684,26 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; WAIT_VSYNC last_frame_hi, last_frame_lo - Wait for next frame
+; WAIT_VSYNC last_frame_addr - Wait for next frame
 ; Spins until FRAME_COUNT changes, then updates last_frame
+; Uses expressions to automatically split address
 ; Clobbers: R0, R1, R6, R7
 ; Example:
+;   LAST_FRAME_ADDR = 0x4000
 ;   section .data
-;   ORG 0x4000
+;   ORG LAST_FRAME_ADDR
 ;   last_frame: DB 0
 ;
 ;   section .code
-;   WAIT_VSYNC 0x40, 0x00    ; Wait for 60 Hz tick
+;   WAIT_VSYNC LAST_FRAME_ADDR    ; Wait for 60 Hz tick
 ; -----------------------------------------------------------------------------
-.macro WAIT_VSYNC last_frame_hi, last_frame_lo
+.macro WAIT_VSYNC last_frame_addr
 @loop:
     LOADI R6, FRAME_COUNT_HI
     LOADI R7, FRAME_COUNT_LO
     LOAD R0, [R6:R7]
-    LOADI R6, last_frame_hi
-    LOADI R7, last_frame_lo
+    LOADI R6, last_frame_addr >> 8
+    LOADI R7, last_frame_addr & 0xFF
     LOAD R1, [R6:R7]
     CMP R0, R1
     JZ @loop
@@ -789,15 +814,17 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ; =============================================================================
 
 ; -----------------------------------------------------------------------------
-; MEMSET addr_hi, addr_lo, count, value - Fill memory with value
-; Fills 'count' bytes starting at address with 'value'
+; MEMSET addr16, count, value - Fill memory with value
+; Uses expressions to automatically split address into high/low bytes
 ; Clobbers: R0, R1, R6, R7
 ; Example:
-;   MEMSET 0x41, 0x00, 100, 0xAA    ; Fill 100 bytes at 0x4100 with 0xAA
+;   BUFFER_ADDR = 0x4100
+;   MEMSET BUFFER_ADDR, 100, 0xAA    ; Fill 100 bytes with 0xAA
+;   MEMSET 0x5000, 50, 0xFF          ; Fill 50 bytes with 0xFF
 ; -----------------------------------------------------------------------------
-.macro MEMSET addr_hi, addr_lo, count, value
-    LOADI R6, addr_hi
-    LOADI R7, addr_lo
+.macro MEMSET addr16, count, value
+    LOADI R6, addr16 >> 8
+    LOADI R7, addr16 & 0xFF
     LOADI R0, value
     LOADI R1, count
 @loop:
@@ -807,19 +834,22 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
-; MEMCPY dst_hi, dst_lo, src_hi, src_lo, count - Copy memory block
-; Copies 'count' bytes from src to dst (non-overlapping)
+; MEMCPY dst_addr, src_addr, count - Copy memory block
+; Uses expressions to automatically split addresses into high/low bytes
 ; Clobbers: R0, R1, R2, R3, R6, R7
 ; Example:
-;   MEMCPY 0x50, 0x00, 0x40, 0x00, 50    ; Copy 50 bytes: 0x4000 -> 0x5000
+;   SRC_ADDR = 0x4000
+;   DST_ADDR = 0x5000
+;   MEMCPY DST_ADDR, SRC_ADDR, 50    ; Copy 50 bytes: 0x4000 -> 0x5000
+;   MEMCPY 0x5100, 0x4200, 100       ; Copy 100 bytes
 ; -----------------------------------------------------------------------------
-.macro MEMCPY dst_hi, dst_lo, src_hi, src_lo, count
+.macro MEMCPY dst_addr, src_addr, count
     PUSH R2
     PUSH R3
-    LOADI R2, src_hi
-    LOADI R3, src_lo
-    LOADI R6, dst_hi
-    LOADI R7, dst_lo
+    LOADI R2, src_addr >> 8
+    LOADI R3, src_addr & 0xFF
+    LOADI R6, dst_addr >> 8
+    LOADI R7, dst_addr & 0xFF
     LOADI R1, count
 @loop:
     LOAD R0, [R2:R3]+
@@ -935,13 +965,35 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 ; =============================================================================
 ; COMMON PATTERNS & EXAMPLES
 ; =============================================================================
+;
+; EXPRESSION-BASED MACROS:
+;   All macros use expressions to automatically split 16-bit addresses:
+;
+;   LOAD16 R0, 0x4010           ; Load from 0x4010
+;   STORE16I 42, 0x4020         ; Store 42 to 0x4020
+;   MEMSET 0x5000, 100, 0       ; Fill 100 bytes at 0x5000
+;
+;   With constants (recommended):
+;   DATA_ADDR = 0x4010
+;   BUFFER = 0x5000
+;   LOAD16 R0, DATA_ADDR        ; Load from constant
+;   STORE16I 42, DATA_ADDR + 16 ; Expressions work!
+;   MEMSET BUFFER, 100, 0       ; Fill using constant
+;
+; =============================================================================
 
 ; BASIC GAME LOOP:
+;   FRAME_VAR = 0x4000
+;
+;   section .data
+;   ORG FRAME_VAR
+;   last_frame: DB 0
+;
 ;   section .code
 ;   START:
 ;       CLEAR_SCREEN 0x03
 ;   MAIN_LOOP:
-;       WAIT_VSYNC 0x40, 0x00
+;       WAIT_VSYNC FRAME_VAR
 ;       CALL UPDATE
 ;       CALL RENDER
 ;       JMP MAIN_LOOP

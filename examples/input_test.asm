@@ -33,18 +33,8 @@ TILES_BASE        = GFX_TILES_BASE
 OAM_BASE          = GFX_OAM_BASE
 PALETTE_BASE      = GFX_PALETTE_BASE
 
-; Address bytes (computed from full addresses)
-INITIALIZED_LO    = INITIALIZED_ADDR & 0xFF
-POS_X_LO          = POS_X_ADDR & 0xFF
-POS_Y_LO          = POS_Y_ADDR & 0xFF
-LAST_FRAME_LO     = LAST_FRAME_ADDR & 0xFF
-OAM_HI            = OAM_BASE >> 8
-OAM_LO            = OAM_BASE & 0xFF
-PALETTE_HI        = PALETTE_BASE >> 8
-PALETTE_LO        = PALETTE_BASE & 0xFF
-PALETTE_COLOR1_LO = PALETTE_LO + 2
-TILES_HI          = TILES_BASE >> 8
-TILES_LO          = TILES_BASE & 0xFF
+; Derived addresses
+PALETTE_COLOR1_ADDR = PALETTE_BASE + 2
 
 ; =============================================================================
 ; Constants - Input & Graphics
@@ -76,7 +66,7 @@ section .code
 
 START:
     ; Check if already initialized
-    LOAD16 R0, DATA_HI, INITIALIZED_LO
+    LOAD16 R0, INITIALIZED_ADDR
     LOADI R1, INITIALIZED_FLAG
     CMP R0, R1
     JZ MAIN_LOOP
@@ -97,7 +87,7 @@ MAIN_LOOP:
 ; INIT_PALETTE - Set up palette colors
 ; =============================================================================
 INIT_PALETTE:
-    SETADDR PALETTE_HI, PALETTE_LO
+    SETADDR PALETTE_BASE
     LOADI R0, BG_COLOR
     STORE R0, [R6:R7]+
     CLEAR R0
@@ -112,14 +102,14 @@ INIT_PALETTE:
 ; INIT_TILE - Set up solid square tile at index 0
 ; =============================================================================
 INIT_TILE:
-    MEMSET TILES_HI, TILES_LO, TILE_SIZE_BYTES, SOLID_PIXEL_PAIR
+    MEMSET TILES_BASE, TILE_SIZE_BYTES, SOLID_PIXEL_PAIR
     RET
 
 ; =============================================================================
 ; INIT_OAM - Hide all 64 sprites
 ; =============================================================================
 INIT_OAM:
-    SETADDR OAM_HI, OAM_LO
+    SETADDR OAM_BASE
     LOADI R1, OAM_SPRITE_COUNT
 
 INIT_OAM_LOOP:
@@ -132,13 +122,13 @@ INIT_OAM_LOOP:
 ; INIT_SPRITE - Initialize sprite position and mark initialized
 ; =============================================================================
 INIT_SPRITE:
-    SETADDR DATA_HI, POS_X_LO
+    SETADDR POS_X_ADDR
     LOADI R0, CENTER_POS
     STORE R0, [R6:R7]+
     LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
 
-    STORE16I INITIALIZED_FLAG, DATA_HI, INITIALIZED_LO
+    STORE16I INITIALIZED_FLAG, INITIALIZED_ADDR
     RET
 
 ; =============================================================================
@@ -146,7 +136,7 @@ INIT_SPRITE:
 ; =============================================================================
 READ_INPUT:
     ; Load current position
-    SETADDR DATA_HI, POS_X_LO
+    SETADDR POS_X_ADDR
     LOAD R1, [R6:R7]+
     LOAD R2, [R6:R7]
 
@@ -180,13 +170,13 @@ CHECK_BUTTON_A:
     READ_KEYS_PRESSED R3
     SKIP_IF_CLEAR R3, KEY_BUTTON_A, SAVE_POS
     ; Toggle palette color 1 (change square color)
-    LOAD16 R3, PALETTE_HI, PALETTE_COLOR1_LO
+    LOAD16 R3, PALETTE_COLOR1_ADDR
     LOADI R4, COLOR_TOGGLE_MASK
     XOR R3, R4
-    STORE16 R3, PALETTE_HI, PALETTE_COLOR1_LO
+    STORE16 R3, PALETTE_COLOR1_ADDR
 
 SAVE_POS:
-    SETADDR DATA_HI, POS_X_LO
+    SETADDR POS_X_ADDR
     STORE R1, [R6:R7]+
     STORE R2, [R6:R7]
     RET
@@ -196,12 +186,12 @@ SAVE_POS:
 ; =============================================================================
 UPDATE_OAM:
     ; Load position
-    SETADDR DATA_HI, POS_X_LO
+    SETADDR POS_X_ADDR
     LOAD R0, [R6:R7]+
     LOAD R1, [R6:R7]
 
     ; Write to OAM entry 0
-    SETADDR OAM_HI, OAM_LO
+    SETADDR OAM_BASE
     OAM_WRITE_SPRITE R1, R0, TILE_SQUARE, SPRITE_ATTR_NONE
     RET
 
@@ -216,7 +206,7 @@ RENDER_FRAME:
 ; WAIT_FRAME - Wait for next display frame
 ; =============================================================================
 WAIT_FRAME:
-    WAIT_VSYNC DATA_HI, LAST_FRAME_LO
+    WAIT_VSYNC LAST_FRAME_ADDR
     RET
 
 section .data

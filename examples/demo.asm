@@ -34,16 +34,6 @@ INITIALIZED_ADDR   = USER_DATA_BASE + 0
 LAST_FRAME_ADDR    = USER_DATA_BASE + 1
 SPRITE_DATA_ADDR   = USER_DATA_BASE + 16
 
-; Address bytes used in tight loops (computed from full addresses)
-INITIALIZED_HI     = INITIALIZED_ADDR >> 8
-INITIALIZED_LO     = INITIALIZED_ADDR & 0xFF
-LAST_FRAME_HI      = LAST_FRAME_ADDR >> 8
-LAST_FRAME_LO      = LAST_FRAME_ADDR & 0xFF
-SPRITE_DATA_HI     = SPRITE_DATA_ADDR >> 8
-SPRITE_DATA_LO     = SPRITE_DATA_ADDR & 0xFF
-OAM_HI             = OAM_ADDR >> 8
-OAM_LO             = OAM_ADDR & 0xFF
-
 ; =============================================================================
 ; Constants - Game Parameters
 ; =============================================================================
@@ -64,7 +54,7 @@ section .code
 
 START:
     ; Check if already initialized
-    LOAD16 R0, INITIALIZED_HI, INITIALIZED_LO
+    LOAD16 R0, INITIALIZED_ADDR
     LOADI R1, INITIALIZED_FLAG
     CMP   R0, R1
     JZ    MAIN_LOOP
@@ -90,7 +80,7 @@ INIT_SPRITES:
     READ_FRAME_COUNT R3            ; R3 = frame count (pseudo-random seed)
     POP2  R6, R7
 
-    SETADDR SPRITE_DATA_HI, SPRITE_DATA_LO
+    SETADDR SPRITE_DATA_ADDR
     LOADI R4, 0       ; sprite counter (0-31)
     LOADI R5, SPRITE_COUNT
 
@@ -146,7 +136,7 @@ INIT_SPRITE_LOOP:
     JNZ   INIT_SPRITE_LOOP
 
     ; Mark as initialized
-    STORE16I INITIALIZED_FLAG, INITIALIZED_HI, INITIALIZED_LO
+    STORE16I INITIALIZED_FLAG, INITIALIZED_ADDR
 
     RET
 
@@ -173,10 +163,10 @@ UPDATE_ALL_OAM:
 
 UPDATE_OAM_LOOP:
     ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
-    LOADI R6, SPRITE_DATA_HI
+    LOADI R6, SPRITE_DATA_ADDR >> 8
     MOV   R7, R4
     MUL4  R7                   ; counter * 4
-    LOADI R0, SPRITE_DATA_LO
+    LOADI R0, SPRITE_DATA_ADDR & 0xFF
     ADD   R7, R0
 
     ; Load x, y using offset addressing (no pointer modification needed)
@@ -184,10 +174,10 @@ UPDATE_OAM_LOOP:
     LOAD  R1, [R6:R7 + 1]      ; y at offset 1
 
     ; Calculate OAM address: 0x7800 + (counter * 4)
-    LOADI R6, OAM_HI
+    LOADI R6, OAM_ADDR >> 8
     MOV   R7, R4
     MUL4  R7                   ; counter * 4
-    LOADI R2, OAM_LO
+    LOADI R2, OAM_ADDR & 0xFF
     ADD   R7, R2
 
     ; Write OAM entry: Y, X, tile, attr
@@ -210,10 +200,10 @@ UPDATE_POS_LOOP:
     PUSH  R5          ; save remaining
 
     ; Calculate sprite data address: SPRITE_DATA_ADDR + (counter * SPRITE_SIZE)
-    LOADI R6, SPRITE_DATA_HI
+    LOADI R6, SPRITE_DATA_ADDR >> 8
     MOV   R7, R4
     MUL4  R7                   ; counter * 4
-    LOADI R0, SPRITE_DATA_LO
+    LOADI R0, SPRITE_DATA_ADDR & 0xFF
     ADD   R7, R0
 
     ; Load x, y, vel_x, vel_y using offset addressing
@@ -280,7 +270,7 @@ POS_BOUNCE_Y_UP:
 POS_SAVE:
     ; Restore address and save position using post-increment
     POP   R7          ; restore address low byte
-    LOADI R6, SPRITE_DATA_HI
+    LOADI R6, SPRITE_DATA_ADDR >> 8
     STORE R0, [R6:R7]+         ; x
     STORE R1, [R6:R7]+         ; y
     STORE R2, [R6:R7]+         ; vel_x
@@ -304,7 +294,7 @@ RENDER_FRAME:
 ; WAIT_FRAME - Wait for FRAME_COUNT to change (syncs to 60 FPS)
 ; =============================================================================
 WAIT_FRAME:
-    WAIT_VSYNC LAST_FRAME_HI, LAST_FRAME_LO
+    WAIT_VSYNC LAST_FRAME_ADDR
     RET
 
 ; =============================================================================

@@ -36,22 +36,6 @@ STEPS_ADDR        = USER_DATA_BASE + 22
 
 ; FRAMEBUFFER_BASE, FRAMEBUFFER_HI, FRAMEBUFFER_LO provided by stdlib
 
-; Address high/low bytes (computed from full addresses)
-DATA_HI           = USER_DATA_BASE >> 8
-INITIALIZED_LO    = INITIALIZED_ADDR & 0xFF
-CUR_X_LO          = CUR_X_ADDR & 0xFF
-CUR_Y_LO          = CUR_Y_ADDR & 0xFF
-LAST_FRAME_LO     = LAST_FRAME_ADDR & 0xFF
-PREV_X_LO         = PREV_X_ADDR & 0xFF
-PREV_Y_LO         = PREV_Y_ADDR & 0xFF
-DRAW_COLOR_LO     = DRAW_COLOR_ADDR & 0xFF
-DRAW_X_LO         = DRAW_X_ADDR & 0xFF
-DRAW_Y_LO         = DRAW_Y_ADDR & 0xFF
-SX_LO             = SX_ADDR & 0xFF
-ABS_DX_LO         = ABS_DX_ADDR & 0xFF
-SY_LO             = SY_ADDR & 0xFF
-ABS_DY_LO         = ABS_DY_ADDR & 0xFF
-STEPS_LO          = STEPS_ADDR & 0xFF
 
 ; =============================================================================
 ; Constants - Input & Graphics
@@ -76,25 +60,21 @@ SIGN_NEGATIVE     = 0xFF
 section .code
 
 START:
-    LOAD16 R0, DATA_HI, INITIALIZED_LO
+    LOAD16 R0, INITIALIZED_ADDR
     CMPI R0, INITIALIZED_FLAG
     JZ    MAIN_LOOP
 
     CLEAR_SCREEN COLOR_BG
 
     ; Init prev position
-    LOADI R6, DATA_HI
-    LOADI R7, PREV_X_LO
+    SETADDR PREV_X_ADDR
     LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
     INC   R7
     STORE R0, [R6:R7]
 
     ; Mark initialized
-    LOADI R6, DATA_HI
-    LOADI R7, INITIALIZED_LO
-    LOADI R0, INITIALIZED_FLAG
-    STORE R0, [R6:R7]
+    STORE16I INITIALIZED_FLAG, INITIALIZED_ADDR
 
 MAIN_LOOP:
     CALL  WAIT_FRAME
@@ -108,8 +88,7 @@ READ_MOUSE:
     READ_MOUSE_Y R1
 
     ; Save current position
-    LOADI R6, DATA_HI
-    LOADI R7, CUR_X_LO
+    SETADDR CUR_X_ADDR
     STORE R0, [R6:R7]
     INC   R7
     STORE R1, [R6:R7]
@@ -119,19 +98,13 @@ READ_MOUSE:
 
     ; Left button - draw white
     SKIP_IF_CLEAR R2, MOUSE_LEFT, CHECK_RIGHT
-    LOADI R0, COLOR_WHITE
-    LOADI R6, DATA_HI
-    LOADI R7, DRAW_COLOR_LO
-    STORE R0, [R6:R7]
+    STORE16I COLOR_WHITE, DRAW_COLOR_ADDR
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
 CHECK_RIGHT:
     SKIP_IF_CLEAR R2, MOUSE_RIGHT, CHECK_SPACE
-    LOADI R0, COLOR_BG
-    LOADI R6, DATA_HI
-    LOADI R7, DRAW_COLOR_LO
-    STORE R0, [R6:R7]
+    STORE16I COLOR_BG, DRAW_COLOR_ADDR
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
@@ -141,16 +114,12 @@ CHECK_SPACE:
     CLEAR_SCREEN COLOR_BG
 
 UPDATE_PREV:
-    LOADI R6, DATA_HI
-    LOADI R7, CUR_X_LO
+    SETADDR CUR_X_ADDR
     LOAD  R0, [R6:R7]
     INC   R7
     LOAD  R1, [R6:R7]
-    INC   R7
-    INC   R7
-    STORE R0, [R6:R7]
-    INC   R7
-    STORE R1, [R6:R7]
+    STORE16 R0, PREV_X_ADDR
+    STORE16 R1, PREV_Y_ADDR
     RET
 
 ; =============================================================================
@@ -158,21 +127,14 @@ UPDATE_PREV:
 ; =============================================================================
 DRAW_LINE:
     ; Load prev (x0,y0) and cur (x1,y1)
-    LOADI R6, DATA_HI
-    LOADI R7, PREV_X_LO
-    LOAD  R0, [R6:R7]          ; x0
-    INC   R7
-    LOAD  R1, [R6:R7]          ; y0
-    LOADI R7, CUR_X_LO
-    LOAD  R2, [R6:R7]          ; x1
-    INC   R7
-    LOAD  R3, [R6:R7]          ; y1
+    LOAD16 R0, PREV_X_ADDR     ; x0
+    LOAD16 R1, PREV_Y_ADDR     ; y0
+    LOAD16 R2, CUR_X_ADDR      ; x1
+    LOAD16 R3, CUR_Y_ADDR      ; y1
 
     ; Store current draw pos
-    LOADI R7, DRAW_X_LO
-    STORE R0, [R6:R7]          ; draw_x
-    INC   R7
-    STORE R1, [R6:R7]          ; draw_y
+    STORE16 R0, DRAW_X_ADDR
+    STORE16 R1, DRAW_Y_ADDR
 
     ; Calculate dx = x1 - x0, get sign and abs
     PUSH  R2
@@ -193,11 +155,8 @@ DRAW_LINE:
 DX_POS:
     LOADI R4, SIGN_POSITIVE
 SAVE_SX:
-    LOADI R6, DATA_HI
-    LOADI R7, SX_LO
-    STORE R4, [R6:R7]          ; sx
-    INC   R7
-    STORE R2, [R6:R7]          ; abs_dx
+    STORE16 R4, SX_ADDR        ; sx
+    STORE16 R2, ABS_DX_ADDR    ; abs_dx
 
     ; abs(dy) and sy
     MOV   R4, R3
@@ -212,11 +171,8 @@ SAVE_SX:
 DY_POS:
     LOADI R4, SIGN_POSITIVE
 SAVE_SY:
-    LOADI R6, DATA_HI
-    LOADI R7, SY_LO
-    STORE R4, [R6:R7]          ; sy
-    INC   R7
-    STORE R3, [R6:R7]          ; abs_dy
+    STORE16 R4, SY_ADDR        ; sy
+    STORE16 R3, ABS_DY_ADDR    ; abs_dy
 
     ; steps = max(abs_dx, abs_dy)
     CMP   R2, R3
@@ -227,9 +183,7 @@ USE_DY:
     MOV   R0, R3
 SET_STEPS:
     INC   R0          ; +1 for both endpoints
-    LOADI R6, DATA_HI
-    LOADI R7, STEPS_LO
-    STORE R0, [R6:R7]          ; steps
+    STORE16 R0, STEPS_ADDR     ; steps
 
     POP   R3
     POP   R2
@@ -237,28 +191,18 @@ SET_STEPS:
 LINE_LOOP:
     CALL  DRAW_PIX
 
-    LOADI R6, DATA_HI
-    LOADI R7, STEPS_LO
-    LOAD  R0, [R6:R7]
+    LOAD16 R0, STEPS_ADDR
     DEC   R0
-    STORE R0, [R6:R7]
+    STORE16 R0, STEPS_ADDR
     JZ    LINE_END
 
-    ; Load draw position
-    LOADI R7, DRAW_X_LO
-    LOAD  R0, [R6:R7]          ; x
-    INC   R7
-    LOAD  R1, [R6:R7]          ; y
-
-    ; Load abs values
-    INC   R7
-    LOAD  R2, [R6:R7]          ; sx
-    INC   R7
-    LOAD  R3, [R6:R7]          ; abs_dx
-    INC   R7
-    LOAD  R4, [R6:R7]          ; sy
-    INC   R7
-    LOAD  R5, [R6:R7]          ; abs_dy
+    ; Load draw position and abs values
+    LOAD16 R0, DRAW_X_ADDR     ; x
+    LOAD16 R1, DRAW_Y_ADDR     ; y
+    LOAD16 R2, SX_ADDR         ; sx
+    LOAD16 R3, ABS_DX_ADDR     ; abs_dx
+    LOAD16 R4, SY_ADDR         ; sy
+    LOAD16 R5, ABS_DY_ADDR     ; abs_dy
 
     ; Compare abs_dx vs abs_dy to decide stepping
     CMP   R3, R5
@@ -309,11 +253,8 @@ STEP_X_NEG2:
     DEC   R0
 
 SAVE_LINE_POS:
-    LOADI R6, DATA_HI
-    LOADI R7, DRAW_X_LO
-    STORE R0, [R6:R7]
-    INC   R7
-    STORE R1, [R6:R7]
+    STORE16 R0, DRAW_X_ADDR
+    STORE16 R1, DRAW_Y_ADDR
     JMP   LINE_LOOP
 
 LINE_END:
@@ -329,13 +270,9 @@ DRAW_PIX:
     PUSH  R6
     PUSH  R7
 
-    LOADI R6, DATA_HI
-    LOADI R7, DRAW_X_LO
-    LOAD  R1, [R6:R7]          ; x
-    INC   R7
-    LOAD  R2, [R6:R7]          ; y
-    LOADI R7, DRAW_COLOR_LO
-    LOAD  R5, [R6:R7]          ; color
+    LOAD16 R1, DRAW_X_ADDR     ; x
+    LOAD16 R2, DRAW_Y_ADDR     ; y
+    LOAD16 R5, DRAW_COLOR_ADDR ; color
 
     ; Address = 0xC000 + y*128 + x
     MOV   R6, R2
@@ -369,15 +306,7 @@ NO_C:
 
 ; =============================================================================
 WAIT_FRAME:
-    LOADI R6, MMIO_HI
-    LOADI R7, FRAME_COUNT_LO
-    LOAD  R0, [R6:R7]
-    LOADI R6, DATA_HI
-    LOADI R7, LAST_FRAME_LO
-    LOAD  R1, [R6:R7]
-    CMP   R0, R1
-    JZ    WAIT_FRAME
-    STORE R0, [R6:R7]
+    WAIT_VSYNC LAST_FRAME_ADDR
     RET
 
 section .data
