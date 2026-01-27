@@ -396,34 +396,14 @@ Tiny16AddrPair tiny16_parser_parse_reg_pair(Tiny16Parser* parser) {
 }
 
 uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser) {
-    if (parser->current_token.kind == TOKEN_SYMBOL) {
-        int idx = tiny16_parser_symbol_index(parser, parser->current_token.text,
-                                             parser->current_token.text_len);
-        if (idx == -1) {
-            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNDEFINED_SYMBOL,
-                                    (int)parser->current_token.text_len,
-                                    parser->current_token.text);
-            return 0;
-        }
-        uint16_t val = parser->symbols[idx].value;
-        tiny16_parser_next(parser);
-        return val;
-    }
+    long val = tiny16_parser_parse_expression(parser);
+    if (tiny16_parser_has_error(parser)) return 0;
 
-    if (parser->current_token.kind == TOKEN_NUMBER) {
-        long val = parse_number(parser, parser->current_token.text, parser->current_token.text_len);
-        if (val < 0 || val > UINT16_MAX) {
-            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "immediate", val);
-            return 0;
-        }
-        tiny16_parser_next(parser);
-        return (uint16_t)val;
+    if (val < 0 || val > UINT16_MAX) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "immediate", val);
+        return 0;
     }
-
-    tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
-                            token_kind_name(TOKEN_NUMBER),
-                            token_kind_name(parser->current_token.kind));
-    return 0;
+    return (uint16_t)val;
 }
 
 uint8_t tiny16_parser_parse_imm8(Tiny16Parser* parser) {

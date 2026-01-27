@@ -74,12 +74,15 @@ NUMBERS
 -------
 
 - Decimal: 42, Hex: 0x2A, Binary: 0b101010
-- Symbols and expressions accepted where immediates are used
+- Range: 0..65535 for 16-bit values, 0..255 for 8-bit values
 
 EXPRESSIONS
 -----------
 
-Expressions can be used in constants and immediates.
+Expressions are supported in:
+- Constants (NAME = expression)
+- Immediate values (LOADI, JMP, CALL, etc.)
+- Directive arguments (ORG, TIMES)
 
 Operators (precedence: high to low):
     -expr  ~expr           Unary minus, bitwise NOT
@@ -91,12 +94,19 @@ Operators (precedence: high to low):
     |                      Bitwise OR
     (expr)                 Parentheses
 
+Symbols (labels and constants) can be used in expressions.
+
 Examples:
-    SIZE = 8 * 8 / 2                ; 32
-    MASK = (1 << 4) | 0x0F          ; 0x1F
-    LOADI R0, 5 + 3 * 2             ; 11 (precedence: * before +)
-    LOADI R1, (5 + 3) * 2           ; 16
-    ORG 0x4000 + 256
+    SIZE = 8 * 8 / 2                ; Constant: 32
+    MASK = (1 << 4) | 0x0F          ; Constant: 0x1F
+    LOADI R0, 5 + 3 * 2             ; Immediate: 11 (precedence: * before +)
+    LOADI R1, (5 + 3) * 2           ; Immediate: 16
+    ORG 0x4000 + 256                ; Directive argument
+
+    ; Common pattern: splitting 16-bit addresses
+    ADDR = 0x4020
+    LOADI R6, ADDR >> 8             ; High byte: 0x40
+    LOADI R7, ADDR & 0xFF           ; Low byte: 0x20
 
 SECTIONS
 --------
@@ -168,6 +178,7 @@ INSTRUCTIONS
 
 LOADI R, imm8
     -> opcode reg imm8
+    -> imm8 can be a number, symbol, or expression (must evaluate to 0..255)
 
 LOAD R, [PAIR]
 STORE R, [PAIR]
@@ -229,10 +240,12 @@ JNZ addr16 | label
 JC  addr16 | label
 JNC addr16 | label
     -> opcode hi lo
+    -> addr16 can be a number, label, or expression (must evaluate to 0..65535)
 
 CALL addr16 | label
     -> opcode hi lo
     -> pushes return address and jumps to subroutine
+    -> addr16 can be a number, label, or expression (must evaluate to 0..65535)
 
 RET
     -> opcode 0 0
@@ -397,14 +410,17 @@ Using expressions:
 
     TILE_SIZE = 8
     TILE_BYTES = TILE_SIZE * TILE_SIZE / 2  ; 32
+    DATA_ADDR = 0x4020
 
     section .code
-    LOADI R0, (5 + 3) * 2        ; R0 = 16
-    JMP start + 12
+    LOADI R0, (5 + 3) * 2           ; R0 = 16 (expression in immediate)
+    LOADI R6, DATA_ADDR >> 8        ; R6 = 0x40 (high byte)
+    LOADI R7, DATA_ADDR & 0xFF      ; R7 = 0x20 (low byte)
+    JMP start + 12                  ; Expression in jump target
 
     section .data
-    ORG 0x4000 + 256
-    buffer: TIMES TILE_SIZE * 4 DB 0
+    ORG 0x4000 + 256                ; Expression in ORG
+    buffer: TIMES TILE_SIZE * 4 DB 0  ; Expression in TIMES
 
 NON-GOALS
 ---------
