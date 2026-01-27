@@ -1,8 +1,8 @@
-; Bouncing Smileys Demo - 32 PPU Sprites
+; Bouncing Sprites Demo - 32 PPU Sprites
 ;
 ; This demo demonstrates:
-; - PPU tile-based rendering with data-defined tiles
-; - Hardware sprites via OAM (32 bouncing smileys)
+; - PPU tile-based rendering with tileset from PNG
+; - Hardware sprites via OAM (32 bouncing sprites)
 ; - Using ORG to position data at specific memory addresses
 ; - Using expressions in constants for computed values
 ; - Animation synchronized to display frame rate
@@ -12,9 +12,9 @@
 ; USER_DATA_BASE+0:  initialized flag
 ; USER_DATA_BASE+1:  last_frame counter
 ; USER_DATA_BASE+16: sprite data (SPRITE_COUNT × SPRITE_SIZE bytes)
-; TILE_DATA_ADDR:    Tile 0 (smiley, 32 bytes)
+; TILE_DATA_ADDR:    Tiles from tileset.inc (128 tiles)
 ; OAM_ADDR:          OAM (64 entries × 4 bytes)
-; PALETTE_ADDR:      Palette (16 colors × 2 bytes)
+; PALETTE_ADDR:      Palette from tileset.inc
 ;
 
 .include "../stdlib/tiny16.inc"
@@ -26,6 +26,7 @@
 ; Data section base addresses
 USER_DATA_BASE     = 0x4000
 TILE_DATA_ADDR     = 0x5000
+TILEMAP_ADDR       = 0x7000
 OAM_ADDR           = 0x7800
 PALETTE_ADDR       = 0x7900
 
@@ -47,8 +48,12 @@ MODULO_RANGE       = BOUNDARY - MIN_POSITION
 VELOCITY_BASE      = 4
 INITIALIZED_FLAG   = 0xAA
 
-TILE_SMILEY        = 0x00
+TILE_SPRITE        = 55             ; Face sprite from tileset
+TILE_BACKGROUND    = 70             ; Sky tile for background
 SPRITE_ATTR_NONE   = 0x00
+
+; PPU control flags
+PPU_CTRL_BG_AND_SPRITES = 0x83      ; Enable BG (0x01) + Sprites (0x02) + Render (0x80)
 
 section .code
 
@@ -61,6 +66,10 @@ START:
 
     ; Initialize sprite positions (computed at runtime)
     CALL  INIT_SPRITES
+
+    ; Initial render to start frame counter
+    CALL  UPDATE_ALL_OAM
+    CALL  RENDER_FRAME
 
 MAIN_LOOP:
     CALL  WAIT_FRAME
@@ -75,6 +84,43 @@ MAIN_LOOP:
 ; Uses frame counter as pseudo-random seed for more varied distribution
 ; =============================================================================
 INIT_SPRITES:
+    ; First, hide all 64 OAM sprites (set Y = 0xFF)
+    SETADDR OAM_ADDR
+    LOADI R0, 64              ; 64 sprites total
+HIDE_SPRITES_LOOP:
+    LOADI R1, 0xFF            ; Y = 0xFF (hidden)
+    STORE R1, [R6:R7]+        ; Y
+    LOADI R1, 0x00
+    STORE R1, [R6:R7]+        ; X
+    STORE R1, [R6:R7]+        ; tile
+    STORE R1, [R6:R7]+        ; attr
+    DEC   R0
+    JNZ   HIDE_SPRITES_LOOP
+
+    ; Fill tilemap with background tile (32x32 = 1024 entries, 2 bytes each)
+    SETADDR TILEMAP_ADDR
+    LOADI R4, 0               ; Counter high byte (need 1024 iterations)
+    LOADI R5, 0               ; Counter low byte
+FILL_TILEMAP_LOOP:
+    LOADI R0, TILE_BACKGROUND
+    STORE R0, [R6:R7]+        ; tile index
+    LOADI R0, 0x00
+    STORE R0, [R6:R7]+        ; attribute
+    ; Increment 16-bit counter (R4:R5)
+    INC   R5
+    JNZ   FILL_TILEMAP_SKIP_HIGH
+    INC   R4                  ; Carry to high byte
+FILL_TILEMAP_SKIP_HIGH:
+    ; Check if counter reached 1024 (0x0400) = R4=4, R5=0
+    LOADI R0, 4
+    CMP   R4, R0
+    JNZ   FILL_TILEMAP_LOOP   ; R4 != 4, continue
+    ; R4 == 4, check R5 == 0
+    LOADI R0, 0
+    CMP   R5, R0
+    JNZ   FILL_TILEMAP_LOOP   ; R5 != 0, continue
+    ; Done filling tilemap
+
     ; Read FRAME_COUNT for pseudo-random seed
     PUSH2 R6, R7
     READ_FRAME_COUNT R3            ; R3 = frame count (pseudo-random seed)
@@ -181,7 +227,7 @@ UPDATE_OAM_LOOP:
     ADD   R7, R2
 
     ; Write OAM entry: Y, X, tile, attr
-    OAM_WRITE_SPRITE R1, R0, TILE_SMILEY, SPRITE_ATTR_NONE
+    OAM_WRITE_SPRITE R1, R0, TILE_SPRITE, SPRITE_ATTR_NONE
 
     INC   R4          ; next sprite
     DEC   R5
@@ -284,10 +330,13 @@ POS_SAVE:
     RET
 
 ; =============================================================================
-; RENDER_FRAME - Trigger PPU to render
+; RENDER_FRAME - Trigger PPU to render (background + sprites)
 ; =============================================================================
 RENDER_FRAME:
-    PPU_SPRITES_ON
+    LOADI R6, PPU_CTRL_HI
+    LOADI R7, PPU_CTRL_LO
+    LOADI R0, PPU_CTRL_BG_AND_SPRITES
+    STORE R0, [R6:R7]
     RET
 
 ; =============================================================================
@@ -319,60 +368,9 @@ ORG SPRITE_DATA_ADDR
 sprite_data:  TIMES SPRITE_DATA_SIZE DB 0
 
 ; ============================================================================
-; Tile 0: Smiley Face (32 bytes)
-; 8x8 pixels, 4bpp format (2 pixels per byte)
-;
-; Pixel values: 0=transparent, 1=border(blue), 2=face(yellow), 3=eyes(black)
-;
-;   01111110    Row 0
-;   12222221    Row 1
-;   12322321    Row 2 (eyes)
-;   12222221    Row 3
-;   12322321    Row 4 (eyes)
-;   12233221    Row 5 (mouth)
-;   12222221    Row 6
-;   01111110    Row 7
+; Tileset and Palette from tileset.inc
+; - Tiles at 0x5000 (128 tiles × 64 bytes each)
+; - Palette at 0x7900 (colors extracted from PNG)
+; - OAM at 0x7800 is written at runtime (not pre-initialized)
 ; ============================================================================
-ORG TILE_DATA_ADDR
-tile_smiley:
-    ; Row 0: 0 1 1 1 1 1 1 0
-    DB 0x01, 0x11, 0x11, 0x10
-    ; Row 1: 1 2 2 2 2 2 2 1
-    DB 0x12, 0x22, 0x22, 0x21
-    ; Row 2: 1 2 3 2 2 3 2 1 (eyes)
-    DB 0x12, 0x32, 0x23, 0x21
-    ; Row 3: 1 2 2 2 2 2 2 1
-    DB 0x12, 0x22, 0x22, 0x21
-    ; Row 4: 1 2 3 2 2 3 2 1 (eyes)
-    DB 0x12, 0x32, 0x23, 0x21
-    ; Row 5: 1 2 2 3 3 2 2 1 (mouth)
-    DB 0x12, 0x23, 0x32, 0x21
-    ; Row 6: 1 2 2 2 2 2 2 1
-    DB 0x12, 0x22, 0x22, 0x21
-    ; Row 7: 0 1 1 1 1 1 1 0
-    DB 0x01, 0x11, 0x11, 0x10
-
-; ============================================================================
-; OAM (64 entries × 4 bytes = 256 bytes)
-; Format: [Y, X, tile, attr] - Y=0xFF means hidden
-; All 64 sprites start hidden (Y = 0xFF)
-; ============================================================================
-ORG OAM_ADDR
-oam_data:
-    ; Each OAM entry: Y=0xFF (hidden), X=0, tile=0, attr=0
-    TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
-
-; ============================================================================
-; Palette (16 colors × 2 bytes = 32 bytes, using first 4)
-; Format: [color_RGB332, padding]
-; ============================================================================
-ORG PALETTE_ADDR
-palette:
-    ; Color 0: dark blue background (RGB332: 0x03)
-    DB 0x03, 0x00
-    ; Color 1: blue border (RGB332: 0x1F)
-    DB 0x1F, 0x00
-    ; Color 2: yellow face (RGB332: 0xFC)
-    DB 0xFC, 0x00
-    ; Color 3: black eyes/mouth (RGB332: 0x00)
-    DB 0x00, 0x00
+.include "tileset.inc"
