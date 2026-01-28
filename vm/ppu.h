@@ -3,14 +3,14 @@
 #include <stdint.h>
 
 //
-// Tile (8bpp - 1 byte per pixel)
+// Tile (4bpp - 2 pixels per byte)
 //
 #define TINY16_TILE_WIDTH     8
 #define TINY16_TILE_HEIGHT    8
-#define TINY16_TILE_BPP       8   // bits per pixel
-#define TINY16_TILE_ROW_BYTES 8   // 8 pixels * 8bpp / 8 = 8 bytes per row
-#define TINY16_TILE_SIZE      64  // 8 rows * 8 bytes = 64 bytes per tile
-#define TINY16_TILE_COUNT     128 // 128 tiles * 64 bytes = 8 KB
+#define TINY16_TILE_BPP       4   // bits per pixel
+#define TINY16_TILE_ROW_BYTES 4   // 8 pixels * 4bpp / 8 = 4 bytes per row
+#define TINY16_TILE_SIZE      32  // 8 rows * 4 bytes = 32 bytes per tile
+#define TINY16_TILE_COUNT     255 // 255 tiles * 32 bytes = 8160 bytes (~8 KB)
 
 typedef struct {
     uint8_t rows[TINY16_TILE_HEIGHT][TINY16_TILE_ROW_BYTES];
@@ -32,8 +32,8 @@ enum {
 
 // Combined tilemap entry: 2 bytes per tile
 typedef struct {
-    uint8_t tile;  // Tile index (0-255)
-    uint8_t attr;  // Attributes: [------VH] V=vflip, H=hflip
+    uint8_t tile; // Tile index (0-255)
+    uint8_t attr; // Attributes: [------VH] V=vflip, H=hflip
 } Tiny16TilemapEntry;
 
 typedef struct {
@@ -47,7 +47,6 @@ typedef struct {
 
 typedef struct {
     uint8_t color; // RGB332: RRRGGGBB
-    uint8_t _pad;  // reserved (unused)
 } Tiny16PaletteEntry;
 
 typedef struct {
