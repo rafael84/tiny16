@@ -48,8 +48,8 @@ MODULO_RANGE       = BOUNDARY - MIN_POSITION
 VELOCITY_BASE      = 4
 INITIALIZED_FLAG   = 0xAA
 
-TILE_SPRITE        = 55             ; Face sprite from tileset
-TILE_BACKGROUND    = 70             ; Sky tile for background
+TILE_SPRITE        = 68             ; Colorful gem sprite from tileset
+TILE_BACKGROUND    = 0             ; Blue water/sky tile for background
 SPRITE_ATTR_NONE   = 0x00
 
 ; PPU control flags

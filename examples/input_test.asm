@@ -34,7 +34,7 @@ OAM_BASE          = GFX_OAM_BASE
 PALETTE_BASE      = GFX_PALETTE_BASE
 
 ; Derived addresses
-PALETTE_COLOR1_ADDR = PALETTE_BASE + 2
+PALETTE_COLOR1_ADDR = PALETTE_BASE + 1  ; Changed from +2 (now 1 byte per color)
 
 ; =============================================================================
 ; Constants - Input & Graphics
@@ -89,13 +89,9 @@ MAIN_LOOP:
 INIT_PALETTE:
     SETADDR PALETTE_BASE
     LOADI R0, BG_COLOR
-    STORE R0, [R6:R7]+
-    CLEAR R0
-    STORE R0, [R6:R7]+
+    STORE R0, [R6:R7]+        ; Color 0 (background)
     LOADI R0, DEFAULT_COLOR
-    STORE R0, [R6:R7]+
-    CLEAR R0
-    STORE R0, [R6:R7]
+    STORE R0, [R6:R7]         ; Color 1 (sprite)
     RET
 
 ; =============================================================================
@@ -170,10 +166,12 @@ CHECK_BUTTON_A:
     READ_KEYS_PRESSED R3
     SKIP_IF_CLEAR R3, KEY_BUTTON_A, SAVE_POS
     ; Toggle palette color 1 (change square color)
-    LOAD16 R3, PALETTE_COLOR1_ADDR
+    LOADI R6, PALETTE_COLOR1_ADDR >> 8
+    LOADI R7, PALETTE_COLOR1_ADDR & 0xFF
+    LOAD  R3, [R6:R7]
     LOADI R4, COLOR_TOGGLE_MASK
-    XOR R3, R4
-    STORE16 R3, PALETTE_COLOR1_ADDR
+    XOR   R3, R4
+    STORE R3, [R6:R7]
 
 SAVE_POS:
     SETADDR POS_X_ADDR
