@@ -89,7 +89,7 @@ asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
 
 tools: $(BINDIR) $(TOOLSDIR)/*.c vm/*.h | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c -lm
 
 emulator: $(BINDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BINDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) \
