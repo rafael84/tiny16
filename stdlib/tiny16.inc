@@ -63,8 +63,11 @@ MOUSE_BUTTONS_ADDR  = MMIO_BASE + 0x04  ; Mouse button state
 ; Display timing (read-only)
 FRAME_COUNT_ADDR    = MMIO_BASE + 0x22  ; Increments at 60 Hz
 
-; PPU control (write-only)
+; PPU control (read/write)
 PPU_CTRL_ADDR       = MMIO_BASE + 0x30  ; Graphics control register
+PPU_SCROLL_X_ADDR   = MMIO_BASE + 0x31  ; Horizontal scroll (0-255)
+PPU_SCROLL_Y_ADDR   = MMIO_BASE + 0x32  ; Vertical scroll (0-255)
+PPU_STATUS_ADDR     = MMIO_BASE + 0x33  ; PPU status register
 
 ; Pre-computed hi/lo bytes for fast MMIO access
 KEYS_STATE_HI       = KEYS_STATE_ADDR >> 8
@@ -81,6 +84,12 @@ FRAME_COUNT_HI      = FRAME_COUNT_ADDR >> 8
 FRAME_COUNT_LO      = FRAME_COUNT_ADDR & 0xFF
 PPU_CTRL_HI         = PPU_CTRL_ADDR >> 8
 PPU_CTRL_LO         = PPU_CTRL_ADDR & 0xFF
+PPU_SCROLL_X_HI     = PPU_SCROLL_X_ADDR >> 8
+PPU_SCROLL_X_LO     = PPU_SCROLL_X_ADDR & 0xFF
+PPU_SCROLL_Y_HI     = PPU_SCROLL_Y_ADDR >> 8
+PPU_SCROLL_Y_LO     = PPU_SCROLL_Y_ADDR & 0xFF
+PPU_STATUS_HI       = PPU_STATUS_ADDR >> 8
+PPU_STATUS_LO       = PPU_STATUS_ADDR & 0xFF
 
 ; Graphics memory map
 FRAMEBUFFER_BASE    = 0xC000            ; 128x128 framebuffer (RGB332)
