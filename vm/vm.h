@@ -15,6 +15,7 @@ typedef struct {
 
 Tiny16VM* tiny16_vm_create(void);
 bool tiny16_vm_step(Tiny16VM* vm);
+bool tiny16_vm_exec(Tiny16VM* vm, uint64_t max_steps);
 
 uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr);
 void tiny16_vm_mem_write(void* ctx, uint16_t addr, uint8_t value);

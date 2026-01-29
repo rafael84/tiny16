@@ -1,0 +1,281 @@
+tiny16se Language Specification
+===============================
+
+VERSION
+    tiny16se v0.5 (NOT IMPLEMENTED YET)
+
+DESCRIPTION
+    tiny16se is a compact S-expression language that compiles to tiny16
+    assembly. This spec focuses on language semantics and the assembler
+    features the compiler leverages.
+
+------------------------------------------------------------
+1. LEXICAL CONVENTIONS
+------------------------------------------------------------
+
+Whitespace
+    Space, tab, newline separate tokens.
+
+Comments
+    ";" to end of line.
+
+Tokens
+    "(" , ")"           parentheses
+    number              decimal (0-255) or hex (0x00-0xFF)
+    string              double-quoted UTF-8 (compiler emits bytes)
+    symbol              [^0-9();\s][^();\s]* (case-sensitive)
+
+------------------------------------------------------------
+2. SYNTAX
+------------------------------------------------------------
+
+    program     := form*
+    form        := atom | list
+    list        := "(" form* ")"
+    atom        := number | string | symbol
+
+------------------------------------------------------------
+3. SEMANTIC MODEL
+------------------------------------------------------------
+
+Evaluation
+    - Lists evaluate as special forms or function calls.
+    - Atoms evaluate to literals or variable values.
+
+Result Convention
+    - Each expression leaves an 8-bit result in R0.
+    - Address expressions also populate R6:R7 (see Section 7).
+
+Truthiness
+    - Non-zero is true, zero is false. Predicates return 1 or 0.
+
+------------------------------------------------------------
+4. REGISTERS AND DATA MODEL
+------------------------------------------------------------
+
+Registers
+    R0      result / accumulator (8-bit)
+    R1–R5   temporaries (8-bit)
+    R6:R7   address pair (16-bit)
+    FP      frame pointer (R4:R5)
+    SP      stack pointer (16-bit)
+    PC      program counter (16-bit)
+
+Data Model
+    - All runtime values are 8-bit integers.
+    - Addresses are 16-bit (Rhigh:Rlow => (Rhigh << 8) | Rlow).
+    - Compile-time constant expressions may use 16-bit intermediates when
+      forming addresses or assembler expressions.
+
+------------------------------------------------------------
+5. VARIABLES AND SCOPING
+------------------------------------------------------------
+
+Scope
+    - Lexical scoping.
+    - Bindings introduced by parameters and let.
+    - Variables stored on the stack, accessed via FP + offset.
+
+------------------------------------------------------------
+6. SPECIAL FORMS
+------------------------------------------------------------
+
+(def name expr)
+    Define a compile-time constant. The compiler emits
+    "name = expr" in the output assembly.
+
+(defn name (arg*) body...)
+    Define function `name`. Returns the value of the last body form.
+
+(let (var1 val1 var2 val2 ... varN valN) body...)
+    Evaluate bindings left-to-right, then evaluate body.
+
+(set var expr)
+    Assign to nearest binding of `var`. Returns assigned value.
+
+(if cond then else)
+    Branch on cond. Both branches required.
+
+(while cond body...)
+    Loop while cond is non-zero. Returns 0.
+
+(do expr...)
+    Sequence expressions. Returns last value.
+
+(data name [addr16] form...)
+    Emit a data region. The compiler switches to section .data,
+    emits a label for name, and returns 0. If addr16 is provided,
+    emit ORG addr16 before the label. The label can be referenced
+    from code. Multiple data forms are allowed in a program.
+
+(db value1 value2 ...)
+    Emit DB bytes within a data region. Values are truncated to 8-bit.
+    Strings expand to their byte sequence (no implicit terminator).
+
+(repeat count form)
+    Repeat a data form count times. Intended for data emission like
+    (repeat 64 (db 0)).
+
+------------------------------------------------------------
+7. PRIMITIVES
+------------------------------------------------------------
+
+Arithmetic
+    add sub neg inc dec
+
+Arithmetic Aliases
+    (+ a b ...)  -> add (left associative)
+    (- a b)      -> sub
+    (- a)        -> neg
+    (inc a) and (dec a) are unchanged
+
+Bitwise
+    and or xor not shl shr
+
+Bitwise Aliases
+    (& a b)  -> and
+    (| a b)  -> or
+    (^ a b)  -> xor
+    (~ a)    -> not
+    (<< a b) -> shl
+    (>> a b) -> shr
+
+Comparison (return 1 or 0)
+    eq ne lt gt le ge
+
+Comparison Aliases
+    (= a b)  -> eq
+    (!= a b) -> ne
+    (< a b)  -> lt
+    (> a b)  -> gt
+    (<= a b) -> le
+    (>= a b) -> ge
+
+Logical
+    lnot
+
+Logical Alias
+    (! a) -> lnot
+
+Memory
+    load store addr addr+
+
+Address Expressions
+    (addr high low)     -> R6=high, R7=low, R0=low
+    (addr+ base off)    -> base address + 8-bit offset
+
+Memory Primitives
+    (load addr-expr)
+        Load byte at addr-expr into R0 and return it.
+    (store addr-expr value)
+        Store value to addr-expr and return value.
+
+Const Helpers (compile-time only)
+    (hi addr) -> upper 8 bits of addr
+    (lo addr) -> lower 8 bits of addr
+
+------------------------------------------------------------
+8. FUNCTION CALLS
+------------------------------------------------------------
+
+Call Form
+    (f arg1 arg2 ... argN)
+
+Calling Convention (summary)
+    - Caller saves FP, pushes args, CALLs.
+    - Callee sets FP = SP, allocates locals, evaluates body.
+    - Callee restores SP = FP, RETs.
+    - Caller pops args and restores FP.
+
+------------------------------------------------------------
+9. PROGRAM ENTRY
+------------------------------------------------------------
+
+    Program start code:
+    - SP = 0xBEFF
+    - FP = SP
+    - CALL main
+    - HALT after return
+
+------------------------------------------------------------
+10. CODEGEN & ASSEMBLER INTEGRATION
+------------------------------------------------------------
+
+The compiler emits tiny16 assembly and intentionally uses assembler
+features for clarity and maintainability:
+
+Macros
+    - Emit .macro helpers for common patterns (frame setup, variable
+      load/store, addr math, comparisons, loops).
+    - Use local labels ("@") inside macros to avoid collisions.
+
+Constants & Expressions
+    - Use NAME = expression for frame offsets, local sizes, and data
+      sizes (e.g. ARG_X = FP_BASE + 4, FRAME_SIZE = 3).
+    - Use expressions in immediates (e.g. LOADI R0, FRAME_SIZE + 1).
+
+Sections & Data
+    - Emit section .code for function bodies and constants.
+    - Emit section .data for (data ...) forms.
+    - Use DB for data blobs and strings (if the compiler creates data
+      for tables, jump lists, or runtime constants).
+    - Use ORG to place data when needed, and TIMES for repetition.
+
+Includes
+    - Use .include for shared macro libraries when assembling multiple
+      translation units.
+
+Concise Lowering Example
+
+    ; compiler-emitted helpers
+    .macro FP_ENTER locals
+        MOVSPR R4:R5
+        TIMES locals DEC SP
+    .endmacro
+
+    .macro FP_LEAVE
+        MOVRSP R4:R5
+    .endmacro
+
+    ARG_X = 4
+
+    section .code
+    double:
+        FP_ENTER 0
+        LOAD  R0, [R4:R5 + ARG_X]
+        ADD   R0, R0
+        FP_LEAVE
+        RET
+
+------------------------------------------------------------
+11. TOP-LEVEL FORMS & PROGRAM LAYOUT
+------------------------------------------------------------
+
+Top-Level Forms
+    - def, defn, data
+
+Typical Layout
+    (defn main (...) ...)
+    ...
+    (data my-bytes 0x4000
+      (db 1 2 3 "OK"))
+
+------------------------------------------------------------
+12. ERROR CONDITIONS
+------------------------------------------------------------
+
+Compile-time
+    - Undefined variable
+    - Wrong number of arguments
+    - Invalid syntax
+    - Numeric literal out of range (0..255)
+    - Duplicate parameter names
+
+Runtime (not trapped by generated code)
+    - Stack overflow/underflow
+    - Invalid memory access
+    - Infinite recursion
+
+------------------------------------------------------------
+END OF SPEC
+------------------------------------------------------------

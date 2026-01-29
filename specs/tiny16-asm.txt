@@ -9,6 +9,38 @@ SOURCE
 - Leading/trailing whitespace ignored
 - Empty lines ignored
 
+PREPROCESSOR
+------------
+
+Runs automatically before assembly (Pass 0).
+
+Macros:
+    .macro NAME param1, param2, ...
+        body
+    .endmacro
+
+    NAME arg1, arg2
+
+- Parameters replaced with arguments
+- Labels starting with @ are local per invocation
+- Format: __MACRONAME_N_labelname
+
+Includes:
+    .include "filename"
+
+- Inserts file contents
+- Path relative to source file directory
+- Max depth: 16
+
+Example:
+    .macro LOAD16 dest, hi, lo
+        LOADI R6, hi
+        LOADI R7, lo
+        LOAD dest, [R6:R7]
+    .endmacro
+
+    LOAD16 R0, 0xBF, 0x22
+
 COMMENTS
 --------
 
@@ -22,6 +54,14 @@ LABELS
 - Refer to the address of the next instruction
 - Must be unique
 
+CONSTANTS
+---------
+
+- Syntax: `NAME = expression`
+- Value must be 0..65535
+- Shares namespace with labels (no duplicates)
+- Can use expressions (see EXPRESSIONS)
+
 REGISTERS
 ---------
 
@@ -33,11 +73,40 @@ REGISTERS
 NUMBERS
 -------
 
-- Decimal: 42
-- Hex: 0x2A
-- Binary: 0b101010
-- No signed values
-- Labels may be used where numbers are accepted
+- Decimal: 42, Hex: 0x2A, Binary: 0b101010
+- Range: 0..65535 for 16-bit values, 0..255 for 8-bit values
+
+EXPRESSIONS
+-----------
+
+Expressions are supported in:
+- Constants (NAME = expression)
+- Immediate values (LOADI, JMP, CALL, etc.)
+- Directive arguments (ORG, TIMES)
+
+Operators (precedence: high to low):
+    -expr  ~expr           Unary minus, bitwise NOT
+    * / %                  Multiply, divide, modulo
+    + -                    Add, subtract
+    << >>                  Shift left, right
+    &                      Bitwise AND
+    ^                      Bitwise XOR
+    |                      Bitwise OR
+    (expr)                 Parentheses
+
+Symbols (labels and constants) can be used in expressions.
+
+Examples:
+    SIZE = 8 * 8 / 2                ; Constant: 32
+    MASK = (1 << 4) | 0x0F          ; Constant: 0x1F
+    LOADI R0, 5 + 3 * 2             ; Immediate: 11 (precedence: * before +)
+    LOADI R1, (5 + 3) * 2           ; Immediate: 16
+    ORG 0x4000 + 256                ; Directive argument
+
+    ; Common pattern: splitting 16-bit addresses
+    ADDR = 0x4020
+    LOADI R6, ADDR >> 8             ; High byte: 0x40
+    LOADI R7, ADDR & 0xFF           ; Low byte: 0x20
 
 SECTIONS
 --------
@@ -50,9 +119,18 @@ SECTIONS
 PSEUDO-INSTRUCTIONS
 -------------------
 
+ORG (Set Origin)
+    - Syntax: ORG addr16
+    - .data only
+    - Sets the data location counter to addr16:
+        - If addr16 > current: pad with 0x00 up to addr16
+        - If addr16 < current: error (no rewinding/overwrites)
+    - addr16 can be a number or expression, must evaluate to 0x4000..0x791F
+
 TIMES (Repeat)
     - Works in both .code and .data sections
     - Syntax: TIMES count instruction
+    - count can be a number or expression
     - Repeats the following instruction count times
     - Useful for shifts, increments, and buffer allocation
 
@@ -65,6 +143,11 @@ Data Section Examples:
     buffer:  TIMES 256 DB 0         ; 256 bytes of zeros
     pattern: TIMES 10 DB 0xAA       ; 10 bytes of 0xAA
     mixed:   TIMES 4 DB 0xFF, 0x00  ; Repeats pair: FF 00 FF 00 FF 00 FF 00
+
+ORG Example (.data):
+    section .data
+    ORG 0x4010
+    sprite_data: TIMES 128 DB 0
 
 DATA DIRECTIVES
 ---------------
@@ -95,6 +178,7 @@ INSTRUCTIONS
 
 LOADI R, imm8
     -> opcode reg imm8
+    -> imm8 can be a number, symbol, or expression (must evaluate to 0..255)
 
 LOAD R, [PAIR]
 STORE R, [PAIR]
@@ -119,8 +203,11 @@ STORE R, [PAIR]
       STORE R1, [R2:R3]+       -> 0x12 0x2A 0x00  (reg=1, mode=1, pair=1)
       LOAD  R3, [R4:R5 + 10]   -> 0x11 0x7C 0x0A  (reg=3, mode=3, pair=2)
 
+MOV R1, R2
 ADD R1, R2
 SUB R1, R2
+ADC R1, R2
+SBC R1, R2
 AND R1, R2
 OR  R1, R2
 XOR R1, R2
@@ -153,10 +240,12 @@ JNZ addr16 | label
 JC  addr16 | label
 JNC addr16 | label
     -> opcode hi lo
+    -> addr16 can be a number, label, or expression (must evaluate to 0..65535)
 
 CALL addr16 | label
     -> opcode hi lo
     -> pushes return address and jumps to subroutine
+    -> addr16 can be a number, label, or expression (must evaluate to 0..65535)
 
 RET
     -> opcode 0 0
@@ -172,18 +261,25 @@ DB value1, value2, ...
 ASSEMBLY PASSES
 ---------------
 
+Pass 0 (Preprocessing):
+- Expand .macro definitions
+- Process .include directives
+- Replace macro invocations with expanded body
+- Generate unique labels for local labels (@label)
+
 Pass 1:
 - Remove comments
 - Track section directives
-- Collect labels (both code and data labels)
+- Collect symbols (labels and constants)
 - Compute instruction addresses (code at 0x0010+, data at 0x4000+)
+- Handle ORG in .data by advancing the data location counter and padding with zeros as needed
 - Parse TIMES prefix and multiply instruction count accordingly
 - Parse DB directives and accumulate data bytes
 
 Pass 2:
 - Encode instructions in code section
 - Handle TIMES by emitting instruction multiple times
-- Resolve labels to addresses
+- Resolve symbols to values
 - Emit bytecode
 - Output file signature (16 bytes)
 - Output code section
@@ -198,8 +294,12 @@ Assembly fails on:
 - Invalid register
 - Invalid number
 - Immediate out of range
-- Undefined or duplicate label
+- Undefined or duplicate label/constant
 - TIMES with invalid count
+- ORG used outside .data
+- ORG address out of range
+- ORG that rewinds data (address < current data location counter)
+- Expression errors (division by zero, undefined symbols, syntax errors)
 
 OUTPUT
 ------
@@ -269,24 +369,24 @@ Defining graphics data directly:
     section .data
 
     ; User data at 0x4000
+    ORG 0x4000
     state: DB 0
 
-    ; Pad to tile memory at 0x5000
-           TIMES 4095 DB 0
-
     ; Define an 8x8 tile (32 bytes)
+    ORG 0x5000
     tile0: DB 0x01, 0x11, 0x11, 0x10  ; Row 0
            DB 0x12, 0x22, 0x22, 0x21  ; Row 1
            ; ... remaining rows ...
 
     ; Pad to OAM at 0x7800
-           TIMES 10208 DB 0
+    ORG 0x7800
 
     ; Initialize all 64 sprites as hidden (Y = 0xFF)
     oam:   TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
 
     ; Palette at 0x7900
     palette:
+           ORG 0x7900
            DB 0x03, 0x00  ; Color 0: dark blue
            DB 0x1F, 0x00  ; Color 1: blue
            DB 0xFC, 0x00  ; Color 2: yellow
@@ -306,13 +406,30 @@ Mixed data types:
     header: DB 0xFF, 0xFE, "ID"
     values: DB 1, 2, 3, 4
 
+Using expressions:
+
+    TILE_SIZE = 8
+    TILE_BYTES = TILE_SIZE * TILE_SIZE / 2  ; 32
+    DATA_ADDR = 0x4020
+
+    section .code
+    LOADI R0, (5 + 3) * 2           ; R0 = 16 (expression in immediate)
+    LOADI R6, DATA_ADDR >> 8        ; R6 = 0x40 (high byte)
+    LOADI R7, DATA_ADDR & 0xFF      ; R7 = 0x20 (low byte)
+    JMP start + 12                  ; Expression in jump target
+
+    section .data
+    ORG 0x4000 + 256                ; Expression in ORG
+    buffer: TIMES TILE_SIZE * 4 DB 0  ; Expression in TIMES
+
 NON-GOALS
 ---------
 
 - No macros
 - No includes
-- No expressions (e.g., TIMES 4*2 DB 0)
 - No linking or relocation
+- No conditional assembly
+- No string manipulation or concatenation
 
 DESIGN RULE
 -----------

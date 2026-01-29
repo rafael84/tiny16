@@ -6,32 +6,75 @@
 ; - Space key: Clear screen
 ;
 ; Uses line interpolation to handle fast mouse movements.
+; Demonstrates expressions in constants for memory layout.
+
+.include "../stdlib/tiny16.inc"
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section base address
+USER_DATA_BASE    = 0x4000
+
+; Data layout offsets
+INITIALIZED_ADDR  = USER_DATA_BASE + 0
+CUR_X_ADDR        = USER_DATA_BASE + 1
+CUR_Y_ADDR        = USER_DATA_BASE + 2
+LAST_FRAME_ADDR   = USER_DATA_BASE + 3
+PREV_X_ADDR       = USER_DATA_BASE + 4
+PREV_Y_ADDR       = USER_DATA_BASE + 5
+DRAW_COLOR_ADDR   = USER_DATA_BASE + 6
+DRAW_X_ADDR       = USER_DATA_BASE + 16
+DRAW_Y_ADDR       = USER_DATA_BASE + 17
+SX_ADDR           = USER_DATA_BASE + 18
+ABS_DX_ADDR       = USER_DATA_BASE + 19
+SY_ADDR           = USER_DATA_BASE + 20
+ABS_DY_ADDR       = USER_DATA_BASE + 21
+STEPS_ADDR        = USER_DATA_BASE + 22
+
+
+; FRAMEBUFFER_BASE, FRAMEBUFFER_HI, FRAMEBUFFER_LO provided by stdlib
+
+
+; =============================================================================
+; Constants - Input & Graphics
+; =============================================================================
+
+; Mouse button masks
+MOUSE_LEFT        = 0x01
+MOUSE_RIGHT       = 0x02
+
+; Keyboard masks
+KEY_SPACE         = 0x01
+
+; Drawing parameters
+INITIALIZED_FLAG  = 0xAA
+CENTER_POS        = 64
+COLOR_WHITE       = 0xFF
+COLOR_BG          = 0x03
+SIGN_BIT_MASK     = 0x80
+SIGN_POSITIVE     = 0x01
+SIGN_NEGATIVE     = 0xFF
 
 section .code
 
 START:
-    LOADI R6, 0x40
-    LOADI R7, 0x00
-    LOAD  R0, [R6:R7]
-    LOADI R1, 0xAA
-    CMP   R0, R1
+    LOAD16 R0, INITIALIZED_ADDR
+    CMPI R0, INITIALIZED_FLAG
     JZ    MAIN_LOOP
 
-    CALL  CLEAR_SCREEN
+    CLEAR_SCREEN COLOR_BG
 
     ; Init prev position
-    LOADI R6, 0x40
-    LOADI R7, 0x04
-    LOADI R0, 64
+    SETADDR PREV_X_ADDR
+    LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
     INC   R7
     STORE R0, [R6:R7]
 
     ; Mark initialized
-    LOADI R6, 0x40
-    LOADI R7, 0x00
-    LOADI R0, 0xAA
-    STORE R0, [R6:R7]
+    STORE16I INITIALIZED_FLAG, INITIALIZED_ADDR
 
 MAIN_LOOP:
     CALL  WAIT_FRAME
@@ -39,85 +82,44 @@ MAIN_LOOP:
     JMP   MAIN_LOOP
 
 ; =============================================================================
-CLEAR_SCREEN:
-    LOADI R0, 0x03
-    LOADI R6, 0xC0
-    LOADI R7, 0x00
-CLEAR_LOOP:
-    STORE R0, [R6:R7]
-    INC   R7
-    JNZ   CLEAR_LOOP
-    INC   R6
-    LOADI R1, 0
-    CMP   R6, R1
-    JNZ   CLEAR_LOOP
-    RET
-
-; =============================================================================
 READ_MOUSE:
     ; Read mouse position
-    LOADI R6, 0xBF
-    LOADI R7, 0x02
-    LOAD  R0, [R6:R7]
-    LOADI R7, 0x03
-    LOAD  R1, [R6:R7]
+    READ_MOUSE_X R0
+    READ_MOUSE_Y R1
 
     ; Save current position
-    LOADI R6, 0x40
-    LOADI R7, 0x01
+    SETADDR CUR_X_ADDR
     STORE R0, [R6:R7]
     INC   R7
     STORE R1, [R6:R7]
 
     ; Read buttons
-    LOADI R6, 0xBF
-    LOADI R7, 0x04
-    LOAD  R2, [R6:R7]
+    READ_MOUSE_BUTTONS R2
 
     ; Left button - draw white
-    MOV   R3, R2
-    LOADI R4, 0x01
-    AND   R3, R4
-    JZ    CHECK_RIGHT
-    LOADI R0, 0xFF
-    LOADI R6, 0x40
-    LOADI R7, 0x06
-    STORE R0, [R6:R7]
+    SKIP_IF_CLEAR R2, MOUSE_LEFT, CHECK_RIGHT
+    STORE16I COLOR_WHITE, DRAW_COLOR_ADDR
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
 CHECK_RIGHT:
-    MOV   R3, R2
-    LOADI R4, 0x02
-    AND   R3, R4
-    JZ    CHECK_SPACE
-    LOADI R0, 0x03
-    LOADI R6, 0x40
-    LOADI R7, 0x06
-    STORE R0, [R6:R7]
+    SKIP_IF_CLEAR R2, MOUSE_RIGHT, CHECK_SPACE
+    STORE16I COLOR_BG, DRAW_COLOR_ADDR
     CALL  DRAW_LINE
     JMP   UPDATE_PREV
 
 CHECK_SPACE:
-    LOADI R6, 0xBF
-    LOADI R7, 0x01
-    LOAD  R3, [R6:R7]
-    LOADI R4, 0x01
-    AND   R3, R4
-    JZ    UPDATE_PREV
-    CALL  CLEAR_SCREEN
+    READ_KEYS_PRESSED R3
+    SKIP_IF_CLEAR R3, KEY_SPACE, UPDATE_PREV
+    CLEAR_SCREEN COLOR_BG
 
 UPDATE_PREV:
-    LOADI R6, 0x40
-    LOADI R7, 0x01
+    SETADDR CUR_X_ADDR
     LOAD  R0, [R6:R7]
     INC   R7
     LOAD  R1, [R6:R7]
-    INC   R7
-    INC   R7
-    STORE R0, [R6:R7]
-    INC   R7
-    STORE R1, [R6:R7]
+    STORE16 R0, PREV_X_ADDR
+    STORE16 R1, PREV_Y_ADDR
     RET
 
 ; =============================================================================
@@ -125,21 +127,14 @@ UPDATE_PREV:
 ; =============================================================================
 DRAW_LINE:
     ; Load prev (x0,y0) and cur (x1,y1)
-    LOADI R6, 0x40
-    LOADI R7, 0x04
-    LOAD  R0, [R6:R7]          ; x0
-    INC   R7
-    LOAD  R1, [R6:R7]          ; y0
-    LOADI R7, 0x01
-    LOAD  R2, [R6:R7]          ; x1
-    INC   R7
-    LOAD  R3, [R6:R7]          ; y1
+    LOAD16 R0, PREV_X_ADDR     ; x0
+    LOAD16 R1, PREV_Y_ADDR     ; y0
+    LOAD16 R2, CUR_X_ADDR      ; x1
+    LOAD16 R3, CUR_Y_ADDR      ; y1
 
     ; Store current draw pos
-    LOADI R7, 0x10
-    STORE R0, [R6:R7]          ; draw_x
-    INC   R7
-    STORE R1, [R6:R7]          ; draw_y
+    STORE16 R0, DRAW_X_ADDR
+    STORE16 R1, DRAW_Y_ADDR
 
     ; Calculate dx = x1 - x0, get sign and abs
     PUSH  R2
@@ -149,41 +144,35 @@ DRAW_LINE:
 
     ; abs(dx) and sx
     MOV   R4, R2
-    LOADI R5, 0x80
+    LOADI R5, SIGN_BIT_MASK
     AND   R4, R5
     JZ    DX_POS
     LOADI R4, 0
     SUB   R4, R2
     MOV   R2, R4
-    LOADI R4, 0xFF
+    LOADI R4, SIGN_NEGATIVE
     JMP   SAVE_SX
 DX_POS:
-    LOADI R4, 0x01
+    LOADI R4, SIGN_POSITIVE
 SAVE_SX:
-    LOADI R6, 0x40
-    LOADI R7, 0x12
-    STORE R4, [R6:R7]          ; sx
-    INC   R7
-    STORE R2, [R6:R7]          ; abs_dx
+    STORE16 R4, SX_ADDR        ; sx
+    STORE16 R2, ABS_DX_ADDR    ; abs_dx
 
     ; abs(dy) and sy
     MOV   R4, R3
-    LOADI R5, 0x80
+    LOADI R5, SIGN_BIT_MASK
     AND   R4, R5
     JZ    DY_POS
     LOADI R4, 0
     SUB   R4, R3
     MOV   R3, R4
-    LOADI R4, 0xFF
+    LOADI R4, SIGN_NEGATIVE
     JMP   SAVE_SY
 DY_POS:
-    LOADI R4, 0x01
+    LOADI R4, SIGN_POSITIVE
 SAVE_SY:
-    LOADI R6, 0x40
-    LOADI R7, 0x14
-    STORE R4, [R6:R7]          ; sy
-    INC   R7
-    STORE R3, [R6:R7]          ; abs_dy
+    STORE16 R4, SY_ADDR        ; sy
+    STORE16 R3, ABS_DY_ADDR    ; abs_dy
 
     ; steps = max(abs_dx, abs_dy)
     CMP   R2, R3
@@ -194,9 +183,7 @@ USE_DY:
     MOV   R0, R3
 SET_STEPS:
     INC   R0          ; +1 for both endpoints
-    LOADI R6, 0x40
-    LOADI R7, 0x16
-    STORE R0, [R6:R7]          ; steps
+    STORE16 R0, STEPS_ADDR     ; steps
 
     POP   R3
     POP   R2
@@ -204,35 +191,25 @@ SET_STEPS:
 LINE_LOOP:
     CALL  DRAW_PIX
 
-    LOADI R6, 0x40
-    LOADI R7, 0x16
-    LOAD  R0, [R6:R7]
+    LOAD16 R0, STEPS_ADDR
     DEC   R0
-    STORE R0, [R6:R7]
+    STORE16 R0, STEPS_ADDR
     JZ    LINE_END
 
-    ; Load draw position
-    LOADI R7, 0x10
-    LOAD  R0, [R6:R7]          ; x
-    INC   R7
-    LOAD  R1, [R6:R7]          ; y
-
-    ; Load abs values
-    INC   R7
-    LOAD  R2, [R6:R7]          ; sx
-    INC   R7
-    LOAD  R3, [R6:R7]          ; abs_dx
-    INC   R7
-    LOAD  R4, [R6:R7]          ; sy
-    INC   R7
-    LOAD  R5, [R6:R7]          ; abs_dy
+    ; Load draw position and abs values
+    LOAD16 R0, DRAW_X_ADDR     ; x
+    LOAD16 R1, DRAW_Y_ADDR     ; y
+    LOAD16 R2, SX_ADDR         ; sx
+    LOAD16 R3, ABS_DX_ADDR     ; abs_dx
+    LOAD16 R4, SY_ADDR         ; sy
+    LOAD16 R5, ABS_DY_ADDR     ; abs_dy
 
     ; Compare abs_dx vs abs_dy to decide stepping
     CMP   R3, R5
     JNC   STEP_Y_DOMINANT
 
     ; X-dominant: always step X, conditionally step Y
-    LOADI R6, 1
+    LOADI R6, SIGN_POSITIVE
     CMP   R2, R6
     JNZ   STEP_X_NEG1
     INC   R0
@@ -245,7 +222,7 @@ MAYBE_STEP_Y1:
     LOADI R6, 0
     CMP   R5, R6
     JZ    SAVE_LINE_POS
-    LOADI R6, 1
+    LOADI R6, SIGN_POSITIVE
     CMP   R4, R6
     JNZ   STEP_Y_NEG1
     INC   R1
@@ -256,7 +233,7 @@ STEP_Y_NEG1:
 
 STEP_Y_DOMINANT:
     ; Y-dominant: always step Y, conditionally step X
-    LOADI R6, 1
+    LOADI R6, SIGN_POSITIVE
     CMP   R4, R6
     JNZ   STEP_Y_NEG2
     INC   R1
@@ -267,7 +244,7 @@ MAYBE_STEP_X2:
     LOADI R6, 0
     CMP   R3, R6
     JZ    SAVE_LINE_POS
-    LOADI R6, 1
+    LOADI R6, SIGN_POSITIVE
     CMP   R2, R6
     JNZ   STEP_X_NEG2
     INC   R0
@@ -276,11 +253,8 @@ STEP_X_NEG2:
     DEC   R0
 
 SAVE_LINE_POS:
-    LOADI R6, 0x40
-    LOADI R7, 0x10
-    STORE R0, [R6:R7]
-    INC   R7
-    STORE R1, [R6:R7]
+    STORE16 R0, DRAW_X_ADDR
+    STORE16 R1, DRAW_Y_ADDR
     JMP   LINE_LOOP
 
 LINE_END:
@@ -296,13 +270,9 @@ DRAW_PIX:
     PUSH  R6
     PUSH  R7
 
-    LOADI R6, 0x40
-    LOADI R7, 0x10
-    LOAD  R1, [R6:R7]          ; x
-    INC   R7
-    LOAD  R2, [R6:R7]          ; y
-    LOADI R7, 0x06
-    LOAD  R5, [R6:R7]          ; color
+    LOAD16 R1, DRAW_X_ADDR     ; x
+    LOAD16 R2, DRAW_Y_ADDR     ; y
+    LOAD16 R5, DRAW_COLOR_ADDR ; color
 
     ; Address = 0xC000 + y*128 + x
     MOV   R6, R2
@@ -318,7 +288,7 @@ DRAW_PIX:
 
     MOV   R6, R2
     SHR   R6
-    LOADI R4, 0xC0
+    LOADI R4, FRAMEBUFFER_HI
     ADD   R6, R4
     JNC   NO_C
     INC   R6
@@ -336,15 +306,7 @@ NO_C:
 
 ; =============================================================================
 WAIT_FRAME:
-    LOADI R6, 0xBF
-    LOADI R7, 0x22
-    LOAD  R0, [R6:R7]
-    LOADI R6, 0x40
-    LOADI R7, 0x03
-    LOAD  R1, [R6:R7]
-    CMP   R0, R1
-    JZ    WAIT_FRAME
-    STORE R0, [R6:R7]
+    WAIT_VSYNC LAST_FRAME_ADDR
     RET
 
 section .data

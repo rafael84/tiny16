@@ -14,18 +14,18 @@
 section .code
 
 ; First number: 0x0201 (R6:R7)
-; TODO: Load 0x02 into R6 (high byte)
-; TODO: Load 0x01 into R7 (low byte)
+loadi   r6, 0x02        ; Load 0x02 into R6 (high byte)
+loadi   r7, 0x01        ; Load 0x01 into R7 (low byte)
 
 ; Second number: 0x00FF (R0:R1)
-; TODO: Load 0x00 into R0 (high byte)
-; TODO: Load 0xFF into R1 (low byte)
+loadi   r0, 0x00        ; Load 0x00 into R0 (high byte)
+loadi   r1, 0xFF        ; Load 0xFF into R1 (low byte)
 
 ; Subtract low bytes first
-; TODO: SUB R7, R1 (R7 = 0x01 - 0xFF, sets C=1 because borrow)
+sub     r7, r1          ; SUB R7, R1 (R7 = 0x01 - 0xFF, sets C=1 because borrow)
 
 ; Subtract high bytes with borrow
-; TODO: SBC R6, R0 (R6 = 0x02 - 0x00 - C = 0x01)
+sbc     r6, r0          ; SBC R6, R0 (R6 = 0x02 - 0x00 - C = 0x01)
 
 ; Result: R6:R7 = 0x0102
-; TODO: Halt
+halt                    ; Halt

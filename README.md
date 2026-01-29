@@ -10,6 +10,7 @@ A minimalist 16-bit virtual machine with assembler and emulator.
 - 16-bit stack pointer with direct access (MOVSPR/MOVRSP)
 - 64KB address space with memory-mapped I/O
 - 28-instruction ISA with 3-byte fixed-length format
+- Assembler with macros and file inclusion
 - 128×128 pixel framebuffer (RGB332)
 - Gamepad + mouse input support
 
@@ -37,6 +38,18 @@ pacman -S mingw-w64-x86_64-gcc make
 make
 ```
 
+**WebAssembly (Browser)**
+
+```bash
+# Build and run (downloads Emscripten v4.0.23 automatically on first run)
+make build-web  # Build for web
+make serve-web  # Start local server at http://localhost:8000
+
+# To upgrade or reinstall Emscripten
+make clean-emsdk
+make build-web
+```
+
 Or download pre-built binaries from [Releases](https://github.com/rafael84/tiny16/releases).
 
 ## Usage
@@ -52,16 +65,14 @@ bin/tiny16-emu bin/demo.tiny16                      # Run
 
 **Visual Demos:**
 - [`demo.asm`](examples/demo.asm) — 32 bouncing sprites with PPU
+- [`boing_ball.asm`](examples/boing_ball.asm) — Bouncing ball animation
 - [`input_test.asm`](examples/input_test.asm) — Keyboard-controlled sprite
 - [`mouse_paint.asm`](examples/mouse_paint.asm) — Drawing with mouse
 
-**Code Patterns:**
-- [`call_ret.asm`](examples/call_ret.asm) — Subroutine calling patterns
-
 ## Documentation
 
-- [`specs/isa.txt`](specs/isa.txt) — Instruction set reference
-- [`specs/assembler.txt`](specs/assembler.txt) — Assembler syntax
+- [`stdlib/tiny16.inc`](stdlib/tiny16.inc) — Standard library (60+ macros, fully documented)
+- [`specs/`](specs/) — ISA and assembler reference
 - [`tutorial/`](tutorial/) — 49 step-by-step tutorials
 
 ## License

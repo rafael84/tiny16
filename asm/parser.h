@@ -7,16 +7,46 @@
 #include <stdlib.h>
 
 #include "cpu.h"
+#include "lexer.h"
 #include "memory.h"
 
 #define TINY16_PARSER_MAX_TOKEN_LENGTH 256
-#define TINY16_PARSER_MAX_LABELS       4096
-#define TINY16_PARSER_LINE_BUFFER_SIZE 256
+#define TINY16_PARSER_MAX_SYMBOLS      8192
+#define TINY16_PARSER_MAX_ERROR_MSG    512
+
+typedef enum {
+    TINY16_PARSER_OK = 0,
+    TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+    TINY16_PARSER_ERROR_LABEL_TOO_LONG,
+    TINY16_PARSER_ERROR_DUPLICATE_LABEL,
+    TINY16_PARSER_ERROR_TOO_MANY_LABELS,
+    TINY16_PARSER_ERROR_CONST_TOO_LONG,
+    TINY16_PARSER_ERROR_DUPLICATE_CONST,
+    TINY16_PARSER_ERROR_TOO_MANY_CONSTS,
+    TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED,
+    TINY16_PARSER_ERROR_UNKNOWN_SECTION,
+    TINY16_PARSER_ERROR_INVALID_NUMBER,
+    TINY16_PARSER_ERROR_OUT_OF_RANGE,
+    TINY16_PARSER_ERROR_UNKNOWN_MNEMONIC,
+    TINY16_PARSER_ERROR_INVALID_REGISTER,
+    TINY16_PARSER_ERROR_EXPECTED_EVEN_REGISTER,
+    TINY16_PARSER_ERROR_WRONG_REGISTER,
+    TINY16_PARSER_ERROR_UNDEFINED_SYMBOL,
+    TINY16_PARSER_ERROR_UNKNOWN_DIRECTIVE,
+    TINY16_PARSER_ERROR_PROGRAM_TOO_LARGE,
+    TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED,
+} Tiny16ParserError;
+
+typedef enum {
+    TINY16_SYMBOL_LABEL = 0,
+    TINY16_SYMBOL_CONST = 1,
+} Tiny16SymbolKind;
 
 typedef struct {
     char name[TINY16_PARSER_MAX_TOKEN_LENGTH];
-    uint16_t addr;
-} Tiny16Parser;
+    Tiny16SymbolKind kind;
+    uint16_t value;
+} Tiny16Symbol;
 
 typedef enum {
     TINY16_PARSER_SECTION_UNKNOWN = -1,
@@ -25,15 +55,16 @@ typedef enum {
 } tiny16_parser_section_t;
 
 typedef struct {
-    Tiny16Parser labels[TINY16_PARSER_MAX_LABELS];
-    int label_count;
+    const char* source_filename;
+
+    Tiny16Symbol symbols[TINY16_PARSER_MAX_SYMBOLS];
+    int symbol_count;
 
     FILE* output_file;
     size_t output_file_size;
 
-    FILE* source_file;
-    int source_line_no;
-    char* source_line;
+    Lexer lexer;
+    Token current_token;
 
     tiny16_parser_section_t current_section;
 
@@ -43,44 +74,41 @@ typedef struct {
     uint8_t data_buffer[TINY16_DATA_END - TINY16_DATA_BEGIN + 1];
     uint16_t data_size;
 
-    char line_buffer[TINY16_PARSER_LINE_BUFFER_SIZE];
-    char token_buffer[TINY16_PARSER_MAX_TOKEN_LENGTH];
-} Tiny16AsmContext;
+    Tiny16ParserError error;
+    size_t error_line;
+    char error_msg[TINY16_PARSER_MAX_ERROR_MSG];
+} Tiny16Parser;
 
-#define TINY16_PARSER_LABEL_NOT_FOUND 0xFFFF
+#define TINY16_PARSER_LABEL_NOT_FOUND UINT16_MAX
 
-char* tiny16_parser_next_line(Tiny16AsmContext* ctx);
-bool tiny16_parser_parse_label(Tiny16AsmContext* ctx);
+bool tiny16_parser_has_error(const Tiny16Parser* parser);
+void tiny16_parser_print_error(const Tiny16Parser* parser);
 
-void tiny16_parser_strip_comment(Tiny16AsmContext* ctx);
-void tiny16_parser_trim_left(Tiny16AsmContext* ctx);
-void tiny16_parser_trim_right(Tiny16AsmContext* ctx);
-int tiny16_parser_label_length(Tiny16AsmContext* ctx);
-tiny16_parser_section_t tiny16_parser_section(Tiny16AsmContext* ctx);
+void tiny16_parser_next(Tiny16Parser* parser);
+void tiny16_parser_skip_trivia(Tiny16Parser* parser);
+void tiny16_parser_expect(Tiny16Parser* parser, TokenKind kind);
+bool tiny16_parser_match(Tiny16Parser* parser, TokenKind kind);
+void tiny16_parser_skip_to_eol(Tiny16Parser* parser);
 
-uint16_t tiny16_parser_label_addr(Tiny16AsmContext* ctx, char* name);
+bool tiny16_parser_parse_label(Tiny16Parser* parser);
+bool tiny16_parser_skip_label(Tiny16Parser* parser);
+uint16_t tiny16_parser_label_addr(Tiny16Parser* parser, const char* name, size_t len);
 
-Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16AsmContext* ctx);
-uint8_t tiny16_parser_parse_reg(Tiny16AsmContext* ctx);
-uint16_t tiny16_parser_parse_imm(Tiny16AsmContext* ctx);
-uint8_t tiny16_parser_parse_imm8(Tiny16AsmContext* ctx);
-void tiny16_parser_skip_sep(Tiny16AsmContext* ctx);
-char* tiny16_parser_read_token(Tiny16AsmContext* ctx);
-void tiny16_parser_expect_end(Tiny16AsmContext* ctx);
-long tiny16_parser_parse_number(Tiny16AsmContext* ctx);
-Tiny16Addr tiny16_parser_parse_addr(Tiny16AsmContext* ctx);
-void tiny16_parser_parse_db(Tiny16AsmContext* ctx);
-int tiny16_parser_parse_times_prefix(Tiny16AsmContext* ctx);
-void tiny16_parser_eat_space(Tiny16AsmContext* ctx);
-void tiny16_parser_eat_char(Tiny16AsmContext* ctx, char c);
+bool tiny16_parser_parse_const(Tiny16Parser* parser);
 
-bool tiny16_parser_preprocess_line(Tiny16AsmContext* ctx);
-bool tiny16_parser_parse_section(Tiny16AsmContext* ctx);
-bool tiny16_parser_skip_label(Tiny16AsmContext* ctx);
-void tiny16_parser_parse_data(Tiny16AsmContext* ctx);
+bool tiny16_parser_parse_section(Tiny16Parser* parser);
+bool tiny16_parser_parse_org(Tiny16Parser* parser);
+uint16_t tiny16_parser_parse_times_prefix(Tiny16Parser* parser);
 
-typedef void (*tiny16_parser_callback_fn)(Tiny16AsmContext* ctx);
-void tiny16_parser_times_do(Tiny16AsmContext* ctx, int times, tiny16_parser_callback_fn callback);
+Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser);
+uint8_t tiny16_parser_parse_reg(Tiny16Parser* parser);
+Tiny16AddrPair tiny16_parser_parse_reg_pair(Tiny16Parser* parser);
+uint16_t tiny16_parser_parse_imm(Tiny16Parser* parser);
+uint8_t tiny16_parser_parse_imm8(Tiny16Parser* parser);
+Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser);
 
-void tiny16_parser_emit_code(Tiny16AsmContext* ctx);
-void tiny16_parser_emit_data(Tiny16AsmContext* ctx);
+void tiny16_parser_parse_data(Tiny16Parser* parser);
+void tiny16_parser_emit_code(Tiny16Parser* parser);
+void tiny16_parser_emit_data(Tiny16Parser* parser);
+
+long tiny16_parser_parse_expression(Tiny16Parser* parser);

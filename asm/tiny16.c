@@ -17,40 +17,58 @@
 #include "memory.h"
 #include "parser.c"
 #include "parser.h"
+#include "preprocessor.c"
+#include "preprocessor.h"
+
+#include "lexer.c"
+#include "lexer.h"
+
+static char* preprocess_source(const char* filename);
 
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
 
-    Tiny16AsmContext ctx = {
-        .current_section = TINY16_PARSER_SECTION_CODE,
-        .code_pc = TINY16_MEMORY_CODE_BEGIN,
-        .data_pc = TINY16_MEMORY_DATA_BEGIN,
-    };
+    //
+    // Pass 0: Preprocess (expand macros and includes)
+    //
 
-    ctx.output_file = fopen(args.output_filename, "wb");
-    if (ctx.output_file == NULL) {
+    char* source_content = preprocess_source(args.source_filename);
+    if (source_content == NULL) {
+        fprintf(stderr, "Preprocessing failed\n");
+        return EXIT_FAILURE;
+    }
+
+    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
+    // Tiny16Parser contains large fixed-size buffers (symbols table, data buffer, etc).
+    static Tiny16Parser parser;
+    memset(&parser, 0, sizeof(parser));
+    parser.source_filename = args.source_filename;
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.data_pc = TINY16_MEMORY_DATA_BEGIN;
+    parser.error = TINY16_PARSER_OK;
+    parser.error_line = 0;
+
+    parser.output_file = fopen(args.output_filename, "wb");
+    if (parser.output_file == NULL) {
         perror("could not open output file");
+        free(source_content);
         return EXIT_FAILURE;
     }
 
     // clang-format off
     uint8_t signature[16] = {
         'T', '1', '6', 0x00,                                                         // Magic
-        TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version (big-endian)
-        ((TINY16_MEMORY_CODE_BEGIN >> 8) & 0xFF), (TINY16_MEMORY_CODE_BEGIN & 0xFF), // Entrypoint addr (big-endian)
+        TINY16_VERSION_MAJOR, TINY16_VERSION_MINOR,                                  // Version
+        ((TINY16_MEMORY_CODE_BEGIN >> 8) & 0xFF), (TINY16_MEMORY_CODE_BEGIN & 0xFF), // Entrypoint
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                              // Reserved
     };
     // clang-format on
 
-    ctx.output_file_size = fwrite(signature, 1, sizeof signature, ctx.output_file);
-    if (ctx.output_file_size != 16) {
+    parser.output_file_size = fwrite(signature, 1, sizeof signature, parser.output_file);
+    if (parser.output_file_size != 16) {
         perror("write signature");
-        return EXIT_FAILURE;
-    }
-
-    ctx.source_file = fopen(args.source_filename, "r");
-    if (ctx.source_file == NULL) {
-        perror("could not open input file");
+        free(source_content);
         return EXIT_FAILURE;
     }
 
@@ -58,68 +76,144 @@ int main(int argc, char** argv) {
     // Pass 1: Collect labels and parse data section
     //
 
-    ctx.source_line_no = 0;
-    while (tiny16_parser_next_line(&ctx) != NULL) {
-        ctx.source_line_no++;
+    parser.lexer = lexer_new(source_content, strlen(source_content));
+    tiny16_parser_next(&parser);
 
-        if (!tiny16_parser_preprocess_line(&ctx)) continue;
-        if (tiny16_parser_parse_section(&ctx)) continue;
-        if (tiny16_parser_parse_label(&ctx)) continue;
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
 
-        int times = tiny16_parser_parse_times_prefix(&ctx);
-
-        switch (ctx.current_section) {
-        case TINY16_PARSER_SECTION_CODE:
-            ctx.code_pc += 3 * times;
-            break;
-        case TINY16_PARSER_SECTION_DATA:
-            tiny16_parser_times_do(&ctx, times, tiny16_parser_parse_data);
-            break;
-        default:
-            assert(0 && "unreachable");
+        if (tiny16_parser_parse_const(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
         }
+
+        if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
+            if (tiny16_parser_parse_org(&parser)) {
+                tiny16_parser_skip_to_eol(&parser);
+                continue;
+            }
+        }
+
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        if (tiny16_parser_parse_label(&parser)) {
+            tiny16_parser_skip_trivia(&parser);
+            if (parser.current_token.kind == TOKEN_END) break;
+            continue;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+
+        if (parser.current_section == TINY16_PARSER_SECTION_CODE) {
+            parser.code_pc += 3 * times;
+            tiny16_parser_skip_to_eol(&parser);
+        } else if (parser.current_section == TINY16_PARSER_SECTION_DATA) {
+            if (parser.current_token.kind == TOKEN_KEYWORD) {
+                for (uint16_t i = 0; i < times; ++i) {
+                    Lexer saved_lexer = parser.lexer;
+                    Token saved_token = parser.current_token;
+                    tiny16_parser_parse_data(&parser);
+                    if (i < times - 1) {
+                        parser.lexer = saved_lexer;
+                        parser.current_token = saved_token;
+                    }
+                }
+            }
+            tiny16_parser_skip_to_eol(&parser);
+        }
+    }
+
+    if (tiny16_parser_has_error(&parser)) {
+        tiny16_parser_print_error(&parser);
+        free(source_content);
+        fclose(parser.output_file);
+        return EXIT_FAILURE;
     }
 
     //
     // Pass 2: Emit code section
     //
 
-    ctx.current_section = TINY16_PARSER_SECTION_CODE;
-    ctx.code_pc = TINY16_MEMORY_CODE_BEGIN;
-    ctx.data_pc = TINY16_MEMORY_DATA_BEGIN;
-    fseek(ctx.source_file, 0L, SEEK_SET);
-    ctx.source_line_no = 0;
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.lexer = lexer_new(source_content, strlen(source_content));
+    tiny16_parser_next(&parser);
 
-    while (tiny16_parser_next_line(&ctx) != NULL) {
-        ctx.source_line_no++;
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
 
-        if (!tiny16_parser_preprocess_line(&ctx)) continue;
-        if (tiny16_parser_parse_section(&ctx)) continue;
-        if (!tiny16_parser_skip_label(&ctx)) continue;
-
-        tiny16_parser_trim_right(&ctx);
-
-        if (ctx.current_section == TINY16_PARSER_SECTION_CODE) {
-            int times = tiny16_parser_parse_times_prefix(&ctx);
-            tiny16_parser_times_do(&ctx, times, tiny16_parser_emit_code);
-            ctx.code_pc += 3 * times;
+        if (tiny16_parser_parse_section(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
         }
-        // DATA section already parsed in pass 1
+
+        if (tiny16_parser_skip_label(&parser)) {
+            tiny16_parser_skip_trivia(&parser);
+            if (parser.current_token.kind == TOKEN_END) break;
+            continue;
+        }
+
+        if (parser.current_token.kind == TOKEN_SYMBOL &&
+            tiny16_parser_peek(&parser, 1).kind == TOKEN_EQUALS) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+
+        if (parser.current_section == TINY16_PARSER_SECTION_CODE) {
+            for (uint16_t i = 0; i < times; ++i) {
+                Lexer saved_lexer = parser.lexer;
+                Token saved_token = parser.current_token;
+                tiny16_parser_emit_code(&parser);
+                if (i < times - 1) {
+                    parser.lexer = saved_lexer;
+                    parser.current_token = saved_token;
+                }
+            }
+            parser.code_pc += 3 * times;
+        }
+
+        tiny16_parser_skip_to_eol(&parser);
     }
 
-    if (ctx.data_size > 0) tiny16_parser_emit_data(&ctx);
-
-    fclose(ctx.source_file);
-    if (errno) {
-        perror("could not close input file");
+    if (tiny16_parser_has_error(&parser)) {
+        tiny16_parser_print_error(&parser);
+        free(source_content);
+        fclose(parser.output_file);
         return EXIT_FAILURE;
     }
 
-    fclose(ctx.output_file);
+    if (parser.data_size > 0) tiny16_parser_emit_data(&parser);
+
+    free(source_content);
+    fclose(parser.output_file);
     if (errno) {
         perror("could not close output file");
         return EXIT_FAILURE;
     }
 
     return 0;
+}
+
+static char* preprocess_source(const char* filename) {
+    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
+    // Tiny16Preprocessor contains a large fixed-size macro table and buffers.
+    static Tiny16Preprocessor pp;
+    tiny16_pp_init(&pp);
+
+    char* preprocessed = tiny16_pp_process_file(&pp, filename);
+    if (!preprocessed) {
+        tiny16_pp_print_error(&pp);
+        tiny16_pp_free(&pp);
+        return NULL;
+    }
+
+    tiny16_pp_free(&pp);
+    return preprocessed;
 }

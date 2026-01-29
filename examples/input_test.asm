@@ -1,22 +1,75 @@
-; Input Test - Move a square with arrow keys using PPU sprite
-; Arrow keys or WASD to move
-; Z/J to change color
+; Input Test - Move a Square with Keyboard
+;
+; Controls:
+; - Arrow keys or WASD: Move sprite
+; - Z or A button: Change color
 ;
 ; This demo shows:
-; - Reading keyboard input (MMIO 0xBF00, 0xBF01)
+; - Keyboard input handling (KEYS_STATE and KEYS_PRESSED)
 ; - PPU sprite rendering
-; - Palette manipulation for color changes
+; - Palette manipulation
+; - Boundary checking
+; - Using macros for cleaner input code
+
+.include "../stdlib/tiny16.inc"
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section base address
+USER_DATA_BASE    = 0x4000
+DATA_HI           = USER_DATA_BASE >> 8
+
+; Data layout offsets
+INITIALIZED_ADDR  = USER_DATA_BASE + 0
+POS_X_ADDR        = USER_DATA_BASE + 1
+POS_Y_ADDR        = USER_DATA_BASE + 2
+LAST_FRAME_ADDR   = USER_DATA_BASE + 3
+
+
+; Graphics memory
+TILES_BASE        = GFX_TILES_BASE
+OAM_BASE          = GFX_OAM_BASE
+PALETTE_BASE      = GFX_PALETTE_BASE
+
+; Derived addresses
+PALETTE_COLOR1_ADDR = PALETTE_BASE + 1  ; Changed from +2 (now 1 byte per color)
+
+; =============================================================================
+; Constants - Input & Graphics
+; =============================================================================
+
+; Keyboard bit masks (bit positions in KEYS_STATE/KEYS_PRESSED)
+KEY_UP            = 1 << 6
+KEY_DOWN          = 1 << 7
+KEY_LEFT          = 1 << 5
+KEY_RIGHT         = 1 << 4
+KEY_BUTTON_A      = 1 << 2
+
+; Game parameters
+BOUNDARY          = 120
+CENTER_POS        = BOUNDARY / 2
+INITIALIZED_FLAG  = 0xAA
+COLOR_TOGGLE_MASK = 0x1C
+TILE_SIZE_BYTES   = 32
+OAM_SPRITE_COUNT  = GFX_OAM_SPRITE_COUNT
+SOLID_PIXEL_PAIR  = 0x11
+TILE_SQUARE       = 0x00
+SPRITE_ATTR_NONE  = 0x00
+
+; Palette colors (RGB332 format)
+BG_COLOR          = 0x03
+DEFAULT_COLOR     = 0xFC
 
 section .code
 
 START:
     ; Check if already initialized
-    LOADI R6, 0x40
-    LOADI R7, 0x00
-    LOAD  R0, [R6:R7]
-    LOADI R1, 0xAA
-    CMP   R0, R1
-    JZ    MAIN_LOOP
+    LOAD16 R0, INITIALIZED_ADDR
+    LOADI R1, INITIALIZED_FLAG
+    CMP R0, R1
+    JZ MAIN_LOOP
 
     CALL  INIT_PALETTE
     CALL  INIT_TILE
@@ -34,76 +87,44 @@ MAIN_LOOP:
 ; INIT_PALETTE - Set up palette colors
 ; =============================================================================
 INIT_PALETTE:
-    LOADI R6, 0x79    ; PALETTE_BASE high
-    LOADI R7, 0x00    ; PALETTE_BASE low
-
-    ; Color 0: dark blue background (0x03)
-    LOADI R0, 0x03
-    STORE R0, [R6:R7]
-    INC   R7
-    LOADI R0, 0x00
-    STORE R0, [R6:R7]
-    INC   R7
-
-    ; Color 1: yellow (0xFC) - can be changed by button
-    LOADI R0, 0xFC
-    STORE R0, [R6:R7]
-    INC   R7
-    LOADI R0, 0x00
-    STORE R0, [R6:R7]
+    SETADDR PALETTE_BASE
+    LOADI R0, BG_COLOR
+    STORE R0, [R6:R7]+        ; Color 0 (background)
+    LOADI R0, DEFAULT_COLOR
+    STORE R0, [R6:R7]         ; Color 1 (sprite)
     RET
 
 ; =============================================================================
 ; INIT_TILE - Set up solid square tile at index 0
 ; =============================================================================
 INIT_TILE:
-    LOADI R6, 0x50    ; TILES_BASE high
-    LOADI R7, 0x00    ; TILES_BASE low
-    LOADI R0, 0x11    ; Two pixels of color 1
-    LOADI R1, 32      ; 32 bytes per tile
-
-INIT_TILE_LOOP:
-    STORE R0, [R6:R7]
-    INC   R7
-    DEC   R1
-    JNZ   INIT_TILE_LOOP
+    MEMSET TILES_BASE, TILE_SIZE_BYTES, SOLID_PIXEL_PAIR
     RET
 
 ; =============================================================================
 ; INIT_OAM - Hide all 64 sprites
 ; =============================================================================
 INIT_OAM:
-    LOADI R6, 0x78    ; OAM_BASE high
-    LOADI R7, 0x00    ; OAM_BASE low
-    LOADI R0, 0xFF    ; Y = 0xFF means hidden
-    LOADI R1, 64
+    SETADDR OAM_BASE
+    LOADI R1, OAM_SPRITE_COUNT
 
 INIT_OAM_LOOP:
-    STORE R0, [R6:R7]
-    INC   R7
-    INC   R7
-    INC   R7
-    INC   R7
-    DEC   R1
-    JNZ   INIT_OAM_LOOP
+    OAM_HIDE_SPRITE
+    DEC R1
+    JNZ INIT_OAM_LOOP
     RET
 
 ; =============================================================================
 ; INIT_SPRITE - Initialize sprite position and mark initialized
 ; =============================================================================
 INIT_SPRITE:
-    LOADI R6, 0x40
-    LOADI R7, 0x01
-    LOADI R0, 60      ; pos_x = 60 (center)
-    STORE R0, [R6:R7]
-    INC   R7
-    LOADI R0, 60      ; pos_y = 60 (center)
+    SETADDR POS_X_ADDR
+    LOADI R0, CENTER_POS
+    STORE R0, [R6:R7]+
+    LOADI R0, CENTER_POS
     STORE R0, [R6:R7]
 
-    ; Mark as initialized
-    LOADI R7, 0x00
-    LOADI R0, 0xAA
-    STORE R0, [R6:R7]
+    STORE16I INITIALIZED_FLAG, INITIALIZED_ADDR
     RET
 
 ; =============================================================================
@@ -111,79 +132,51 @@ INIT_SPRITE:
 ; =============================================================================
 READ_INPUT:
     ; Load current position
-    LOADI R6, 0x40
-    LOADI R7, 0x01
-    LOAD  R1, [R6:R7]          ; R1 = pos_x
-    INC   R7
-    LOAD  R2, [R6:R7]          ; R2 = pos_y
+    SETADDR POS_X_ADDR
+    LOAD R1, [R6:R7]+
+    LOAD R2, [R6:R7]
 
-    ; Read KEYS_STATE
-    LOADI R6, 0xBF
-    LOADI R7, 0x00
-    LOAD  R0, [R6:R7]          ; R0 = keys
+    READ_KEYS R0
 
-    ; Check Up (bit 6)
-    MOV   R3, R0
-    LOADI R4, 0x40
-    AND   R3, R4
-    JZ    CHECK_DOWN
-    LOADI R4, 0
-    CMP   R2, R4
-    JZ    CHECK_DOWN
-    DEC   R2
+    ; Check Up
+    SKIP_IF_CLEAR R0, KEY_UP, CHECK_DOWN
+    CMPI R2, 0
+    JZ CHECK_DOWN
+    DEC R2
 
 CHECK_DOWN:
-    MOV   R3, R0
-    LOADI R4, 0x80
-    AND   R3, R4
-    JZ    CHECK_LEFT
-    LOADI R4, 120
-    CMP   R2, R4
-    JZ    CHECK_LEFT
-    INC   R2
+    SKIP_IF_CLEAR R0, KEY_DOWN, CHECK_LEFT
+    CMPI R2, BOUNDARY
+    JZ CHECK_LEFT
+    INC R2
 
 CHECK_LEFT:
-    MOV   R3, R0
-    LOADI R4, 0x20
-    AND   R3, R4
-    JZ    CHECK_RIGHT
-    LOADI R4, 0
-    CMP   R1, R4
-    JZ    CHECK_RIGHT
-    DEC   R1
+    SKIP_IF_CLEAR R0, KEY_LEFT, CHECK_RIGHT
+    CMPI R1, 0
+    JZ CHECK_RIGHT
+    DEC R1
 
 CHECK_RIGHT:
-    MOV   R3, R0
-    LOADI R4, 0x10
-    AND   R3, R4
-    JZ    CHECK_BUTTON_A
-    LOADI R4, 120
-    CMP   R1, R4
-    JZ    CHECK_BUTTON_A
-    INC   R1
+    SKIP_IF_CLEAR R0, KEY_RIGHT, CHECK_BUTTON_A
+    CMPI R1, BOUNDARY
+    JZ CHECK_BUTTON_A
+    INC R1
 
 CHECK_BUTTON_A:
-    ; Check A button (bit 2) - use KEYS_PRESSED for single press
-    LOADI R6, 0xBF
-    LOADI R7, 0x01
-    LOAD  R3, [R6:R7]
-    LOADI R4, 0x04
-    AND   R3, R4
-    JZ    SAVE_POS
+    READ_KEYS_PRESSED R3
+    SKIP_IF_CLEAR R3, KEY_BUTTON_A, SAVE_POS
     ; Toggle palette color 1 (change square color)
-    LOADI R6, 0x79
-    LOADI R7, 0x02    ; Color 1 at offset 2
+    LOADI R6, PALETTE_COLOR1_ADDR >> 8
+    LOADI R7, PALETTE_COLOR1_ADDR & 0xFF
     LOAD  R3, [R6:R7]
-    LOADI R4, 0x1C
+    LOADI R4, COLOR_TOGGLE_MASK
     XOR   R3, R4
     STORE R3, [R6:R7]
 
 SAVE_POS:
-    LOADI R6, 0x40
-    LOADI R7, 0x01
-    STORE R1, [R6:R7]          ; pos_x
-    INC   R7
-    STORE R2, [R6:R7]          ; pos_y
+    SETADDR POS_X_ADDR
+    STORE R1, [R6:R7]+
+    STORE R2, [R6:R7]
     RET
 
 ; =============================================================================
@@ -191,51 +184,27 @@ SAVE_POS:
 ; =============================================================================
 UPDATE_OAM:
     ; Load position
-    LOADI R6, 0x40
-    LOADI R7, 0x01
-    LOAD  R0, [R6:R7]          ; x
-    INC   R7
-    LOAD  R1, [R6:R7]          ; y
+    SETADDR POS_X_ADDR
+    LOAD R0, [R6:R7]+
+    LOAD R1, [R6:R7]
 
     ; Write to OAM entry 0
-    LOADI R6, 0x78
-    LOADI R7, 0x00
-    STORE R1, [R6:R7]          ; Y
-    INC   R7
-    STORE R0, [R6:R7]          ; X
-    INC   R7
-    LOADI R0, 0x00    ; Tile index 0
-    STORE R0, [R6:R7]
-    INC   R7
-    STORE R0, [R6:R7]          ; Attributes
+    SETADDR OAM_BASE
+    OAM_WRITE_SPRITE R1, R0, TILE_SQUARE, SPRITE_ATTR_NONE
     RET
 
 ; =============================================================================
 ; RENDER_FRAME - Trigger PPU render
 ; =============================================================================
 RENDER_FRAME:
-    LOADI R6, 0xBF
-    LOADI R7, 0x30
-    LOADI R0, 0x82    ; ENABLE_SPRITES | RENDER_NOW
-    STORE R0, [R6:R7]
+    PPU_SPRITES_ON
     RET
 
 ; =============================================================================
 ; WAIT_FRAME - Wait for next display frame
 ; =============================================================================
 WAIT_FRAME:
-    LOADI R6, 0xBF
-    LOADI R7, 0x22    ; FRAME_COUNT
-    LOAD  R0, [R6:R7]
-
-    LOADI R6, 0x40
-    LOADI R7, 0x03    ; last_frame
-    LOAD  R1, [R6:R7]
-
-    CMP   R0, R1
-    JZ    WAIT_FRAME
-
-    STORE R0, [R6:R7]
+    WAIT_VSYNC LAST_FRAME_ADDR
     RET
 
 section .data

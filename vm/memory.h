@@ -27,22 +27,19 @@ typedef struct {
 #define TINY16_MEMORY_DATA_END   0x4FFF /* USER DATA, 4 KB */
 
 //
-// Graphics (PPU-visible, contiguous)
+// Graphics (PPU-visible, contiguous, simplified layout)
 //
-#define TINY16_MEMORY_GRAPHICS_TILES_BASE 0x5000
-#define TINY16_MEMORY_GRAPHICS_TILES_END  0x6FFF /* TILES, 256 x 32 B = 8 KB */
+#define TINY16_MEMORY_GFX_TILES_BASE 0x5000
+#define TINY16_MEMORY_GFX_TILES_END  0x6FEF /* TILES, 255 x 32 B = 8160 bytes (~8 KB) */
 
-#define TINY16_MEMORY_GRAPHICS_TILEMAP_BASE 0x7000
-#define TINY16_MEMORY_GRAPHICS_TILEMAP_END  0x73FF /* TILEMAP, 32 x 32 = 1 KB */
+#define TINY16_MEMORY_GFX_TILEMAP_BASE 0x7000
+#define TINY16_MEMORY_GFX_TILEMAP_END  0x77FF // TILEMAP, 32 x 32 x 2 B = 2 KB (combined tile+attr)
 
-#define TINY16_MEMORY_GRAPHICS_ATTRMAP_BASE 0x7400
-#define TINY16_MEMORY_GRAPHICS_ATTRMAP_END  0x77FF /* ATTRMAP, 32 x 32 = 1 KB */
+#define TINY16_MEMORY_GFX_OAM_BASE 0x7800
+#define TINY16_MEMORY_GFX_OAM_END  0x78FF /* OAM, 64 sprites x 4 B = 256 B */
 
-#define TINY16_MEMORY_GRAPHICS_OAM_BASE 0x7800
-#define TINY16_MEMORY_GRAPHICS_OAM_END  0x78FF /* OAM, 64 sprites x 4 B = 256 B */
-
-#define TINY16_MEMORY_GRAPHICS_PALETTE_BASE 0x7900
-#define TINY16_MEMORY_GRAPHICS_PALETTE_END  0x791F /* PALETTE, 16 colors x 2 B = 32 B */
+#define TINY16_MEMORY_GFX_PALETTE_BASE 0x7900
+#define TINY16_MEMORY_GFX_PALETTE_END  0x790F /* PALETTE, 16 colors x 1 B = 16 B */
 
 //
 // Stack
@@ -77,8 +74,8 @@ typedef struct {
 //
 // Data section range: covers user data + all graphics memory
 //
-#define TINY16_DATA_BEGIN TINY16_MEMORY_DATA_BEGIN           // 0x4000
-#define TINY16_DATA_END   TINY16_MEMORY_GRAPHICS_PALETTE_END // 0x791F
+#define TINY16_DATA_BEGIN TINY16_MEMORY_DATA_BEGIN      // 0x4000
+#define TINY16_DATA_END   TINY16_MEMORY_GFX_PALETTE_END // 0x791F
 
 //
 // Framebuffer (direct bitmap)
@@ -94,7 +91,7 @@ typedef struct {
 //
 void tiny16_memory_print(const Tiny16Memory* memory, bool framebuffer);
 void tiny16_memory_reset(Tiny16Memory* memory);
-size_t tiny16_memory_load_from_file(Tiny16Memory* memory, char* filename);
+size_t tiny16_memory_load_from_file(Tiny16Memory* memory, const char* filename);
 
 //
 // Bus interface (used by CPU)
