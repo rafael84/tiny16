@@ -343,6 +343,48 @@ PPU_CTRL_SPRITES_ON = PPU_CTRL_SPRITES | PPU_CTRL_RENDER_NOW   ; 0x82
 .endmacro
 
 ; -----------------------------------------------------------------------------
+; ANDI reg, imm - Bitwise AND register with immediate value
+; Clobbers: R7 (temporary)
+; Example:
+;   LOADI R0, 0xFF
+;   ANDI R0, 0x0F    ; R0 = 0x0F (mask lower 4 bits)
+; -----------------------------------------------------------------------------
+.macro ANDI reg, imm
+    PUSH R7
+    LOADI R7, imm
+    AND reg, R7
+    POP R7
+.endmacro
+
+; -----------------------------------------------------------------------------
+; ORI reg, imm - Bitwise OR register with immediate value
+; Clobbers: R7 (temporary)
+; Example:
+;   LOADI R0, 0x10
+;   ORI R0, 0x01     ; R0 = 0x11 (set bit 0)
+; -----------------------------------------------------------------------------
+.macro ORI reg, imm
+    PUSH R7
+    LOADI R7, imm
+    OR reg, R7
+    POP R7
+.endmacro
+
+; -----------------------------------------------------------------------------
+; XORI reg, imm - Bitwise XOR register with immediate value
+; Clobbers: R7 (temporary)
+; Example:
+;   LOADI R0, 0xFF
+;   XORI R0, 0xFF    ; R0 = 0x00 (toggle all bits)
+; -----------------------------------------------------------------------------
+.macro XORI reg, imm
+    PUSH R7
+    LOADI R7, imm
+    XOR reg, R7
+    POP R7
+.endmacro
+
+; -----------------------------------------------------------------------------
 ; INC_BY reg, count - Increment register by N
 ; Clobbers: R7 (temporary)
 ; Example:
