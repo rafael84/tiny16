@@ -2,6 +2,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "apu.c"
+#include "apu.h"
 #include "cpu.c"
 #include "cpu.h"
 #include "memory.c"

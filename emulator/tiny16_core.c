@@ -1,7 +1,19 @@
 #include "tiny16_core.h"
+#include "apu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// Global pointer for audio callback (raylib doesn't support user data in callback)
+static Tiny16APU* g_apu = NULL;
+
+static void tiny16_audio_callback(void* buffer, unsigned int frames) {
+    if (g_apu) {
+        tiny16_apu_generate_samples(g_apu, (float*)buffer, frames);
+    } else {
+        memset(buffer, 0, frames * sizeof(float));
+    }
+}
 
 Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
     Tiny16Emulator* emu = malloc(sizeof(Tiny16Emulator));
@@ -10,6 +22,7 @@ Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
     emu->instr_acc = 0.0f;
     emu->paused = false;
     emu->program_loaded = program_loaded;
+    emu->audio_enabled = false;
     memset(emu->back_buffer, 0, sizeof(emu->back_buffer));
 
     // Pre-compute RGB332 -> RGBA lookup table
@@ -24,11 +37,27 @@ Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
     emu->fb_texture =
         LoadTextureFromImage(GenImageColor(TINY16_EMU_PIXEL_WIDTH, TINY16_EMU_PIXEL_HEIGHT, BLACK));
 
+    // Initialize audio
+    if (IsAudioDeviceReady()) {
+        SetAudioStreamBufferSizeDefault(4096);
+        emu->audio_stream =
+            LoadAudioStream(TINY16_APU_SAMPLE_RATE, 32, 1); // 44100 Hz, 32-bit float, mono
+        g_apu = &vm->apu;
+        SetAudioStreamCallback(emu->audio_stream, tiny16_audio_callback);
+        PlayAudioStream(emu->audio_stream);
+        emu->audio_enabled = true;
+    }
+
     return emu;
 }
 
 void tiny16_emu_destroy(Tiny16Emulator* emu) {
     if (emu) {
+        if (emu->audio_enabled) {
+            StopAudioStream(emu->audio_stream);
+            UnloadAudioStream(emu->audio_stream);
+            g_apu = NULL;
+        }
         UnloadTexture(emu->fb_texture);
         free(emu);
     }
@@ -93,7 +122,11 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
     Tiny16VM* vm = emu->vm;
 
     // Handle pause toggle
-    if (IsKeyPressed(KEY_P)) emu->paused = !emu->paused;
+    if (IsKeyPressed(KEY_P)) {
+        emu->paused = !emu->paused;
+        if (emu->paused) PauseAudioStream(emu->audio_stream);
+        else ResumeAudioStream(emu->audio_stream);
+    }
 
     // Handle debug dump
     if (IsKeyPressed(KEY_ZERO)) {

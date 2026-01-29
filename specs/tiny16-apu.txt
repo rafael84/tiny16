@@ -1,0 +1,162 @@
+tiny16 APU Specification
+========================
+
+
+OVERVIEW
+--------
+
+4-channel audio synthesis with async sample generation.
+
+Sample Rate:    44,100 Hz
+Output:         32-bit float, mono
+Channels:       2 pulse + 1 triangle + 1 noise
+Phase:          32-bit accumulator per channel
+Frequency:      11-bit divisor (0-2047)
+Volume:         4-bit master + 4-bit per channel
+
+
+CHANNELS
+--------
+
+CH0, CH1 - Pulse Wave
+  Frequency:    11-bit (0-2047)
+  Volume:       4-bit (0-15)
+  Duty Cycle:   12.5%, 25%, 50%, 75%
+  Use:          Melody, harmony, leads
+
+CH2 - Triangle Wave
+  Frequency:    11-bit (0-2047)
+  Volume:       4-bit (0-15)
+  Use:          Bass, sub-bass
+
+CH3 - Noise (LFSR)
+  Period:       4-bit (0-15), lower = higher pitch
+  Volume:       4-bit (0-15)
+  Mode:         Long (hissy) / Short (metallic)
+  Use:          Drums, explosions, SFX
+
+
+MMIO REGISTERS (0xBF40-0xBF5F)
+------------------------------
+
+0xBF40  APU_CTRL        RW  bit 0: enable | bits 4-7: master volume
+0xBF41  APU_STATUS      R   bits 0-3: channel active flags
+
+Channel 0 - Pulse 1:
+0xBF42  CH0_FREQ_LO     W   frequency bits 0-7
+0xBF43  CH0_FREQ_HI     W   frequency bits 8-10 (bits 0-2)
+0xBF44  CH0_VOL         RW  bits 0-3: volume | bits 4-5: duty (00/01/10/11)
+0xBF45  CH0_CTRL        RW  bit 0: enable | bit 1: trigger
+
+Channel 1 - Pulse 2:
+0xBF46  CH1_FREQ_LO     W   frequency bits 0-7
+0xBF47  CH1_FREQ_HI     W   frequency bits 8-10
+0xBF48  CH1_VOL         RW  volume & duty (same as CH0)
+0xBF49  CH1_CTRL        RW  enable & trigger
+
+Channel 2 - Triangle:
+0xBF4A  CH2_FREQ_LO     W   frequency bits 0-7
+0xBF4B  CH2_FREQ_HI     W   frequency bits 8-10
+0xBF4C  CH2_VOL         RW  bits 0-3: volume
+0xBF4D  CH2_CTRL        RW  bit 0: enable | bit 1: trigger
+
+Channel 3 - Noise:
+0xBF4E  CH3_PERIOD      W   bits 0-3: period (0=high, 15=low)
+0xBF4F  CH3_VOL         RW  bits 0-3: volume
+0xBF50  CH3_CTRL        RW  bit 0: enable | bit 1: trigger | bit 2: mode
+
+0xBF51-0xBF5F  Reserved (envelopes, sweep)
+
+
+FREQUENCY
+---------
+
+Formula:
+  freq_hz = 44100 / (16 * (2048 - freq_value))
+  freq_value = 2048 - (44100 / (16 * freq_hz))
+
+
+NOTE TABLE (A4 = 440 Hz)
+------------------------
+
+Oct 3:  C=1880  D=1892  E=1903  F=1908  G=1917  A=1925  B=1933
+Oct 4:  C=1937  D=1944  E=1950  F=1953  G=1959  A=1965  B=1970
+Oct 5:  C=1972  D=1977  E=1981  F=1983  G=1987  A=1991  B=1994
+
+Sharps: add ~3-6 to natural note value
+
+
+WAVEFORM GENERATION
+-------------------
+
+Phase Accumulator:
+  phase_inc = 0x100000000 / (16 * (2048 - freq_value))
+  phase += phase_inc  (per sample, wraps at 32-bit)
+  t = phase / 4294967296.0  (normalized 0-1)
+
+Pulse:
+  sample = (t < duty_threshold) ? 1.0 : -1.0
+  duty: 12.5%=0.125, 25%=0.25, 50%=0.5, 75%=0.75
+
+Triangle:
+  if t < 0.25:      sample = t * 4
+  else if t < 0.75: sample = 2 - t * 4
+  else:             sample = t * 4 - 4
+
+Noise (LFSR):
+  bit = ((lfsr >> 0) ^ (lfsr >> 1) ^ (lfsr >> 3) ^ (lfsr >> 12)) & 1
+  lfsr = (lfsr >> 1) | (bit << 15)
+  sample = (lfsr / 32768.0) - 1.0
+
+
+MIXING
+------
+
+mix = sum(channel_sample * channel_vol/15) / active_count
+output = clamp(mix * master_vol/15, -1.0, 1.0)
+
+
+EXAMPLE - Play A4 on CH0
+------------------------
+
+    LOADI R6, 0xBF
+
+    ; Enable APU, master vol=12
+    LOADI R7, 0x40
+    LOADI R0, 0xC1          ; 0xC0 | 0x01
+    STORE R0, [R6:R7]
+
+    ; Frequency = 1965 (0x07AD)
+    LOADI R7, 0x42
+    LOADI R0, 0xAD
+    STORE R0, [R6:R7]
+    LOADI R7, 0x43
+    LOADI R0, 0x07
+    STORE R0, [R6:R7]
+
+    ; Volume=12, duty=50%
+    LOADI R7, 0x44
+    LOADI R0, 0x2C          ; duty=10, vol=1100
+    STORE R0, [R6:R7]
+
+    ; Enable channel
+    LOADI R7, 0x45
+    LOADI R0, 0x01
+    STORE R0, [R6:R7]
+
+
+RESET STATE
+-----------
+
+All registers = 0x00 (APU disabled, all channels off)
+LFSR seed = 0xACE1
+
+
+LIMITATIONS
+-----------
+
+- No hardware envelopes (ADSR in software)
+- No frequency sweep (per-frame in software)
+- No PCM/samples
+- Mono only
+- 4 channels max

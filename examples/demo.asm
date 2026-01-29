@@ -33,6 +33,7 @@ PALETTE_ADDR       = 0x7900
 ; Data layout offsets
 INITIALIZED_ADDR   = USER_DATA_BASE + 0
 LAST_FRAME_ADDR    = USER_DATA_BASE + 1
+BOUNCE_FLAG_ADDR   = USER_DATA_BASE + 2
 SPRITE_DATA_ADDR   = USER_DATA_BASE + 16
 
 ; =============================================================================
@@ -45,7 +46,7 @@ SPRITE_DATA_SIZE   = SPRITE_COUNT * SPRITE_SIZE
 BOUNDARY           = 120
 MIN_POSITION       = 10
 MODULO_RANGE       = BOUNDARY - MIN_POSITION
-VELOCITY_BASE      = 4
+VELOCITY_BASE      = 1
 INITIALIZED_FLAG   = 0xAA
 
 TILE_SPRITE        = 68             ; Colorful gem sprite from tileset
@@ -58,6 +59,9 @@ PPU_CTRL_BG_AND_SPRITES = 0x83      ; Enable BG (0x01) + Sprites (0x02) + Render
 section .code
 
 START:
+    ; Initialize APU (lower master volume)
+    APU_INIT 1
+
     ; Check if already initialized
     LOAD16 R0, INITIALIZED_ADDR
     LOADI R1, INITIALIZED_FLAG
@@ -73,6 +77,7 @@ START:
 
 MAIN_LOOP:
     CALL  WAIT_FRAME
+    APU_CH0_OFF               ; Stop previous bounce sound (played for 1 frame)
     CALL  UPDATE_ALL_OAM
     CALL  UPDATE_ALL_POSITIONS
     CALL  RENDER_FRAME
@@ -238,6 +243,8 @@ UPDATE_OAM_LOOP:
 ; UPDATE_ALL_POSITIONS - Update positions for all 32 sprites
 ; =============================================================================
 UPDATE_ALL_POSITIONS:
+    ; Clear bounce flag
+    STORE16I 0, BOUNCE_FLAG_ADDR
     LOADI R4, 0       ; sprite counter
     LOADI R5, SPRITE_COUNT
 
@@ -261,10 +268,9 @@ UPDATE_POS_LOOP:
     PUSH  R7          ; save address low byte
 
     ; Update X position: add velocity, check bounds
-    ; vel_x > 1 means moving right, vel_x = 0 means moving left
-    CMPI R2, 1
-    JC    POS_MOVE_LEFT        ; vel_x < 1 means moving left (vel_x = 0)
-    JZ    POS_MOVE_LEFT        ; vel_x == 1 also left
+    ; vel_x > 0 means moving right, vel_x = 0 means moving left
+    CMPI R2, 0
+    JZ    POS_MOVE_LEFT        ; vel_x == 0 means moving left
 
     ; Moving right: x += vel_x
     ADD   R0, R2
@@ -273,6 +279,9 @@ UPDATE_POS_LOOP:
     ; Bounce: clamp x and reverse velocity
     LOADI R0, BOUNDARY         ; x = 120
     CLEAR R2                   ; vel_x = 0 (move left)
+    PUSH  R0
+    STORE16I 1, BOUNCE_FLAG_ADDR
+    POP   R0
     JMP   POS_UPDATE_Y
 
 POS_MOVE_LEFT:
@@ -285,13 +294,16 @@ POS_MOVE_LEFT:
 
 POS_BOUNCE_X_LEFT:
     CLEAR R0                   ; x = 0
-    LOADI R2, VELOCITY_BASE    ; vel_x = 4 (move right)
+    LOADI R2, VELOCITY_BASE    ; vel_x = move right
+    PUSH  R0
+    STORE16I 1, BOUNCE_FLAG_ADDR
+    POP   R0
 
 POS_UPDATE_Y:
     ; Update Y position: similar logic
-    CMPI R3, 1
-    JC    POS_MOVE_UP          ; vel_y < 1 means moving up
-    JZ    POS_MOVE_UP          ; vel_y == 1 also up
+    ; vel_y > 0 means moving down, vel_y = 0 means moving up
+    CMPI R3, 0
+    JZ    POS_MOVE_UP          ; vel_y == 0 means moving up
 
     ; Moving down: y += vel_y
     ADD   R1, R3
@@ -300,6 +312,9 @@ POS_UPDATE_Y:
     ; Bounce: clamp y and reverse velocity
     LOADI R1, BOUNDARY         ; y = 120
     CLEAR R3                   ; vel_y = 0 (move up)
+    PUSH  R0
+    STORE16I 1, BOUNCE_FLAG_ADDR
+    POP   R0
     JMP   POS_SAVE
 
 POS_MOVE_UP:
@@ -311,7 +326,10 @@ POS_MOVE_UP:
 
 POS_BOUNCE_Y_UP:
     CLEAR R1                   ; y = 0
-    LOADI R3, VELOCITY_BASE    ; vel_y = 4 (move down)
+    LOADI R3, VELOCITY_BASE    ; vel_y = move down
+    PUSH  R0
+    STORE16I 1, BOUNCE_FLAG_ADDR
+    POP   R0
 
 POS_SAVE:
     ; Restore address and save position using post-increment
@@ -327,6 +345,50 @@ POS_SAVE:
     INC   R4          ; next sprite
     DEC   R5
     JNZ   UPDATE_POS_LOOP
+
+    ; Check if any bounce occurred this frame
+    LOAD16 R0, BOUNCE_FLAG_ADDR
+    CMPI  R0, 0
+    JZ    NO_BOUNCE_SOUND
+    CALL  PLAY_BOUNCE
+NO_BOUNCE_SOUND:
+    RET
+
+; =============================================================================
+; PLAY_BOUNCE - Short bounce sound effect with pitch variance
+; Uses frame counter to vary between C5, E5, G5, C6-ish
+; =============================================================================
+PLAY_BOUNCE:
+    PUSH4 R0, R1, R2, R3
+
+    ; Read frame counter for variance
+    READ_FRAME_COUNT R0
+    LOADI R1, 0x03
+    AND   R0, R1              ; R0 = 0, 1, 2, or 3
+
+    CMPI  R0, 0
+    JZ    BOUNCE_NOTE_0
+    CMPI  R0, 1
+    JZ    BOUNCE_NOTE_1
+    CMPI  R0, 2
+    JZ    BOUNCE_NOTE_2
+    JMP   BOUNCE_NOTE_3
+
+BOUNCE_NOTE_0:
+    APU_CH0_NOTE NOTE_C5, 6, APU_DUTY_25
+    JMP   BOUNCE_DONE
+BOUNCE_NOTE_1:
+    APU_CH0_NOTE NOTE_E5, 6, APU_DUTY_25
+    JMP   BOUNCE_DONE
+BOUNCE_NOTE_2:
+    APU_CH0_NOTE NOTE_G5, 6, APU_DUTY_25
+    JMP   BOUNCE_DONE
+BOUNCE_NOTE_3:
+    APU_CH0_NOTE NOTE_B5, 6, APU_DUTY_12_5
+    ; fall through
+
+BOUNCE_DONE:
+    POP4  R0, R1, R2, R3
     RET
 
 ; =============================================================================

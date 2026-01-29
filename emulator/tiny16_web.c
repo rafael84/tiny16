@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "apu.c"
+#include "apu.h"
 #include "cpu.c"
 #include "cpu.h"
 #include "memory.c"
@@ -67,6 +69,7 @@ int main(int argc, char** argv) {
     // Initialize window
     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
     InitWindow(TINY16_EMU_SCREEN_WIDTH, TINY16_EMU_SCREEN_HEIGHT, "tiny16 emulator");
+    InitAudioDevice();
     SetTargetFPS(60);
 
     // Create emulator

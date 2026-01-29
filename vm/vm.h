@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "apu.h"
 #include "cpu.h"
 #include "memory.h"
 #include "ppu.h"
@@ -10,6 +11,7 @@ typedef struct {
     Tiny16CPU cpu;
     Tiny16Memory memory;
     Tiny16PPU ppu;
+    Tiny16APU apu;
     uint32_t ticks;
 } Tiny16VM;
 

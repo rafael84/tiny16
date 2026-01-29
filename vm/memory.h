@@ -69,6 +69,33 @@ typedef struct {
 #define TINY16_MMIO_PPU_SCROLL_Y 0xBF32
 #define TINY16_MMIO_PPU_STATUS   0xBF33
 
+// APU (0xBF40 - 0xBF5F)
+#define TINY16_MMIO_APU_CTRL   0xBF40 // Master control: bit 0=enable, bits 4-7=volume
+#define TINY16_MMIO_APU_STATUS 0xBF41 // Status: bits 0-3=channel active flags
+
+// APU Channel 0 - Pulse 1
+#define TINY16_MMIO_APU_CH0_FREQ_LO 0xBF42 // Frequency low byte
+#define TINY16_MMIO_APU_CH0_FREQ_HI 0xBF43 // Frequency high (bits 0-2)
+#define TINY16_MMIO_APU_CH0_VOL     0xBF44 // Volume (0-3) + duty (4-5)
+#define TINY16_MMIO_APU_CH0_CTRL    0xBF45 // Enable (0) + trigger (1)
+
+// APU Channel 1 - Pulse 2
+#define TINY16_MMIO_APU_CH1_FREQ_LO 0xBF46
+#define TINY16_MMIO_APU_CH1_FREQ_HI 0xBF47
+#define TINY16_MMIO_APU_CH1_VOL     0xBF48
+#define TINY16_MMIO_APU_CH1_CTRL    0xBF49
+
+// APU Channel 2 - Triangle
+#define TINY16_MMIO_APU_CH2_FREQ_LO 0xBF4A
+#define TINY16_MMIO_APU_CH2_FREQ_HI 0xBF4B
+#define TINY16_MMIO_APU_CH2_VOL     0xBF4C
+#define TINY16_MMIO_APU_CH2_CTRL    0xBF4D
+
+// APU Channel 3 - Noise
+#define TINY16_MMIO_APU_CH3_PERIOD 0xBF4E // Period (0-15)
+#define TINY16_MMIO_APU_CH3_VOL    0xBF4F // Volume (0-15)
+#define TINY16_MMIO_APU_CH3_CTRL   0xBF50 // Enable (0) + trigger (1) + mode (2)
+
 // RESERVED (0xBFF0 - 0xBFFF)
 
 //

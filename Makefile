@@ -1,4 +1,4 @@
-.PHONY: all asm tests examples emulator emulator-web build-web serve-web probe
+.PHONY: all asm tests examples emulator emulator-web build-web serve-web
 .PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web
 
 UNAME_S := $(shell uname -s)
@@ -70,7 +70,7 @@ BINDIR = bin
 WEBDIR = emulator/web
 TOOLSDIR = tools
 
-all: tests asm emulator examples tools probe
+all: tests asm emulator examples tools
 
 $(BINDIR):
 	mkdir -p $@
@@ -142,10 +142,6 @@ $(EMSDK_ENV): $(EMSDK_PATH)/emsdk
 $(WEBDIR):
 	mkdir -p $@
 
-probe: $(BINDIR) probe/*.c $(RAYLIB_LIB) | $(BINDIR)
-	$(CC) $(CFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/probe-audio$(EXE_EXT) probe/audio.c $(RAYLIB_LDFLAGS)
-	$(CC) $(CFLAGS) -o $(BINDIR)/probe-threads$(EXE_EXT) probe/threads.c -pthread -lm
-
 EXAMPLES := $(wildcard examples/*.asm)
 EXAMPLE_OUTPUTS := $(patsubst examples/%.asm,$(BINDIR)/%.tiny16,$(EXAMPLES))
 
@@ -181,7 +177,7 @@ raylib-clean:
 	@rm -f $(RAYLIB_LIB_NATIVE) $(RAYLIB_LIB_WEB)
 
 clean:
-	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-vm-tests* $(BINDIR)/tiny16-asm-tests* $(BINDIR)/probe-*
+	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-vm-tests* $(BINDIR)/tiny16-asm-tests*
 
 clean-all: clean raylib-clean
 

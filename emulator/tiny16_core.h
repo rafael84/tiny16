@@ -15,6 +15,7 @@
 typedef struct {
     Tiny16VM* vm;
     Texture2D fb_texture;
+    AudioStream audio_stream;
     uint64_t frame_counter;
     float instr_acc;
     uint8_t back_buffer[TINY16_EMU_PIXEL_WIDTH * TINY16_EMU_PIXEL_HEIGHT];
@@ -22,6 +23,7 @@ typedef struct {
     Color rgb332_lut[256]; // lookup table for RGB332 -> RGBA conversion
     bool paused;
     bool program_loaded;
+    bool audio_enabled;
 } Tiny16Emulator;
 
 Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded);
