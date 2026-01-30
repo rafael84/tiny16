@@ -5,14 +5,17 @@ tiny16 APU Specification
 OVERVIEW
 --------
 
-4-channel audio synthesis with async sample generation.
+5-channel audio synthesis with async sample generation.
 
 Sample Rate:    44,100 Hz
 Output:         32-bit float, mono
-Channels:       2 pulse + 1 triangle + 1 noise
+Channels:       2 pulse + 1 triangle + 1 noise + 1 wave
 Phase:          32-bit accumulator per channel
 Frequency:      11-bit divisor (0-2047)
 Volume:         4-bit master + 4-bit per channel
+Envelope:       4-bit ADSR per channel
+Length:         8-bit length (frames @ 60 Hz)
+Sweep:          Pulse-only frequency sweep
 
 
 CHANNELS
@@ -22,25 +25,40 @@ CH0, CH1 - Pulse Wave
   Frequency:    11-bit (0-2047)
   Volume:       4-bit (0-15)
   Duty Cycle:   12.5%, 25%, 50%, 75%
+  Envelope:     ADSR (4-bit each)
+  Sweep:        Rate (4-bit), Direction, Shift (3-bit)
+  Length:       0-255 frames (60 Hz)
   Use:          Melody, harmony, leads
 
 CH2 - Triangle Wave
   Frequency:    11-bit (0-2047)
   Volume:       4-bit (0-15)
+  Envelope:     ADSR (4-bit each)
+  Length:       0-255 frames (60 Hz)
   Use:          Bass, sub-bass
 
 CH3 - Noise (LFSR)
   Period:       4-bit (0-15), lower = higher pitch
   Volume:       4-bit (0-15)
   Mode:         Long (hissy) / Short (metallic)
+  Envelope:     ADSR (4-bit each)
+  Length:       0-255 frames (60 Hz)
   Use:          Drums, explosions, SFX
 
+CH4 - Wave (32-sample wavetable)
+  Frequency:    11-bit (0-2047)
+  Volume:       4-bit (0-15)
+  Envelope:     ADSR (4-bit each)
+  Length:       0-255 frames (60 Hz)
+  Wave RAM:     32 x 4-bit samples
+  Use:          Custom timbres, instruments, SFX
 
-MMIO REGISTERS (0xBF40-0xBF5F)
+
+MMIO REGISTERS (0xBF40-0xBF8F)
 ------------------------------
 
 0xBF40  APU_CTRL        RW  bit 0: enable | bits 4-7: master volume
-0xBF41  APU_STATUS      R   bits 0-3: channel active flags
+0xBF41  APU_STATUS      R   bits 0-4: channel active flags
 
 Channel 0 - Pulse 1:
 0xBF42  CH0_FREQ_LO     W   frequency bits 0-7
@@ -65,32 +83,64 @@ Channel 3 - Noise:
 0xBF4F  CH3_VOL         RW  bits 0-3: volume
 0xBF50  CH3_CTRL        RW  bit 0: enable | bit 1: trigger | bit 2: mode
 
-0xBF51-0xBF5F  Reserved (envelopes, sweep)
+Envelopes (AD = attack/decay, SR = sustain/release):
+0xBF51  CH0_ENV_AD      RW  hi nibble: attack | lo nibble: decay
+0xBF52  CH0_ENV_SR      RW  hi nibble: sustain | lo nibble: release
+0xBF53  CH1_ENV_AD      RW  attack/decay
+0xBF54  CH1_ENV_SR      RW  sustain/release
+0xBF55  CH2_ENV_AD      RW  attack/decay
+0xBF56  CH2_ENV_SR      RW  sustain/release
+0xBF57  CH3_ENV_AD      RW  attack/decay
+0xBF58  CH3_ENV_SR      RW  sustain/release
+
+Sweep + Length:
+0xBF59  CH0_SWEEP       RW  hi nibble: rate | bit 3: dir | bits 0-2: shift
+0xBF5A  CH1_SWEEP       RW  sweep (same as CH0)
+0xBF5B  CH0_LEN         RW  length in frames (60 Hz)
+0xBF5C  CH1_LEN         RW  length in frames
+0xBF5D  CH2_LEN         RW  length in frames
+0xBF5E  CH3_LEN         RW  length in frames
+0xBF5F  Reserved
+
+Channel 4 - Wave:
+0xBF60  WAVE_FREQ_LO    W   frequency bits 0-7
+0xBF61  WAVE_FREQ_HI    W   frequency bits 8-10
+0xBF62  WAVE_VOL        RW  bits 0-3: volume
+0xBF63  WAVE_CTRL       RW  bit 0: enable | bit 1: trigger
+0xBF64  WAVE_LEN        RW  length in frames (60 Hz)
+0xBF65  WAVE_ENV_AD     RW  attack/decay
+0xBF66  WAVE_ENV_SR     RW  sustain/release
+
+Wave RAM (32 x 4-bit samples):
+0xBF70-0xBF8F  WAVE_RAM  RW  each byte uses low 4 bits
 
 
 FREQUENCY
 ---------
 
 Formula:
-  freq_hz = 44100 / (16 * (2048 - freq_value))
-  freq_value = 2048 - (44100 / (16 * freq_hz))
+  freq_hz = 44100 / (2048 - freq_value)
+  freq_value = 2048 - (44100 / freq_hz)
 
 
 NOTE TABLE (A4 = 440 Hz)
 ------------------------
 
-Oct 3:  C=1880  D=1892  E=1903  F=1908  G=1917  A=1925  B=1933
-Oct 4:  C=1937  D=1944  E=1950  F=1953  G=1959  A=1965  B=1970
-Oct 5:  C=1972  D=1977  E=1981  F=1983  G=1987  A=1991  B=1994
+Rounded to nearest integer from the formula above.
 
-Sharps: add ~3-6 to natural note value
+Oct 3:  C=1711  C#=1730  D=1748  D#=1765  E=1780  F=1795  F#=1810  G=1823
+        G#=1836  A=1848  A#=1859  B=1869
+Oct 4:  C=1879  C#=1889  D=1898  D#=1906  E=1914  F=1922  F#=1929  G=1935
+        G#=1942  A=1948  A#=1953  B=1959
+Oct 5:  C=1964  C#=1968  D=1973  D#=1977  E=1981  F=1985  F#=1988  G=1992
+        G#=1995  A=1998  A#=2001  B=2003
 
 
 WAVEFORM GENERATION
 -------------------
 
 Phase Accumulator:
-  phase_inc = 0x100000000 / (16 * (2048 - freq_value))
+  phase_inc = 0x100000000 / (2048 - freq_value)
   phase += phase_inc  (per sample, wraps at 32-bit)
   t = phase / 4294967296.0  (normalized 0-1)
 
@@ -104,9 +154,17 @@ Triangle:
   else:             sample = t * 4 - 4
 
 Noise (LFSR):
-  bit = ((lfsr >> 0) ^ (lfsr >> 1) ^ (lfsr >> 3) ^ (lfsr >> 12)) & 1
-  lfsr = (lfsr >> 1) | (bit << 15)
+  Long mode taps:  0,1,3,12
+  Short mode taps: 0,6
   sample = (lfsr / 32768.0) - 1.0
+
+Noise period table (period 0-15 => divider in samples):
+  [1, 2, 4, 8, 16, 32, 48, 64, 80, 96, 112, 128, 160, 202, 254, 380]
+
+Wave (CH4):
+  index = phase >> 27  (32 samples)
+  v = wave[index] & 0x0F
+  sample = (v / 7.5) - 1.0
 
 
 MIXING
@@ -114,6 +172,29 @@ MIXING
 
 mix = sum(channel_sample * channel_vol/15) / active_count
 output = clamp(mix * master_vol/15, -1.0, 1.0)
+
+Active count includes channels with non-zero envelope output.
+
+
+ENVELOPE (ADSR)
+---------------
+
+ADSR is applied per channel to volume (0.0 - 1.0).
+Each parameter is a 4-bit index into the rate table:
+
+  0: 0.00s  1: 0.005s  2: 0.01s  3: 0.02s  4: 0.04s  5: 0.06s  6: 0.08s  7: 0.10s
+  8: 0.15s  9: 0.20s 10: 0.30s 11: 0.40s 12: 0.60s 13: 0.80s 14: 1.00s 15: 1.50s
+
+Attack ramps 0 -> 1.0. Decay ramps 1.0 -> sustain. Sustain holds. Release ramps to 0.
+Enable or trigger starts envelope; disable starts release.
+
+
+SWEEP (Pulse channels)
+----------------------
+
+Rate is in units of (sample_rate / 120). Shift is 0-7.
+On each sweep tick: delta = freq >> shift.
+If direction=down, freq -= delta; otherwise freq += delta. Clamped to 0-2047.
 
 
 EXAMPLE - Play A4 on CH0
@@ -126,9 +207,9 @@ EXAMPLE - Play A4 on CH0
     LOADI R0, 0xC1          ; 0xC0 | 0x01
     STORE R0, [R6:R7]
 
-    ; Frequency = 1965 (0x07AD)
+    ; Frequency = 1948 (0x079C)
     LOADI R7, 0x42
-    LOADI R0, 0xAD
+    LOADI R0, 0x9C
     STORE R0, [R6:R7]
     LOADI R7, 0x43
     LOADI R0, 0x07
@@ -150,13 +231,12 @@ RESET STATE
 
 All registers = 0x00 (APU disabled, all channels off)
 LFSR seed = 0xACE1
+Wave RAM default = 0x08 (midpoint)
 
 
 LIMITATIONS
 -----------
 
-- No hardware envelopes (ADSR in software)
-- No frequency sweep (per-frame in software)
 - No PCM/samples
 - Mono only
-- 4 channels max
+- 5 channels max

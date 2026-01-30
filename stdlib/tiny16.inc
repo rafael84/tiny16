@@ -21,7 +21,7 @@
 ;   - Most macros clobber R6, R7 (documented per macro)
 ;   - Register pairs: high byte first, low byte second (e.g., R0:R1 = 0x1234)
 ;
-; MODULES:
+; MODULES (auto-included):
 ;   - constants.inc  : Hardware constants, MMIO addresses, key definitions
 ;   - apu.inc        : Audio Processing Unit macros and note table
 ;   - memory.inc     : Memory and register utilities
@@ -30,6 +30,9 @@
 ;   - input.inc      : Keyboard and mouse input
 ;   - timing.inc     : VSYNC and frame timing
 ;   - ppu.inc        : PPU, sprites/OAM, and framebuffer utilities
+;
+; OPTIONAL MODULES (include separately in code section):
+;   - text.inc       : Text rendering as sprites (draw_text_line function)
 ;
 ; =============================================================================
 

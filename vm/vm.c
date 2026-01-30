@@ -39,7 +39,7 @@ static inline bool tiny16_is_ppu_mmio(uint16_t addr) {
 }
 
 static inline bool tiny16_is_apu_mmio(uint16_t addr) {
-    return addr >= TINY16_MMIO_APU_CTRL && addr <= TINY16_MMIO_APU_CH3_CTRL;
+    return addr >= TINY16_MMIO_APU_CTRL && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F);
 }
 
 uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr) {

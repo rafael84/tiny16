@@ -71,7 +71,7 @@ typedef struct {
 
 // APU (0xBF40 - 0xBF5F)
 #define TINY16_MMIO_APU_CTRL   0xBF40 // Master control: bit 0=enable, bits 4-7=volume
-#define TINY16_MMIO_APU_STATUS 0xBF41 // Status: bits 0-3=channel active flags
+#define TINY16_MMIO_APU_STATUS 0xBF41 // Status: bits 0-4=channel active flags
 
 // APU Channel 0 - Pulse 1
 #define TINY16_MMIO_APU_CH0_FREQ_LO 0xBF42 // Frequency low byte
@@ -95,6 +95,36 @@ typedef struct {
 #define TINY16_MMIO_APU_CH3_PERIOD 0xBF4E // Period (0-15)
 #define TINY16_MMIO_APU_CH3_VOL    0xBF4F // Volume (0-15)
 #define TINY16_MMIO_APU_CH3_CTRL   0xBF50 // Enable (0) + trigger (1) + mode (2)
+
+// APU Envelopes (AD = attack/decay, SR = sustain/release)
+#define TINY16_MMIO_APU_CH0_ENV_AD 0xBF51 // Attack (hi nibble) / Decay (lo nibble)
+#define TINY16_MMIO_APU_CH0_ENV_SR 0xBF52 // Sustain (hi nibble) / Release (lo nibble)
+#define TINY16_MMIO_APU_CH1_ENV_AD 0xBF53
+#define TINY16_MMIO_APU_CH1_ENV_SR 0xBF54
+#define TINY16_MMIO_APU_CH2_ENV_AD 0xBF55
+#define TINY16_MMIO_APU_CH2_ENV_SR 0xBF56
+#define TINY16_MMIO_APU_CH3_ENV_AD 0xBF57
+#define TINY16_MMIO_APU_CH3_ENV_SR 0xBF58
+
+// APU Sweep + Length
+#define TINY16_MMIO_APU_CH0_SWEEP 0xBF59 // Sweep rate (hi nibble), dir (bit3), shift (bits 0-2)
+#define TINY16_MMIO_APU_CH1_SWEEP 0xBF5A
+#define TINY16_MMIO_APU_CH0_LEN   0xBF5B // Length in frames (60 Hz)
+#define TINY16_MMIO_APU_CH1_LEN   0xBF5C
+#define TINY16_MMIO_APU_CH2_LEN   0xBF5D
+#define TINY16_MMIO_APU_CH3_LEN   0xBF5E
+
+// APU Wave Channel
+#define TINY16_MMIO_APU_WAVE_FREQ_LO 0xBF60
+#define TINY16_MMIO_APU_WAVE_FREQ_HI 0xBF61
+#define TINY16_MMIO_APU_WAVE_VOL     0xBF62
+#define TINY16_MMIO_APU_WAVE_CTRL    0xBF63 // Enable + trigger
+#define TINY16_MMIO_APU_WAVE_LEN     0xBF64
+#define TINY16_MMIO_APU_WAVE_ENV_AD  0xBF65
+#define TINY16_MMIO_APU_WAVE_ENV_SR  0xBF66
+
+// Wave RAM (32 x 4-bit samples)
+#define TINY16_MMIO_APU_WAVE_RAM 0xBF70 // 0xBF70 - 0xBF8F
 
 // RESERVED (0xBFF0 - 0xBFFF)
 

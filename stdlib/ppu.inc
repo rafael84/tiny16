@@ -68,6 +68,25 @@
 .endmacro
 
 ; -----------------------------------------------------------------------------
+; OAM_HIDE_ALL - Hide all 64 OAM sprites (set Y=0xFF for each)
+; Clobbers: R0, R1, R6, R7
+; -----------------------------------------------------------------------------
+.macro OAM_HIDE_ALL
+    LOADI R6, GFX_OAM_BASE >> 8
+    LOADI R7, GFX_OAM_BASE & 0xFF
+    LOADI R0, 64
+@hide_loop:
+    LOADI R1, 0xFF
+    STORE R1, [R6:R7]+
+    LOADI R1, 0x00
+    STORE R1, [R6:R7]+
+    STORE R1, [R6:R7]+
+    STORE R1, [R6:R7]+
+    DEC R0
+    JNZ @hide_loop
+.endmacro
+
+; -----------------------------------------------------------------------------
 ; OAM_SET_SPRITE sprite_idx - Set R6:R7 to OAM entry for sprite index
 ; Clobbers: R6, R7
 ; -----------------------------------------------------------------------------
