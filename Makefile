@@ -56,13 +56,13 @@ RAYLIB_INCLUDE = -I$(RAYLIB_SRC_PATH)
 
 # Emscripten settings for web build
 EMCC = emcc
-EMCC_FLAGS = -std=c99 -Wall -Ivm -Ithirdparty $(RAYLIB_INCLUDE) \
+EMCC_FLAGS = -std=c99 -O3 -Wall -DNDEBUG -Ivm -Ithirdparty $(RAYLIB_INCLUDE) \
     -s USE_GLFW=3 -s ASYNCIFY \
     -s INITIAL_MEMORY=134217728 \
     -s STACK_SIZE=2097152 \
     -s ALLOW_MEMORY_GROWTH=1 \
     -s EXPORTED_FUNCTIONS='["_main","_tiny16_web_reload_program"]' \
-    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPF32"]' \
     -DPLATFORM_WEB \
     --shell-file $(WEBDIR)/shell.html
 
