@@ -35,9 +35,7 @@ FLASH_FRAMES       = 8
 
 SKIP_ANIM_RESET    = 3              ; match boing26 "skip a few frames"
 
-; Immediate parser only accepts NUMBER or SYMBOL (no expressions),
-; so keep these as simple constants.
-KEY_SELECT         = 0x01
+; KEY_SELECT and other key constants now provided by constants.inc
 
 START_X            = MAX_X / 2
 START_Y            = MAX_Y / 2

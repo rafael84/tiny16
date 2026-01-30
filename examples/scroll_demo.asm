@@ -34,11 +34,7 @@ SCROLL_Y_VAR       = USER_DATA_BASE + 2
 SCROLL_SPEED       = 1              ; Pixels per frame
 PPU_CTRL_BG_ON     = 0x81           ; Enable BG (0x01) + Render (0x80)
 
-; Key bits (matching emulator: tiny16_core.c)
-KEY_UP             = 0x40
-KEY_DOWN           = 0x80
-KEY_LEFT           = 0x20
-KEY_RIGHT          = 0x10
+; Key bits now provided by constants.inc
 
 section .code
 

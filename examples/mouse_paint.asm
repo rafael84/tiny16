@@ -45,8 +45,8 @@ STEPS_ADDR        = USER_DATA_BASE + 22
 MOUSE_LEFT        = 0x01
 MOUSE_RIGHT       = 0x02
 
-; Keyboard masks
-KEY_SPACE         = 0x01
+; Keyboard masks - KEY_SELECT provided by constants.inc, using it for space
+KEY_SPACE         = KEY_SELECT
 
 ; Drawing parameters
 INITIALIZED_FLAG  = 0xAA

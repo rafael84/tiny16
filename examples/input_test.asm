@@ -40,12 +40,8 @@ PALETTE_COLOR1_ADDR = PALETTE_BASE + 1  ; Changed from +2 (now 1 byte per color)
 ; Constants - Input & Graphics
 ; =============================================================================
 
-; Keyboard bit masks (bit positions in KEYS_STATE/KEYS_PRESSED)
-KEY_UP            = 1 << 6
-KEY_DOWN          = 1 << 7
-KEY_LEFT          = 1 << 5
-KEY_RIGHT         = 1 << 4
-KEY_BUTTON_A      = 1 << 2
+; Keyboard bit masks now provided by constants.inc (KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT, KEY_A)
+KEY_BUTTON_A      = KEY_A
 
 ; Game parameters
 BOUNDARY          = 120
