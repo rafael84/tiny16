@@ -171,6 +171,7 @@ static inline void sweep_step(Tiny16APUPulseChannel* ch) {
 void tiny16_apu_reset(Tiny16APU* apu) {
     apu->enabled = false;
     apu->master_volume = 0;
+    apu->sample_accum = 0;
 
     apu->pulse1.freq = 0;
     apu->pulse1.volume = 0;
@@ -575,6 +576,15 @@ uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
         return apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] & 0x0F;
     }
     return 0;
+}
+
+uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz) {
+    if (cpu_hz == 0) return 0;
+    uint64_t add = (uint64_t)cpu_cycles * (uint64_t)TINY16_APU_SAMPLE_RATE;
+    uint64_t accum = apu->sample_accum + add;
+    uint32_t frames = (uint32_t)(accum / cpu_hz);
+    apu->sample_accum = accum - (uint64_t)frames * cpu_hz;
+    return frames;
 }
 
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames) {

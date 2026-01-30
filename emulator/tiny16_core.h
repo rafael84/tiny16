@@ -11,6 +11,8 @@
 #define TINY16_EMU_SCREEN_WIDTH  (TINY16_EMU_PIXEL_WIDTH * 8)
 #define TINY16_EMU_SCREEN_HEIGHT (TINY16_EMU_PIXEL_HEIGHT * 8)
 #define TINY16_EMU_TARGET_IPS    (60.0f * 30000) // 1.8M IPS = ~30000 instr/frame at 60 FPS
+#define TINY16_CPU_HZ            1800000u
+#define TINY16_AUDIO_RING_FRAMES 16384u
 
 typedef struct {
     Tiny16VM* vm;
@@ -24,6 +26,9 @@ typedef struct {
     bool paused;
     bool program_loaded;
     bool audio_enabled;
+    float audio_ring[TINY16_AUDIO_RING_FRAMES];
+    volatile uint32_t audio_read;
+    volatile uint32_t audio_write;
 } Tiny16Emulator;
 
 Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded);

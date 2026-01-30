@@ -2,7 +2,7 @@
 ; APU Demo - Demonstrates the tiny16 Audio Processing Unit
 ; =============================================================================
 ; Controls:
-;   A: Play simple melody (with harmony and bass)
+;   A: Timing + stress demo (press P to pause emulator)
 ;   B: Play explosion/boom sound effect
 ;   Up: Play coin/pickup sound effect
 ;   Down: Play jump sound effect
@@ -40,11 +40,11 @@ handle_input:
     SETADDR KEYS_PRESSED_ADDR
     LOAD R0, [R6:R7]
 
-    ; A button - play melody
+    ; A button - timing/stress demo
     MOV R1, R0
     LOADI R2, KEY_A
     AND R1, R2
-    JNZ do_play_melody
+    JNZ do_play_timing
 
     ; B button - play explosion
     MOV R1, R0
@@ -122,8 +122,8 @@ toggle_ch3:
     STORE R0, [R6:R7]
     RET
 
-do_play_melody:
-    CALL play_melody
+do_play_timing:
+    CALL play_timing_test
     RET
 
 do_play_explosion:
@@ -139,113 +139,145 @@ do_play_jump:
     RET
 
 ; =============================================================================
-; Play a simple melody with harmony and bass
-; Gentle excerpt inspired by Satie's Gymnopedie No.1 (approx, with sharps)
+; Timing + stress demo
+; Uses all channels, sweeps, envelopes, and a long hold.
+; Press P to pause emulator during the long hold to hear timing differences.
 ; =============================================================================
-play_melody:
+play_timing_test:
     PUSH R0
 
-    ; Soft ADSR for a gentle melody
-    APU_CH0_ENV 2, 4, 10, 6
-    APU_CH1_ENV 2, 4, 10, 6
-    APU_WAVE_ENV 2, 4, 12, 6
+    ; Envelopes for layered voices
+    APU_CH0_ENV 2, 3, 10, 6
+    APU_CH1_ENV 1, 3, 12, 5
+    APU_CH2_ENV 1, 4, 12, 6
+    APU_CH3_ENV 0, 3, 0, 4
+    APU_WAVE_ENV 2, 4, 10, 6
 
-    ; Load a simple sine-like wave into wave RAM
-    APU_WAVE_WRITE 0, 8
-    APU_WAVE_WRITE 1, 9
-    APU_WAVE_WRITE 2, 10
-    APU_WAVE_WRITE 3, 11
-    APU_WAVE_WRITE 4, 12
-    APU_WAVE_WRITE 5, 13
-    APU_WAVE_WRITE 6, 14
-    APU_WAVE_WRITE 7, 15
-    APU_WAVE_WRITE 8, 14
-    APU_WAVE_WRITE 9, 13
+    ; Wave RAM: asymmetric organ-ish shape
+    APU_WAVE_WRITE 0, 0
+    APU_WAVE_WRITE 1, 2
+    APU_WAVE_WRITE 2, 4
+    APU_WAVE_WRITE 3, 6
+    APU_WAVE_WRITE 4, 8
+    APU_WAVE_WRITE 5, 10
+    APU_WAVE_WRITE 6, 12
+    APU_WAVE_WRITE 7, 14
+    APU_WAVE_WRITE 8, 15
+    APU_WAVE_WRITE 9, 14
     APU_WAVE_WRITE 10, 12
-    APU_WAVE_WRITE 11, 11
-    APU_WAVE_WRITE 12, 10
-    APU_WAVE_WRITE 13, 9
-    APU_WAVE_WRITE 14, 8
-    APU_WAVE_WRITE 15, 7
-    APU_WAVE_WRITE 16, 6
-    APU_WAVE_WRITE 17, 5
-    APU_WAVE_WRITE 18, 4
-    APU_WAVE_WRITE 19, 3
-    APU_WAVE_WRITE 20, 2
-    APU_WAVE_WRITE 21, 1
-    APU_WAVE_WRITE 22, 0
-    APU_WAVE_WRITE 23, 1
-    APU_WAVE_WRITE 24, 2
-    APU_WAVE_WRITE 25, 3
-    APU_WAVE_WRITE 26, 4
-    APU_WAVE_WRITE 27, 5
-    APU_WAVE_WRITE 28, 6
-    APU_WAVE_WRITE 29, 7
-    APU_WAVE_WRITE 30, 8
-    APU_WAVE_WRITE 31, 8
+    APU_WAVE_WRITE 11, 10
+    APU_WAVE_WRITE 12, 8
+    APU_WAVE_WRITE 13, 6
+    APU_WAVE_WRITE 14, 4
+    APU_WAVE_WRITE 15, 2
+    APU_WAVE_WRITE 16, 1
+    APU_WAVE_WRITE 17, 3
+    APU_WAVE_WRITE 18, 5
+    APU_WAVE_WRITE 19, 7
+    APU_WAVE_WRITE 20, 9
+    APU_WAVE_WRITE 21, 11
+    APU_WAVE_WRITE 22, 13
+    APU_WAVE_WRITE 23, 15
+    APU_WAVE_WRITE 24, 13
+    APU_WAVE_WRITE 25, 11
+    APU_WAVE_WRITE 26, 9
+    APU_WAVE_WRITE 27, 7
+    APU_WAVE_WRITE 28, 5
+    APU_WAVE_WRITE 29, 3
+    APU_WAVE_WRITE 30, 1
+    APU_WAVE_WRITE 31, 0
 
-    ; Phrase 1: D5 melody, F#4 harmony, D3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_D5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_FS4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_D3, 6
-    LOADI R0, 22
+    ; Length and sweep settings
+    APU_CH0_LEN 6
+    APU_CH1_LEN 6
+    APU_CH2_LEN 6
+    APU_WAVE_LEN 6
+    APU_CH3_LEN 2
+    APU_CH0_SWEEP 3, 0, 2
+    APU_CH1_SWEEP 4, 1, 1
+
+    ; Step 1
+    APU_CH0_NOTE NOTE_C5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_E4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_C3, 6
+    APU_WAVE_NOTE NOTE_C4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 2: E5 melody, G4 harmony, E3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_E5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_G4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_E3, 6
-    LOADI R0, 22
+    ; Step 2 (hat)
+    APU_CH3_LEN 2
+    APU_NOISE 6, 7, 0x04
+    APU_CH0_NOTE NOTE_D5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_F4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_D3, 6
+    APU_WAVE_NOTE NOTE_D4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 3: F#5 melody, A4 harmony, F#3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_FS5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_A4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_FS3, 6
-    LOADI R0, 22
+    ; Step 3
+    APU_CH0_NOTE NOTE_E5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_G4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_E3, 6
+    APU_WAVE_NOTE NOTE_E4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 4: A5 melody, C#4 harmony, A3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_A5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_CS4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_A3, 6
-    LOADI R0, 22
+    ; Step 4 (hat)
+    APU_CH3_LEN 2
+    APU_NOISE 6, 7, 0x04
+    APU_CH0_NOTE NOTE_G5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_B4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_G3, 6
+    APU_WAVE_NOTE NOTE_G4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 5: F#5 melody, A4 harmony, F#3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_FS5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_A4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_FS3, 6
-    LOADI R0, 22
+    ; Step 5
+    APU_CH0_NOTE NOTE_A5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_C5, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_A3, 6
+    APU_WAVE_NOTE NOTE_A4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 6: E5 melody, G4 harmony, E3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_E5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_G4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_E3, 6
-    LOADI R0, 22
+    ; Step 6 (hat)
+    APU_CH3_LEN 2
+    APU_NOISE 6, 7, 0x04
+    APU_CH0_NOTE NOTE_G5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_B4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_G3, 6
+    APU_WAVE_NOTE NOTE_G4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 7: C#5 melody, E4 harmony, A3 bass
-    APU_WAVE_LEN 22
-    APU_CH0_NOTE NOTE_CS5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_E4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_A3, 6
-    LOADI R0, 22
+    ; Step 7
+    APU_CH0_NOTE NOTE_E5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_G4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_E3, 6
+    APU_WAVE_NOTE NOTE_E4, 6
+    LOADI R0, 6
     CALL wait_frames
 
-    ; Phrase 8: D5 melody (hold), F#4 harmony, D3 bass
-    APU_WAVE_LEN 36
-    APU_CH0_NOTE NOTE_D5, 10, APU_DUTY_25
-    APU_CH1_NOTE NOTE_FS4, 8, APU_DUTY_12_5
-    APU_WAVE_NOTE NOTE_D3, 6
-    LOADI R0, 36
+    ; Step 8 (hat)
+    APU_CH3_LEN 2
+    APU_NOISE 6, 7, 0x04
+    APU_CH0_NOTE NOTE_D5, 12, APU_DUTY_25
+    APU_CH1_NOTE NOTE_F4, 9, APU_DUTY_12_5
+    APU_CH2_NOTE NOTE_D3, 6
+    APU_WAVE_NOTE NOTE_D4, 6
+    LOADI R0, 6
+    CALL wait_frames
+
+    ; Long hold (press P to pause emulator and compare timing)
+    APU_CH0_LEN 120
+    APU_CH1_LEN 120
+    APU_CH2_LEN 120
+    APU_WAVE_LEN 120
+    APU_CH0_NOTE NOTE_C5, 12, APU_DUTY_50
+    APU_CH1_NOTE NOTE_G4, 10, APU_DUTY_25
+    APU_CH2_NOTE NOTE_C3, 6
+    APU_WAVE_NOTE NOTE_C4, 6
+    LOADI R0, 120
     CALL wait_frames
 
     ; Silence all channels
@@ -452,7 +484,7 @@ init_text_display:
 ; =============================================================================
 section .data
 
-text_line1: DB "A MELODY", 0
+text_line1: DB "A TIMING P", 0
 text_line2: DB "B BOOM", 0
 text_line3: DB "UP COIN", 0
 text_line4: DB "DN JUMP", 0

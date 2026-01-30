@@ -96,6 +96,7 @@ typedef struct {
 typedef struct {
     bool enabled;          // APU master enable
     uint8_t master_volume; // 4-bit master volume (0-15)
+    uint64_t sample_accum; // fractional samples in cpu_hz units
 
     Tiny16APUPulseChannel pulse1;      // CH0
     Tiny16APUPulseChannel pulse2;      // CH1
@@ -109,4 +110,5 @@ void tiny16_apu_reset(Tiny16APU* apu);
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value);
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr);
 
+uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz);
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames);
