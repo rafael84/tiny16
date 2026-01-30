@@ -1,5 +1,6 @@
 #include "tiny16_core.h"
 #include "apu.h"
+#include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -124,8 +125,10 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
     // Handle pause toggle
     if (IsKeyPressed(KEY_P)) {
         emu->paused = !emu->paused;
-        if (emu->paused) PauseAudioStream(emu->audio_stream);
-        else ResumeAudioStream(emu->audio_stream);
+        if (emu->paused)
+            PauseAudioStream(emu->audio_stream);
+        else
+            ResumeAudioStream(emu->audio_stream);
     }
 
     // Handle debug dump
