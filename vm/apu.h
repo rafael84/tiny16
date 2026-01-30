@@ -6,7 +6,6 @@
 #define TINY16_APU_SAMPLE_RATE 44100
 #define TINY16_APU_CHANNELS    4
 
-// Channel types
 typedef enum {
     TINY16_APU_CH_PULSE1 = 0,
     TINY16_APU_CH_PULSE2 = 1,
@@ -14,7 +13,6 @@ typedef enum {
     TINY16_APU_CH_NOISE = 3,
 } Tiny16APUChannelType;
 
-// Duty cycle options for pulse channels
 typedef enum {
     TINY16_APU_DUTY_12_5 = 0, // 12.5%
     TINY16_APU_DUTY_25 = 1,   // 25%
@@ -22,7 +20,6 @@ typedef enum {
     TINY16_APU_DUTY_75 = 3,   // 75%
 } Tiny16APUDutyCycle;
 
-// Pulse channel (CH0, CH1)
 typedef struct {
     uint16_t freq;      // 11-bit frequency divisor (0-2047)
     uint8_t volume;     // 4-bit volume (0-15)
@@ -33,7 +30,6 @@ typedef struct {
     uint32_t phase_inc; // phase increment per sample
 } Tiny16APUPulseChannel;
 
-// Triangle channel (CH2)
 typedef struct {
     uint16_t freq;      // 11-bit frequency divisor (0-2047)
     uint8_t volume;     // 4-bit volume (0-15)
@@ -43,7 +39,6 @@ typedef struct {
     uint32_t phase_inc; // phase increment per sample
 } Tiny16APUTriangleChannel;
 
-// Noise channel (CH3)
 typedef struct {
     uint8_t period;  // 4-bit period (0-15)
     uint8_t volume;  // 4-bit volume (0-15)
@@ -54,25 +49,19 @@ typedef struct {
     uint32_t timer;  // timer counter for period
 } Tiny16APUNoiseChannel;
 
-// APU state
 typedef struct {
-    // Master control
     bool enabled;          // APU master enable
     uint8_t master_volume; // 4-bit master volume (0-15)
 
-    // Channels
     Tiny16APUPulseChannel pulse1;      // CH0
     Tiny16APUPulseChannel pulse2;      // CH1
     Tiny16APUTriangleChannel triangle; // CH2
     Tiny16APUNoiseChannel noise;       // CH3
 } Tiny16APU;
 
-// Initialize/reset APU
 void tiny16_apu_reset(Tiny16APU* apu);
 
-// MMIO interface
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value);
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr);
 
-// Audio generation (called from audio callback)
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames);

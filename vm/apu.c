@@ -15,10 +15,6 @@ static const uint32_t duty_thresholds[] = {
 static const uint32_t noise_periods[] = {1,  2,  4,   8,   16,  32,  48,  64,
                                          80, 96, 112, 128, 160, 202, 254, 380};
 
-//==============================================================================
-// Phase increment calculation
-//==============================================================================
-
 static inline uint32_t calc_phase_inc(uint16_t freq_value) {
     // freq_hz = 44100 / (2048 - freq_value)
     // phase_inc = freq_hz / sample_rate * 2^32
@@ -27,10 +23,6 @@ static inline uint32_t calc_phase_inc(uint16_t freq_value) {
     if (divisor == 0) divisor = 1;
     return (uint32_t)(4294967296.0 / divisor);
 }
-
-//==============================================================================
-// Waveform generation
-//==============================================================================
 
 static inline float generate_pulse(uint32_t phase, uint8_t duty) {
     uint32_t threshold = duty_thresholds[duty & 0x03];
@@ -59,15 +51,10 @@ static inline float generate_noise(uint16_t* lfsr) {
     return ((float)*lfsr / 32768.0f) - 1.0f;
 }
 
-//==============================================================================
-// Reset
-//==============================================================================
-
 void tiny16_apu_reset(Tiny16APU* apu) {
     apu->enabled = false;
     apu->master_volume = 0;
 
-    // Pulse 1
     apu->pulse1.freq = 0;
     apu->pulse1.volume = 0;
     apu->pulse1.duty = TINY16_APU_DUTY_50;
@@ -76,7 +63,6 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->pulse1.phase = 0;
     apu->pulse1.phase_inc = 0;
 
-    // Pulse 2
     apu->pulse2.freq = 0;
     apu->pulse2.volume = 0;
     apu->pulse2.duty = TINY16_APU_DUTY_50;
@@ -85,7 +71,6 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->pulse2.phase = 0;
     apu->pulse2.phase_inc = 0;
 
-    // Triangle
     apu->triangle.freq = 0;
     apu->triangle.volume = 0;
     apu->triangle.enabled = false;
@@ -93,7 +78,6 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->triangle.phase = 0;
     apu->triangle.phase_inc = 0;
 
-    // Noise
     apu->noise.period = 0;
     apu->noise.volume = 0;
     apu->noise.enabled = false;
@@ -102,10 +86,6 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->noise.lfsr = LFSR_SEED;
     apu->noise.timer = 0;
 }
-
-//==============================================================================
-// MMIO Write
-//==============================================================================
 
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
     switch (addr) {
@@ -186,10 +166,6 @@ void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
     }
 }
 
-//==============================================================================
-// MMIO Read
-//==============================================================================
-
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
     switch (addr) {
     case TINY16_MMIO_APU_CTRL: return (apu->master_volume << 4) | (apu->enabled ? 0x01 : 0x00);
@@ -220,10 +196,6 @@ uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
     return 0;
 }
 
-//==============================================================================
-// Sample generation (called from audio callback)
-//==============================================================================
-
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames) {
     for (unsigned int i = 0; i < frames; i++) {
         float mix = 0.0f;
@@ -234,7 +206,6 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
             continue;
         }
 
-        // Pulse 1
         if (apu->pulse1.enabled && apu->pulse1.volume > 0) {
             float sample = generate_pulse(apu->pulse1.phase, apu->pulse1.duty);
             sample *= (float)apu->pulse1.volume / 15.0f;
@@ -243,7 +214,6 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
             apu->pulse1.phase += apu->pulse1.phase_inc;
         }
 
-        // Pulse 2
         if (apu->pulse2.enabled && apu->pulse2.volume > 0) {
             float sample = generate_pulse(apu->pulse2.phase, apu->pulse2.duty);
             sample *= (float)apu->pulse2.volume / 15.0f;
@@ -252,7 +222,6 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
             apu->pulse2.phase += apu->pulse2.phase_inc;
         }
 
-        // Triangle
         if (apu->triangle.enabled && apu->triangle.volume > 0) {
             float sample = generate_triangle(apu->triangle.phase);
             sample *= (float)apu->triangle.volume / 15.0f;
@@ -261,7 +230,6 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
             apu->triangle.phase += apu->triangle.phase_inc;
         }
 
-        // Noise
         if (apu->noise.enabled && apu->noise.volume > 0) {
             // Advance noise based on period
             apu->noise.timer++;
@@ -284,10 +252,8 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
             mix /= (float)active_channels;
         }
 
-        // Apply master volume
         mix *= (float)apu->master_volume / 15.0f;
 
-        // Clamp
         if (mix > 1.0f) mix = 1.0f;
         if (mix < -1.0f) mix = -1.0f;
 

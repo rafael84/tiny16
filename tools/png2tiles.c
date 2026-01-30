@@ -165,8 +165,8 @@ void output_asm_include(FILE* f, Tile* tiles, int tile_count, Palette* pal, cons
     for (int i = 0; i < 16; i++) {
         if (i < pal->count) {
             uint8_t rgb332 = rgba_to_rgb332(pal->colors[i]);
-            fprintf(f, "    DB 0x%02X  ; Color %d: RGB(%d,%d,%d)\n", rgb332, i,
-                    pal->colors[i].r, pal->colors[i].g, pal->colors[i].b);
+            fprintf(f, "    DB 0x%02X  ; Color %d: RGB(%d,%d,%d)\n", rgb332, i, pal->colors[i].r,
+                    pal->colors[i].g, pal->colors[i].b);
         } else {
             fprintf(f, "    DB 0x00  ; Unused\n");
         }
