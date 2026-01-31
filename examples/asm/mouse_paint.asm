@@ -8,7 +8,7 @@
 ; Uses line interpolation to handle fast mouse movements.
 ; Demonstrates expressions in constants for memory layout.
 
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map

@@ -1,4 +1,4 @@
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 ; Memory addresses
 USER_DATA_BASE     = 0x4000
@@ -165,4 +165,4 @@ tile_offset:    DB 0    ; Current tile offset for scrolling
 frame_counter:  DB 0    ; Frame counter for timing
 last_frame:     DB 0    ; Last frame value for vsync
 
-.include "tileset.inc"
+.include "../includes/tileset.inc"

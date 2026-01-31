@@ -1,4 +1,4 @@
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Boing Ball (Atari 2600-inspired) - Tiny16 framebuffer port
@@ -501,5 +501,5 @@ frame_ptr_table:
 
 ; Bitmaps (1bpp, row-major: 50 rows * 5 bytes)
 ORG 0x4100
-.include "boing_ball_gfx.inc"
+.include "../includes/boing_ball_gfx.inc"
 

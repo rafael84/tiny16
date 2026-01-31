@@ -11,7 +11,7 @@
 ; The visible screen is 128x128 pixels, but the tilemap is 256x256 pixels.
 ;
 
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map
@@ -194,4 +194,4 @@ scroll_x:   DB 0
 scroll_y:   DB 0
 
 ; Include tileset (tiles and palette)
-.include "tileset.inc"
+.include "../includes/tileset.inc"

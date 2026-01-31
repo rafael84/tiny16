@@ -17,7 +17,7 @@
 ; PALETTE_ADDR:      Palette from tileset.inc
 ;
 
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map
@@ -435,4 +435,4 @@ sprite_data:  TIMES SPRITE_DATA_SIZE DB 0
 ; - Palette at 0x7900 (colors extracted from PNG)
 ; - OAM at 0x7800 is written at runtime (not pre-initialized)
 ; ============================================================================
-.include "tileset.inc"
+.include "../includes/tileset.inc"

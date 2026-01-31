@@ -1,0 +1,191 @@
+; Mouse Paint - Draw on screen with mouse
+;
+; Controls:
+; - Left click + drag: Draw white
+; - Right click + drag: Erase (draw background)
+; - Space key: Clear screen
+;
+; BUILD:
+;   make examples-se  (or from project root:)
+;   ./build/tiny16-sec examples/se/mouse_paint.se build/mouse_paint_se.asm
+;   ./build/tiny16-asm build/mouse_paint_se.asm build/mouse_paint_se.tiny16
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Framebuffer
+(def FRAMEBUFFER_BASE   0xC000)
+(def FRAMEBUFFER_HI     (hi FRAMEBUFFER_BASE))
+
+; =============================================================================
+; Constants - MMIO
+; =============================================================================
+
+(def MMIO_BASE          0xBF00)
+(def KEYS_PRESSED_ADDR  (+ MMIO_BASE 0x01))
+(def MOUSE_X_ADDR       (+ MMIO_BASE 0x02))
+(def MOUSE_Y_ADDR       (+ MMIO_BASE 0x03))
+(def MOUSE_BUTTONS_ADDR (+ MMIO_BASE 0x04))
+(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
+
+; =============================================================================
+; Constants - Input & Graphics
+; =============================================================================
+
+(def MOUSE_LEFT         0x01)
+(def MOUSE_RIGHT        0x02)
+(def KEY_SELECT         0x01)
+(def INITIALIZED_FLAG   0xAA)
+(def CENTER_POS         64)
+(def COLOR_WHITE        0xFF)
+(def COLOR_BG           0x03)
+
+; =============================================================================
+; Helper Functions
+; =============================================================================
+
+(defn read-frame-count ()
+  (peek16 FRAME_COUNT_ADDR))
+
+(defn wait-frame ()
+  (let (last (peek16 last_frame)
+        current (read-frame-count))
+    (while (= current last)
+      (set current (read-frame-count)))
+    (poke16 last_frame current)
+    0))
+
+(defn read-mouse-x ()
+  (peek16 MOUSE_X_ADDR))
+
+(defn read-mouse-y ()
+  (peek16 MOUSE_Y_ADDR))
+
+(defn read-mouse-buttons ()
+  (peek16 MOUSE_BUTTONS_ADDR))
+
+(defn read-keys-pressed ()
+  (peek16 KEYS_PRESSED_ADDR))
+
+; =============================================================================
+; Framebuffer Operations
+; =============================================================================
+
+(defn draw-pixel (x y)
+  (let (color (peek16 draw_color)
+        addr-lo (+ (<< (& y 1) 7) x)
+        addr-hi (+ FRAMEBUFFER_HI (>> y 1)))
+    (poke addr-hi addr-lo color)
+    0))
+
+(defn clear-row (y color)
+  (let (x 0
+        addr-hi (+ FRAMEBUFFER_HI (>> y 1))
+        base-lo (<< (& y 1) 7))
+    (while (< x 128)
+      (poke addr-hi (+ base-lo x) color)
+      (set x (inc x))))
+  0)
+
+(defn clear-screen ()
+  (let (y 0)
+    (while (< y 128)
+      (clear-row y COLOR_BG)
+      (set y (inc y))))
+  0)
+
+; =============================================================================
+; Line Drawing
+; =============================================================================
+
+(defn abs (x)
+  (if (>= x 128) (- 0 x) x))
+
+(defn sign (x)
+  (if (= x 0) 0 (if (>= x 128) 255 1)))
+
+(defn draw-line ()
+  (let (x0 (peek16 prev_x)
+        y0 (peek16 prev_y)
+        x1 (peek16 cur_x)
+        y1 (peek16 cur_y)
+        dx (- x1 x0)
+        dy (- y1 y0)
+        sx (sign dx)
+        sy (sign dy)
+        ax (abs dx)
+        ay (abs dy)
+        steps (if (> ax ay) ax ay)
+        x x0
+        y y0
+        i 0)
+    (if (= steps 0)
+        (draw-pixel x y)
+        (while (<= i steps)
+          (draw-pixel x y)
+          (if (>= ax ay)
+              (do
+                (set x (+ x sx))
+                (if (> ay 0) (set y (+ y sy)) 0))
+              (do
+                (set y (+ y sy))
+                (if (> ax 0) (set x (+ x sx)) 0)))
+          (set i (inc i))))
+    0))
+
+; =============================================================================
+; Input Handling
+; =============================================================================
+
+(defn read-mouse ()
+  (let (mx (read-mouse-x)
+        my (read-mouse-y)
+        buttons (read-mouse-buttons)
+        keys (read-keys-pressed))
+    (poke16 cur_x mx)
+    (poke16 cur_y my)
+    (if (!= (& buttons MOUSE_LEFT) 0)
+        (do
+          (poke16 draw_color COLOR_WHITE)
+          (draw-line))
+        (if (!= (& buttons MOUSE_RIGHT) 0)
+            (do
+              (poke16 draw_color COLOR_BG)
+              (draw-line))
+            0))
+    (if (!= (& keys KEY_SELECT) 0)
+        (clear-screen)
+        0)
+    (poke16 prev_x mx)
+    (poke16 prev_y my)
+    0))
+
+; =============================================================================
+; Main
+; =============================================================================
+
+(defn main ()
+  (if (!= (peek16 initialized) INITIALIZED_FLAG)
+      (do
+        (clear-screen)
+        (poke16 prev_x CENTER_POS)
+        (poke16 prev_y CENTER_POS)
+        (poke16 initialized INITIALIZED_FLAG))
+      0)
+  (while 1
+    (wait-frame)
+    (read-mouse))
+  0)
+
+; =============================================================================
+; Data Section (auto-placed at 0x4000 - VM-defined data section start)
+; =============================================================================
+
+(data initialized (db 0))
+(data cur_x (db 0))
+(data cur_y (db 0))
+(data last_frame (db 0))
+(data prev_x (db 0))
+(data prev_y (db 0))
+(data draw_color (db 0))

@@ -12,7 +12,7 @@
 ;   Right: Toggle noise channel (NOISE)
 ; =============================================================================
 
-.include "../stdlib/tiny16.inc"
+.include "../../stdlib/tiny16.inc"
 
 section .code
 
@@ -477,7 +477,7 @@ init_text_display:
     RET
 
 ; Include text rendering function from stdlib
-.include "../stdlib/text.inc"
+.include "../../stdlib/text.inc"
 
 ; =============================================================================
 ; Data Section
@@ -493,4 +493,4 @@ text_line6: DB "STA CH1", 0
 text_line7: DB "LT TRI", 0
 text_line8: DB "RT NOISE", 0
 
-.include "font.inc"
+.include "../includes/font.inc"

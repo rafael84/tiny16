@@ -1,0 +1,139 @@
+; Tileset Viewer - Auto-scrolling tileset display
+;
+; Displays tiles from the tileset in a 16x8 grid, automatically scrolling
+; through all tiles.
+;
+; BUILD:
+;   cd examples/se
+;   make examples-se  (or from project root:)
+;   ./build/tiny16-sec examples/se/tileset_viewer.se build/tileset_viewer_se.asm
+;   ./build/tiny16-asm build/tileset_viewer_se.asm build/tileset_viewer_se.tiny16
+
+(include "../examples/includes/tileset.inc")
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section memory addresses (user_data placed at 0x4000 - VM-defined)
+(def TILE_OFFSET_ADDR   0x4000)
+(def FRAME_COUNTER_ADDR 0x4001)
+(def LAST_FRAME_ADDR    0x4002)
+
+(def TILEMAP_ADDR       0x7000)
+
+; =============================================================================
+; Constants - MMIO
+; =============================================================================
+
+(def MMIO_BASE          0xBF00)
+(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
+(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
+
+; =============================================================================
+; Constants - Graphics
+; =============================================================================
+
+(def TILES_PER_SCREEN   128)       ; 16x8 = 128 tiles visible
+(def MAX_TILE_INDEX     80)        ; Total tiles in tileset
+(def SCROLL_SPEED       8)         ; Frames between scrolls
+(def PPU_CTRL_BG_ON     0x81)
+
+; Tilemap starts at row 4, col 0: address = 0x7000 + (4 * 32 + 0) * 2 = 0x7100
+(def DISPLAY_START      0x7100)
+
+; =============================================================================
+; Helper Functions
+; =============================================================================
+
+(defn read-frame-count ()
+  (peek16 FRAME_COUNT_ADDR))
+
+(defn wait-frame ()
+  (let (last (peek16 LAST_FRAME_ADDR)
+        current (read-frame-count))
+    (while (= current last)
+      (set current (read-frame-count)))
+    (poke16 LAST_FRAME_ADDR current)
+    0))
+
+(defn render-frame ()
+  (poke16 PPU_CTRL_ADDR PPU_CTRL_BG_ON)
+  0)
+
+; =============================================================================
+; Tilemap Drawing
+; =============================================================================
+
+; Draw 16x8 grid of tiles starting from tile_offset
+(defn draw-tilemap ()
+  (let (tile-idx (peek16 TILE_OFFSET_ADDR)
+        row 0)
+    (while (< row 8)
+      (let (col 0
+            ; Row address = DISPLAY_START + row * 64 (32 tiles * 2 bytes)
+            row-offset (* row 64)
+            row-hi (+ (hi DISPLAY_START) (>> row-offset 8))
+            row-lo (& row-offset 0xFF))
+        (while (< col 16)
+          ; Write tile index
+          (poke row-hi row-lo tile-idx)
+          ; Write attribute (0)
+          (poke row-hi (+ row-lo 1) 0)
+          ; Advance to next tile entry (2 bytes)
+          (set row-lo (+ row-lo 2))
+          ; Next tile
+          (set tile-idx (inc tile-idx))
+          (if (>= tile-idx MAX_TILE_INDEX)
+              (set tile-idx 0)
+              0)
+          (set col (inc col))))
+      (set row (inc row))))
+  0)
+
+; =============================================================================
+; Main
+; =============================================================================
+
+(defn main ()
+  ; Initialize
+  (poke16 TILE_OFFSET_ADDR 0)
+  (poke16 FRAME_COUNTER_ADDR 0)
+  
+  ; Draw initial tilemap
+  (draw-tilemap)
+  
+  ; Enable background rendering
+  (poke16 PPU_CTRL_ADDR 0x01)
+  
+  ; Main loop
+  (while 1
+    (wait-frame)
+    
+    ; Increment frame counter
+    (let (fc (inc (peek16 FRAME_COUNTER_ADDR)))
+      (poke16 FRAME_COUNTER_ADDR fc)
+      
+      ; Check if time to scroll (every SCROLL_SPEED frames)
+      (if (= (% fc SCROLL_SPEED) 0)
+          (do
+            ; Scroll by one row (16 tiles)
+            (let (offset (+ (peek16 TILE_OFFSET_ADDR) 16))
+              (if (>= offset MAX_TILE_INDEX)
+                  (set offset 0)
+                  0)
+              (poke16 TILE_OFFSET_ADDR offset))
+            (draw-tilemap))
+          0))
+    
+    (render-frame))
+  0)
+
+; =============================================================================
+; Data Section
+; =============================================================================
+
+(data user_data 0x4000
+  (db 0)   ; tile_offset - at 0x4000
+  (db 0)   ; frame_counter - at 0x4001
+  (db 0))  ; last_frame - at 0x4002

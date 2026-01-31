@@ -1,0 +1,182 @@
+; Scroll Demo - PPU Tilemap Scrolling
+;
+; This demo demonstrates:
+; - PPU scroll_x and scroll_y registers for smooth tilemap scrolling
+; - Auto-scrolling with arrow key override
+;
+; Controls:
+;   Arrow keys: Override auto-scroll direction
+;
+; BUILD:
+;   cd examples/se
+;   make examples-se  (or from project root:)
+;   ./build/tiny16-sec examples/se/scroll_demo.se build/scroll_demo_se.asm
+;   ./build/tiny16-asm build/scroll_demo_se.asm build/scroll_demo_se.tiny16
+
+(include "../examples/includes/tileset.inc")
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+; Data section memory addresses (user_data placed at 0x4000 - VM-defined)
+(def LAST_FRAME_ADDR    0x4000)
+(def SCROLL_X_ADDR      0x4001)
+(def SCROLL_Y_ADDR      0x4002)
+
+(def TILE_DATA_ADDR     0x5000)
+(def TILEMAP_ADDR       0x7000)
+(def PALETTE_ADDR       0x7900)
+
+; =============================================================================
+; Constants - MMIO
+; =============================================================================
+
+(def MMIO_BASE          0xBF00)
+(def KEYS_STATE_ADDR    (+ MMIO_BASE 0x00))
+(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
+(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
+(def PPU_SCROLL_X_ADDR  (+ MMIO_BASE 0x31))
+(def PPU_SCROLL_Y_ADDR  (+ MMIO_BASE 0x32))
+
+; =============================================================================
+; Constants - Input & Graphics
+; =============================================================================
+
+(def KEY_RIGHT          0x10)
+(def KEY_LEFT           0x20)
+(def KEY_UP             0x40)
+(def KEY_DOWN           0x80)
+(def KEY_ARROWS         (| (| KEY_UP KEY_DOWN) (| KEY_LEFT KEY_RIGHT)))
+
+(def SCROLL_SPEED       1)
+(def PPU_CTRL_BG_ON     0x81)
+
+; =============================================================================
+; Helper Functions
+; =============================================================================
+
+(defn read-frame-count ()
+  (peek16 FRAME_COUNT_ADDR))
+
+(defn wait-frame ()
+  (let (last (peek16 LAST_FRAME_ADDR)
+        current (read-frame-count))
+    (while (= current last)
+      (set current (read-frame-count)))
+    (poke16 LAST_FRAME_ADDR current)
+    0))
+
+(defn read-keys ()
+  (peek16 KEYS_STATE_ADDR))
+
+; =============================================================================
+; Tilemap Initialization
+; =============================================================================
+
+; Determine tile index based on quadrant (row, col)
+; tile = 3 + (row >= 16 ? 2 : 0) + (col >= 16 ? 1 : 0)
+(defn get-quadrant-tile (row col)
+  (let (tile 3)
+    (if (>= row 16)
+        (set tile (+ tile 2))
+        0)
+    (if (>= col 16)
+        (set tile (+ tile 1))
+        0)
+    tile))
+
+; Write one tilemap entry (tile index + attribute)
+; TILEMAP_ADDR = 0x7000, addr = 0x7000 + offset*2
+; hi = 0x70 + (offset >> 7), lo = (offset << 1) & 0xFF
+(defn write-tilemap-entry (offset tile)
+  (let (hi-byte (+ (hi TILEMAP_ADDR) (>> offset 7))
+        lo-byte (<< offset 1))
+    (poke hi-byte lo-byte tile)
+    (poke hi-byte (+ lo-byte 1) 0)
+    0))
+
+; Initialize tilemap with 4-quadrant pattern
+(defn init-tilemap ()
+  (let (row 0)
+    (while (< row 32)
+      (let (col 0)
+        (while (< col 32)
+          (let (offset (+ (* row 32) col)
+                tile (get-quadrant-tile row col))
+            (write-tilemap-entry offset tile))
+          (set col (inc col))))
+      (set row (inc row))))
+  0)
+
+; =============================================================================
+; Scrolling
+; =============================================================================
+
+(defn update-scroll ()
+  (let (keys (read-keys)
+        sx (peek16 SCROLL_X_ADDR)
+        sy (peek16 SCROLL_Y_ADDR))
+    ; Check if any arrow keys pressed
+    (if (= (& keys KEY_ARROWS) 0)
+        ; Auto-scroll diagonally (down-right)
+        (do
+          (set sx (+ sx SCROLL_SPEED))
+          (set sy (+ sy SCROLL_SPEED)))
+        ; Manual control
+        (do
+          (if (!= (& keys KEY_UP) 0)
+              (set sy (- sy SCROLL_SPEED))
+              0)
+          (if (!= (& keys KEY_DOWN) 0)
+              (set sy (+ sy SCROLL_SPEED))
+              0)
+          (if (!= (& keys KEY_LEFT) 0)
+              (set sx (- sx SCROLL_SPEED))
+              0)
+          (if (!= (& keys KEY_RIGHT) 0)
+              (set sx (+ sx SCROLL_SPEED))
+              0)))
+    (poke16 SCROLL_X_ADDR sx)
+    (poke16 SCROLL_Y_ADDR sy)
+    0))
+
+(defn apply-scroll ()
+  (let (sx (peek16 SCROLL_X_ADDR)
+        sy (peek16 SCROLL_Y_ADDR))
+    (poke16 PPU_SCROLL_X_ADDR sx)
+    (poke16 PPU_SCROLL_Y_ADDR sy)
+    0))
+
+(defn render-frame ()
+  (poke16 PPU_CTRL_ADDR PPU_CTRL_BG_ON)
+  0)
+
+; =============================================================================
+; Main
+; =============================================================================
+
+(defn main ()
+  ; Initialize scroll position (start at 64)
+  (poke16 SCROLL_X_ADDR 64)
+  (poke16 SCROLL_Y_ADDR 64)
+  
+  ; Initialize tilemap
+  (init-tilemap)
+  
+  ; Main loop
+  (while 1
+    (wait-frame)
+    (update-scroll)
+    (apply-scroll)
+    (render-frame))
+  0)
+
+; =============================================================================
+; Data Section
+; =============================================================================
+
+(data user_data 0x4000
+  (db 0)   ; last_frame - at 0x4000
+  (db 64)  ; scroll_x - at 0x4001
+  (db 64)) ; scroll_y - at 0x4002
