@@ -652,6 +652,7 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             // Compile-time constant: split into hi/lo immediately
             emit_line(cg, "LOADI R6, 0x%02X", (addr_val >> 8) & 0xFF);
             emit_line(cg, "LOADI R7, 0x%02X", addr_val & 0xFF);
+            emit_line(cg, "MOV R0, R7"); // R0 = lo byte
         } else if (node->as.unary.operand->kind == AST_ADDR ||
                    node->as.unary.operand->kind == AST_ADDR16) {
             // Address expression: load 16-bit value from that memory location

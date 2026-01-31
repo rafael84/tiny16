@@ -7,10 +7,10 @@ VERSION
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
     assembly through an intermediate representation (TIR - Tiny IR).
-    
+
     Compilation Pipeline:
         Source (.se) -> Parser -> AST -> TIR -> Optimizer -> Assembly -> Binary
-    
+
     This spec covers:
     1. Language semantics (Sections 1-12)
     2. Intermediate representation (Section 13)
@@ -52,6 +52,31 @@ Evaluation
 Result Convention
     - Each expression leaves an 8-bit result in R0.
     - Address expressions also populate R6:R7 (see Section 7).
+    - Operations return the data they manipulated (not arbitrary values).
+
+Return Values
+    Store operations return the stored value (not 0):
+        (store addr val)  -> returns val in R0
+        (set var val)     -> returns val in R0
+        (poke hi lo val)  -> returns val in R0
+        (poke16 addr val) -> returns val in R0
+
+    Address operations return the lo byte (for composability):
+        (addr hi lo)      -> returns lo in R0, sets R6:R7
+        (addr16 val)      -> returns lo in R0, sets R6:R7
+
+    Control flow:
+        (while cond ...)  -> returns 0 (false condition that caused exit)
+
+    Rationale:
+        - Zero cost: no extra LOADI R0, 0 instructions needed
+        - Composable: enables (+ (poke addr val) 1) and similar patterns
+        - Natural: returns data already in R0 after operation
+
+    Examples:
+        (if (> (poke MMIO_ADDR status) 0) ...)  ; use stored value
+        (= (set a val) (set b val))             ; verify two assignments
+        (+ (addr BASE_HI BASE_LO) offset)       ; address arithmetic
 
 Truthiness
     - Non-zero is true, zero is false. Predicates return 1 or 0.
@@ -98,7 +123,7 @@ Scope
     Evaluate bindings left-to-right, then evaluate body.
 
 (set var expr)
-    Assign to nearest binding of `var`. Returns assigned value.
+    Assign to nearest binding of `var`. Returns the assigned value.
 
 (if cond then else)
     Branch on cond. Both branches required.
@@ -168,17 +193,18 @@ Memory
     load store addr addr16
 
 Address Expressions
-    (addr high low)     -> R6=high, R7=low
-    (addr16 value)      -> R6=hi(value), R7=lo(value)
+    (addr high low)     -> R6=high, R7=low, R0=low
+    (addr16 value)      -> R6=hi(value), R7=lo(value), R0=lo(value)
                            If value is a compile-time constant, splits immediately.
                            If value is an addr expression, loads 16-bit from that address.
                            Example: (addr16 (addr ptr-hi ptr-lo)) dereferences a pointer.
+                           Returns lo byte for composability with arithmetic.
 
 Memory Primitives
     (load addr-expr)
         Load byte at addr-expr into R0 and return it.
     (store addr-expr value)
-        Store value to addr-expr and return value.
+        Store value to addr-expr and return the stored value.
 
 Memory Shortcuts (syntactic sugar, inspired by classic BASIC PEEK/POKE)
     (peek hi lo)            -> (load (addr hi lo))
