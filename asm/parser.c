@@ -44,7 +44,11 @@ static void tiny16_parser_set_error(Tiny16Parser* parser, Tiny16ParserError erro
     if (parser->error != TINY16_PARSER_OK) return; // keep first error
 
     parser->error = error;
-    parser->error_line = parser->current_token.line;
+    {
+        int64_t adjusted = (int64_t)parser->current_token.line + parser->line_base;
+        if (adjusted < 1) adjusted = 1;
+        parser->error_line = (size_t)adjusted;
+    }
 
     va_list args;
     va_start(args, error);
@@ -283,6 +287,58 @@ bool tiny16_parser_parse_section(Tiny16Parser* parser) {
                                 (int)section_name.text_len, section_name.text);
     }
 
+    return true;
+}
+
+bool tiny16_parser_parse_line_directive(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_DOT) return false;
+    Token next = tiny16_parser_peek(parser, 1);
+    if (next.kind != TOKEN_SYMBOL || !str_eq_ci(next.text, "line", next.text_len)) {
+        return false;
+    }
+
+    size_t directive_line = parser->current_token.line;
+    tiny16_parser_next(parser); // consume '.'
+    tiny16_parser_next(parser); // consume 'line'
+
+    long line_no = tiny16_parser_parse_expression(parser);
+    if (tiny16_parser_has_error(parser)) return true;
+
+    if (line_no < 1 || line_no > INT32_MAX) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE, "line", line_no);
+        return true;
+    }
+
+    parser->line_base = (int64_t)line_no - (int64_t)directive_line - 1;
+    return true;
+}
+
+bool tiny16_parser_parse_file_directive(Tiny16Parser* parser) {
+    if (parser->current_token.kind != TOKEN_DOT) return false;
+    Token next = tiny16_parser_peek(parser, 1);
+    if (next.kind != TOKEN_SYMBOL || !str_eq_ci(next.text, "file", next.text_len)) {
+        return false;
+    }
+
+    tiny16_parser_next(parser); // consume '.'
+    tiny16_parser_next(parser); // consume 'file'
+    if (parser->current_token.kind != TOKEN_STRING) {
+        tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_UNEXPECTED_TOKEN,
+                                token_kind_name(TOKEN_STRING),
+                                token_kind_name(parser->current_token.kind));
+        return true;
+    }
+
+    size_t len = parser->current_token.text_len;
+    if (len >= 2) {
+        size_t name_len = len - 2; // strip quotes
+        if (name_len >= TINY16_PARSER_MAX_FILENAME) name_len = TINY16_PARSER_MAX_FILENAME - 1;
+        memcpy(parser->current_filename, parser->current_token.text + 1, name_len);
+        parser->current_filename[name_len] = '\0';
+        parser->source_filename = parser->current_filename;
+    }
+
+    tiny16_parser_next(parser);
     return true;
 }
 

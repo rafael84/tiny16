@@ -1,7 +1,23 @@
 #include <assert.h>
+#include <errno.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#define TINY16_MKDIR(path) _mkdir(path)
+#define TINY16_RMDIR(path) _rmdir(path)
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#define TINY16_MKDIR(path) mkdir(path, 0755)
+#define TINY16_RMDIR(path) rmdir(path)
+#endif
 
 #include "../asm/lexer.c"
 #include "../asm/lexer.h"
@@ -85,6 +101,10 @@ void test_pp_macro_preserves_indentation(void);
 void test_pp_passthrough_comments(void);
 void test_pp_passthrough_labels(void);
 void test_pp_passthrough_sections(void);
+void test_pp_emits_file_line_markers(void);
+void test_pp_include_emits_markers(void);
+void test_pp_macro_emits_definition_markers(void);
+void test_parser_file_line_directives(void);
 
 int main(void) {
     ASM_TEST(test_lexer_empty);
@@ -148,6 +168,10 @@ int main(void) {
     ASM_TEST(test_pp_passthrough_comments);
     ASM_TEST(test_pp_passthrough_labels);
     ASM_TEST(test_pp_passthrough_sections);
+    ASM_TEST(test_pp_emits_file_line_markers);
+    ASM_TEST(test_pp_include_emits_markers);
+    ASM_TEST(test_pp_macro_emits_definition_markers);
+    ASM_TEST(test_parser_file_line_directives);
     return 0;
 }
 
@@ -1400,58 +1424,87 @@ void test_integration_subroutine_program(void) {
     tiny16_parser_next(&parser);
 }
 
-static char* test_preprocess_string(const char* source) {
-    FILE* temp_input = tmpfile();
-    if (!temp_input) return NULL;
+static void write_text_file(const char* path, const char* content) {
+    FILE* file = fopen(path, "wb");
+    assert(file != NULL);
+    fwrite(content, 1, strlen(content), file);
+    fclose(file);
+}
 
-    fwrite(source, 1, strlen(source), temp_input);
-    fseek(temp_input, 0, SEEK_SET);
-
-    long size = strlen(source);
-    char* content = malloc(size + 1);
-    fread(content, 1, size, temp_input);
-    content[size] = '\0';
-    fclose(temp_input);
-
-    FILE* temp_output = tmpfile();
-    if (!temp_output) {
-        free(content);
-        return NULL;
+static void ensure_dir(const char* path) {
+    if (TINY16_MKDIR(path) != 0 && errno != EEXIST) {
+        assert(0 && "failed to create temp directory");
     }
+}
 
+static void make_temp_dir(char* path, size_t size) {
+    const char* base = getenv("TINY16_TEST_TMP");
+    if (!base || base[0] == '\0') base = "tests/tmp";
+    ensure_dir(base);
+
+    unsigned long seed = (unsigned long)time(NULL);
+    static unsigned long counter = 0;
+
+    for (int i = 0; i < 100; i++) {
+        unsigned long n = seed + counter++;
+        snprintf(path, size, "%s/pp_test_%lu", base, n);
+        if (TINY16_MKDIR(path) == 0) return;
+        if (errno != EEXIST) break;
+    }
+    assert(0 && "failed to create temp directory");
+}
+
+static char* preprocess_file_raw(const char* filename) {
     Tiny16Preprocessor pp;
     tiny16_pp_init(&pp);
-    pp.output = temp_output;
-    pp.content = content;
-    pp.content_len = size;
-    pp.cursor = 0;
-    pp.line = 1;
-    strcpy(pp.error_file, "test.asm");
-
-    while (!tiny16_pp_at_end(&pp)) {
-        tiny16_pp_read_line(&pp);
-        tiny16_pp_process_line(&pp);
-        if (tiny16_pp_has_error(&pp)) {
-            free(content);
-            fclose(temp_output);
-            tiny16_pp_free(&pp);
-            return NULL;
-        }
-    }
-
-    free(content);
-
-    fseek(temp_output, 0, SEEK_END);
-    long output_size = ftell(temp_output);
-    fseek(temp_output, 0, SEEK_SET);
-
-    char* output = malloc(output_size + 1);
-    fread(output, 1, output_size, temp_output);
-    output[output_size] = '\0';
-    fclose(temp_output);
-
+    char* output = tiny16_pp_process_file(&pp, filename);
     tiny16_pp_free(&pp);
     return output;
+}
+
+static char* strip_file_line_markers(const char* input) {
+    size_t len = strlen(input);
+    char* output = malloc(len + 1);
+    size_t out_pos = 0;
+
+    const char* p = input;
+    while (*p) {
+        const char* line_start = p;
+        const char* line_end = strchr(p, '\n');
+        size_t line_len = line_end ? (size_t)(line_end - line_start + 1) : strlen(line_start);
+
+        bool skip = (strncmp(line_start, ".file ", 6) == 0) ||
+                    (strncmp(line_start, ".line ", 6) == 0);
+
+        if (!skip) {
+            memcpy(output + out_pos, line_start, line_len);
+            out_pos += line_len;
+        }
+
+        if (!line_end) break;
+        p = line_end + 1;
+    }
+
+    output[out_pos] = '\0';
+    return output;
+}
+
+static char* test_preprocess_string(const char* source) {
+    char dir[64];
+    char path[128];
+    make_temp_dir(dir, sizeof(dir));
+    snprintf(path, sizeof(path), "%s/test.asm", dir);
+    write_text_file(path, source);
+
+    char* raw = preprocess_file_raw(path);
+    assert(raw != NULL);
+    char* stripped = strip_file_line_markers(raw);
+
+    free(raw);
+    remove(path);
+    TINY16_RMDIR(dir);
+
+    return stripped;
 }
 
 void test_pp_no_macros(void) {
@@ -1569,4 +1622,128 @@ void test_pp_passthrough_sections(void) {
     assert(strstr(result, "section .code") != NULL);
     assert(strstr(result, "section .data") != NULL);
     free(result);
+}
+
+void test_pp_emits_file_line_markers(void) {
+    char dir[64];
+    char path[128];
+    make_temp_dir(dir, sizeof(dir));
+    snprintf(path, sizeof(path), "%s/main.asm", dir);
+    write_text_file(path, "LOADI R0, 1\nHALT\n");
+
+    char* output = preprocess_file_raw(path);
+    assert(output != NULL);
+
+    char prefix[256];
+    snprintf(prefix, sizeof(prefix), ".file \"%s\"\n.line 1\n", path);
+    assert(strncmp(output, prefix, strlen(prefix)) == 0);
+
+    free(output);
+    remove(path);
+    TINY16_RMDIR(dir);
+}
+
+void test_pp_include_emits_markers(void) {
+    char dir[64];
+    char main_path[128];
+    char inc_path[128];
+    make_temp_dir(dir, sizeof(dir));
+    snprintf(main_path, sizeof(main_path), "%s/main.asm", dir);
+    snprintf(inc_path, sizeof(inc_path), "%s/inc.asm", dir);
+
+    write_text_file(inc_path, "HALT\n");
+    write_text_file(main_path, ".include \"inc.asm\"\nLOADI R0, 1\n");
+
+    char* output = preprocess_file_raw(main_path);
+    assert(output != NULL);
+
+    char include_block[256];
+    char resume_block[256];
+    snprintf(include_block, sizeof(include_block), ".file \"%s\"\n.line 1\nHALT\n", inc_path);
+    snprintf(resume_block, sizeof(resume_block), ".file \"%s\"\n.line 2\nLOADI R0, 1\n",
+             main_path);
+
+    assert(strstr(output, include_block) != NULL);
+    assert(strstr(output, resume_block) != NULL);
+
+    free(output);
+    remove(main_path);
+    remove(inc_path);
+    TINY16_RMDIR(dir);
+}
+
+void test_pp_macro_emits_definition_markers(void) {
+    char dir[64];
+    char main_path[128];
+    char inc_path[128];
+    make_temp_dir(dir, sizeof(dir));
+    snprintf(main_path, sizeof(main_path), "%s/main.asm", dir);
+    snprintf(inc_path, sizeof(inc_path), "%s/lib.inc", dir);
+
+    write_text_file(inc_path, ".macro BAD\n"
+                              "    FOO\n"
+                              ".endmacro\n");
+    write_text_file(main_path, ".include \"lib.inc\"\n"
+                               "BAD\n");
+
+    char* output = preprocess_file_raw(main_path);
+    assert(output != NULL);
+
+    char macro_block[256];
+    snprintf(macro_block, sizeof(macro_block), ".file \"%s\"\n.line 2\n", inc_path);
+    assert(strstr(output, macro_block) != NULL);
+
+    free(output);
+    remove(main_path);
+    remove(inc_path);
+    TINY16_RMDIR(dir);
+}
+
+void test_parser_file_line_directives(void) {
+    const char* input = ".file \"inc.asm\"\n.line 1\nBAD\n";
+    Lexer lexer = lexer_new(input, strlen(input));
+    Tiny16Parser parser = {0};
+    parser.lexer = lexer;
+    strncpy(parser.current_filename, "main.asm", TINY16_PARSER_MAX_FILENAME - 1);
+    parser.current_filename[TINY16_PARSER_MAX_FILENAME - 1] = '\0';
+    parser.source_filename = parser.current_filename;
+    parser.line_base = 0;
+    parser.current_section = TINY16_PARSER_SECTION_CODE;
+    parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+
+    tiny16_parser_next(&parser);
+
+    while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
+        tiny16_parser_skip_trivia(&parser);
+        if (parser.current_token.kind == TOKEN_END) break;
+
+        if (tiny16_parser_parse_file_directive(&parser) ||
+            tiny16_parser_parse_line_directive(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        if (parser.current_token.kind == TOKEN_SYMBOL &&
+            tiny16_parser_peek(&parser, 1).kind == TOKEN_EQUALS) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
+
+        uint16_t times = tiny16_parser_parse_times_prefix(&parser);
+        for (uint16_t i = 0; i < times; ++i) {
+            Lexer saved_lexer = parser.lexer;
+            Token saved_token = parser.current_token;
+            tiny16_parser_emit_code(&parser);
+            if (i < times - 1) {
+                parser.lexer = saved_lexer;
+                parser.current_token = saved_token;
+            }
+        }
+
+        tiny16_parser_skip_to_eol(&parser);
+    }
+
+    assert(tiny16_parser_has_error(&parser));
+    assert(strcmp(parser.source_filename, "inc.asm") == 0);
+    assert(parser.error_line == 1);
 }

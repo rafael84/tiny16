@@ -13,6 +13,7 @@
 #define TINY16_PARSER_MAX_TOKEN_LENGTH 256
 #define TINY16_PARSER_MAX_SYMBOLS      8192
 #define TINY16_PARSER_MAX_ERROR_MSG    512
+#define TINY16_PARSER_MAX_FILENAME     1024
 
 typedef enum {
     TINY16_PARSER_OK = 0,
@@ -56,6 +57,8 @@ typedef enum {
 
 typedef struct {
     const char* source_filename;
+    char current_filename[TINY16_PARSER_MAX_FILENAME];
+    int64_t line_base;
 
     Tiny16Symbol symbols[TINY16_PARSER_MAX_SYMBOLS];
     int symbol_count;
@@ -99,6 +102,8 @@ bool tiny16_parser_parse_const(Tiny16Parser* parser);
 bool tiny16_parser_parse_section(Tiny16Parser* parser);
 bool tiny16_parser_parse_org(Tiny16Parser* parser);
 uint16_t tiny16_parser_parse_times_prefix(Tiny16Parser* parser);
+bool tiny16_parser_parse_line_directive(Tiny16Parser* parser);
+bool tiny16_parser_parse_file_directive(Tiny16Parser* parser);
 
 Tiny16OpCode tiny16_parser_parse_mnemonic(Tiny16Parser* parser);
 uint8_t tiny16_parser_parse_reg(Tiny16Parser* parser);

@@ -17,6 +17,8 @@ typedef struct {
     char params[TINY16_PP_MAX_PARAMS][TINY16_PP_MAX_NAME_LEN];
     int param_count;
     char* lines[TINY16_PP_MAX_MACRO_LINES];
+    size_t line_numbers[TINY16_PP_MAX_MACRO_LINES];
+    char file[TINY16_PP_MAX_LINE_LEN];
     int line_count;
 } Tiny16Macro;
 

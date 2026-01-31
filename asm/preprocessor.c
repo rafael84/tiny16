@@ -137,6 +137,8 @@ static void tiny16_pp_parse_macro_header(Tiny16Preprocessor* pp) {
     strcpy(macro->name, name);
     macro->param_count = 0;
     macro->line_count = 0;
+    strncpy(macro->file, pp->error_file, sizeof(macro->file) - 1);
+    macro->file[sizeof(macro->file) - 1] = '\0';
 
     tiny16_pp_skip_whitespace(&p);
 
@@ -250,6 +252,7 @@ static void tiny16_pp_expand_macro(Tiny16Preprocessor* pp, Tiny16Macro* macro) {
     }
 
     pp->macro_invocation_counter++;
+    const char* call_file = pp->error_file;
 
     for (int i = 0; i < macro->line_count; i++) {
         char expanded[TINY16_PP_MAX_LINE_LEN];
@@ -291,8 +294,11 @@ static void tiny16_pp_expand_macro(Tiny16Preprocessor* pp, Tiny16Macro* macro) {
             at++;
         }
 
+        fprintf(pp->output, ".file \"%s\"\n.line %zu\n", macro->file, macro->line_numbers[i]);
         fprintf(pp->output, "%s", expanded);
     }
+
+    fprintf(pp->output, ".file \"%s\"\n.line %zu\n", call_file, pp->line);
 }
 
 static void tiny16_pp_process_line(Tiny16Preprocessor* pp);
@@ -383,6 +389,8 @@ static void tiny16_pp_process_include(Tiny16Preprocessor* pp) {
     pp->cursor = 0;
     pp->line = 1;
 
+    fprintf(pp->output, ".file \"%s\"\n.line 1\n", full_path);
+
     while (!tiny16_pp_at_end(pp)) {
         tiny16_pp_read_line(pp);
         tiny16_pp_process_line(pp);
@@ -404,6 +412,7 @@ static void tiny16_pp_process_include(Tiny16Preprocessor* pp) {
     }
 
     free(included_content);
+    fprintf(pp->output, ".file \"%s\"\n.line %zu\n", saved_file, saved_line);
     strcpy(pp->error_file, saved_file);
     pp->content = saved_content;
     pp->content_len = saved_content_len;
@@ -447,7 +456,10 @@ static void tiny16_pp_process_line(Tiny16Preprocessor* pp) {
             pp->error_line = pp->line;
             return;
         }
-        pp->current_macro->lines[pp->current_macro->line_count++] = tiny16_strdup(pp->current_line);
+        int idx = pp->current_macro->line_count;
+        pp->current_macro->lines[idx] = tiny16_strdup(pp->current_line);
+        pp->current_macro->line_numbers[idx] = (pp->line == 0) ? 1 : (pp->line - 1);
+        pp->current_macro->line_count++;
         return;
     }
 
@@ -501,6 +513,8 @@ char* tiny16_pp_process_file(Tiny16Preprocessor* pp, const char* filename) {
     pp->content_len = size;
     pp->cursor = 0;
     pp->line = 1;
+
+    fprintf(pp->output, ".file \"%s\"\n.line 1\n", filename);
 
     while (!tiny16_pp_at_end(pp)) {
         tiny16_pp_read_line(pp);

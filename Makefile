@@ -144,10 +144,11 @@ $(WEBDIR):
 
 EXAMPLES := $(wildcard examples/*.asm)
 EXAMPLE_OUTPUTS := $(patsubst examples/%.asm,$(BINDIR)/%.tiny16,$(EXAMPLES))
+EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/*.inc) $(wildcard tutorial/includes/*.inc)
 
 examples: asm $(EXAMPLE_OUTPUTS)
 
-$(BINDIR)/%.tiny16: examples/%.asm | $(BINDIR)
+$(BINDIR)/%.tiny16: examples/%.asm $(EXAMPLE_INCLUDES) | $(BINDIR)
 	$(BINDIR)/tiny16-asm$(EXE_EXT) $< $@
 
 $(RAYLIB_LIB_NATIVE):

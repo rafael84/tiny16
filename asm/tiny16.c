@@ -13,15 +13,14 @@
 #include "args.h"
 #include "cpu.c"
 #include "cpu.h"
+#include "lexer.c"
+#include "lexer.h"
 #include "memory.c"
 #include "memory.h"
 #include "parser.c"
 #include "parser.h"
 #include "preprocessor.c"
 #include "preprocessor.h"
-
-#include "lexer.c"
-#include "lexer.h"
 
 static char* preprocess_source(const char* filename);
 
@@ -42,7 +41,10 @@ int main(int argc, char** argv) {
     // Tiny16Parser contains large fixed-size buffers (symbols table, data buffer, etc).
     static Tiny16Parser parser;
     memset(&parser, 0, sizeof(parser));
-    parser.source_filename = args.source_filename;
+    strncpy(parser.current_filename, args.source_filename, TINY16_PARSER_MAX_FILENAME - 1);
+    parser.current_filename[TINY16_PARSER_MAX_FILENAME - 1] = '\0';
+    parser.source_filename = parser.current_filename;
+    parser.line_base = 0;
     parser.current_section = TINY16_PARSER_SECTION_CODE;
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
     parser.data_pc = TINY16_MEMORY_DATA_BEGIN;
@@ -82,6 +84,12 @@ int main(int argc, char** argv) {
     while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
         tiny16_parser_skip_trivia(&parser);
         if (parser.current_token.kind == TOKEN_END) break;
+
+        if (tiny16_parser_parse_file_directive(&parser) ||
+            tiny16_parser_parse_line_directive(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
 
         if (tiny16_parser_parse_const(&parser)) {
             tiny16_parser_skip_to_eol(&parser);
@@ -140,12 +148,22 @@ int main(int argc, char** argv) {
 
     parser.current_section = TINY16_PARSER_SECTION_CODE;
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
+    parser.line_base = 0;
+    strncpy(parser.current_filename, args.source_filename, TINY16_PARSER_MAX_FILENAME - 1);
+    parser.current_filename[TINY16_PARSER_MAX_FILENAME - 1] = '\0';
+    parser.source_filename = parser.current_filename;
     parser.lexer = lexer_new(source_content, strlen(source_content));
     tiny16_parser_next(&parser);
 
     while (parser.current_token.kind != TOKEN_END && !tiny16_parser_has_error(&parser)) {
         tiny16_parser_skip_trivia(&parser);
         if (parser.current_token.kind == TOKEN_END) break;
+
+        if (tiny16_parser_parse_file_directive(&parser) ||
+            tiny16_parser_parse_line_directive(&parser)) {
+            tiny16_parser_skip_to_eol(&parser);
+            continue;
+        }
 
         if (tiny16_parser_parse_section(&parser)) {
             tiny16_parser_skip_to_eol(&parser);
