@@ -485,7 +485,20 @@ Tiny16Addr tiny16_parser_parse_addr(Tiny16Parser* parser) {
 
     if (tiny16_parser_match(parser, TOKEN_PLUS)) {
         addr.mode = TINY16_ADDR_MODE_OFFSET;
-        addr.offset = tiny16_parser_parse_imm8(parser);
+        uint8_t imm = tiny16_parser_parse_imm8(parser);
+        if (imm > 127) {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE,
+                                    "positive offset must be 0-127", (int)imm);
+        }
+        addr.offset = (int8_t)imm;
+    } else if (tiny16_parser_match(parser, TOKEN_MINUS)) {
+        addr.mode = TINY16_ADDR_MODE_OFFSET;
+        uint8_t imm = tiny16_parser_parse_imm8(parser);
+        if (imm > 128) {
+            tiny16_parser_set_error(parser, TINY16_PARSER_ERROR_OUT_OF_RANGE,
+                                    "negative offset must be 1-128", (int)imm);
+        }
+        addr.offset = -(int8_t)imm;
     }
 
     tiny16_parser_expect(parser, TOKEN_RBRACKET);
