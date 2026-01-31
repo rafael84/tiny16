@@ -1,5 +1,5 @@
 .PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se emulator emulator-web build-web serve-web
-.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format
+.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format ci
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -71,6 +71,8 @@ WEBDIR = emulator/web
 TOOLSDIR = tools
 
 all: format tests asm sec emulator examples tools
+
+ci: tests asm sec emulator examples tools
 
 $(BUILDDIR):
 	mkdir -p $@
