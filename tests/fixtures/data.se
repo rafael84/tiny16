@@ -1,0 +1,8 @@
+; Test data sections
+(def MSG_ADDR 0x4000)
+
+(data message 0x4000
+  (db "Hello World"))
+
+(defn main ()
+  (load (addr16 MSG_ADDR)))

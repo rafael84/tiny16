@@ -1,0 +1,3 @@
+; Simple test program
+(defn main ()
+  (+ 1 2))

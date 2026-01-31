@@ -1473,8 +1473,8 @@ static char* strip_file_line_markers(const char* input) {
         const char* line_end = strchr(p, '\n');
         size_t line_len = line_end ? (size_t)(line_end - line_start + 1) : strlen(line_start);
 
-        bool skip = (strncmp(line_start, ".file ", 6) == 0) ||
-                    (strncmp(line_start, ".line ", 6) == 0);
+        bool skip =
+            (strncmp(line_start, ".file ", 6) == 0) || (strncmp(line_start, ".line ", 6) == 0);
 
         if (!skip) {
             memcpy(output + out_pos, line_start, line_len);
@@ -1660,8 +1660,7 @@ void test_pp_include_emits_markers(void) {
     char include_block[256];
     char resume_block[256];
     snprintf(include_block, sizeof(include_block), ".file \"%s\"\n.line 1\nHALT\n", inc_path);
-    snprintf(resume_block, sizeof(resume_block), ".file \"%s\"\n.line 2\nLOADI R0, 1\n",
-             main_path);
+    snprintf(resume_block, sizeof(resume_block), ".file \"%s\"\n.line 2\nLOADI R0, 1\n", main_path);
 
     assert(strstr(output, include_block) != NULL);
     assert(strstr(output, resume_block) != NULL);
