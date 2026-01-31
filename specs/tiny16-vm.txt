@@ -300,10 +300,10 @@ Register Pairs:
 - Form 16-bit address: ADDR = (Rhigh << 8) | Rlow
 
 Addressing Modes:
-- BASE:   [PAIR]        Direct addressing using register pair
-- INC:    [PAIR]+       Post-increment: access then increment pair by 1
-- DEC:    [PAIR]-       Post-decrement: access then decrement pair by 1
-- OFFSET: [PAIR + imm8] Base + 8-bit unsigned offset
+- BASE:   [PAIR]          Direct addressing using register pair
+- INC:    [PAIR]+         Post-increment: access then increment pair by 1
+- DEC:    [PAIR]-         Post-decrement: access then decrement pair by 1
+- OFFSET: [PAIR +/- imm8] Base + 8-bit signed offset (-128 to +127)
 
 Instruction Encoding (arg1 byte):
   bits 7-5: destination/source register (0-7)
@@ -311,7 +311,7 @@ Instruction Encoding (arg1 byte):
   bits 2-1: register pair (0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7)
   bit 0:    reserved (0)
 
-  arg2 byte: offset value (only used with OFFSET mode, otherwise 0)
+  arg2 byte: signed offset value (only used with OFFSET mode, otherwise 0)
 
 Syntax Examples:
   LOAD  R0, [R6:R7]       ; Load from address in R6:R7 into R0
@@ -319,11 +319,13 @@ Syntax Examples:
   LOAD  R0, [R4:R5]+      ; Load from R4:R5, then increment R4:R5
   STORE R2, [R0:R1]-      ; Store R2 to R0:R1, then decrement R0:R1
   LOAD  R3, [R6:R7 + 10]  ; Load from (R6:R7 + 10) into R3
+  LOAD  R0, [R2:R3 - 5]   ; Load from (R2:R3 - 5) into R0
 
 Notes:
 - LOAD / STORE do not affect flags
 - Post-increment/decrement modifies the register pair after the access
 - Offset mode does NOT modify the register pair
+- Signed offset allows negative indexing (useful for stack-relative access)
 
 
 MMIO
@@ -449,6 +451,16 @@ Using offset for struct access:
         LOAD  R0, [R6:R7 + 0]  ; Load field at offset 0
         LOAD  R1, [R6:R7 + 4]  ; Load field at offset 4
         LOAD  R2, [R6:R7 + 8]  ; Load field at offset 8
+
+Using negative offset for stack-relative access:
+        MOVSPR R2:R3           ; Save stack pointer to R2:R3
+        PUSH   R0              ; Push local var 1 (at R2:R3 - 1)
+        PUSH   R0              ; Push local var 2 (at R2:R3 - 2)
+        ; ... use locals ...
+        LOAD   R0, [R2:R3 - 1] ; Access local var 1
+        LOAD   R1, [R2:R3 - 2] ; Access local var 2
+        POP    R1              ; Clean up
+        POP    R1
 
 Compare two values and branch:
         LOADI R0, 42

@@ -44,8 +44,8 @@ typedef struct {
     uint8_t reg;
     Tiny16AddrMode mode;
     Tiny16AddrPair pair;
-    // Byte 2: (TINY16_ADDR_MODE_OFFSET)
-    uint8_t offset;
+    // Byte 2: (TINY16_ADDR_MODE_OFFSET) - signed offset (-128 to +127)
+    int8_t offset;
 } Tiny16Addr;
 
 // REG(7-5) | MODE(4-3) | PAIR(2-1) | 0

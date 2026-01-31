@@ -398,19 +398,54 @@ void test_vm_load_store_offset(void) {
     assert(vm->cpu.R[7] == 0x00);
 
     // Test offset with different pair (R2:R3)
+    // Offsets are now SIGNED (-128 to +127)
     TINY16_TEST_RUN(
-        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4100
+        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4000
         TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x00); TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x99);
-        // Store at 0x4100 + 0xFF = 0x41FF (max offset)
+        // Store at 0x4000 + 0x7F = 0x407F (max positive offset)
+        TINY16_ASM(TINY16_OPCODE_STORE,
+                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x7F);
+        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
+        TINY16_ASM(TINY16_OPCODE_LOAD,
+                   TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x7F);
+        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    assert(vm->cpu.R[1] == 0x99);
+    assert(vm->cpu.R[2] == 0x40);
+    assert(vm->cpu.R[3] == 0x00);
+    // Verify memory at max positive offset
+    assert(vm->memory.bytes[0x407F] == 0x99);
+
+    // Test negative offset: 0xFF = -1 in signed
+    TINY16_TEST_RUN(
+        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4010
+        TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x10); TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xAA);
+        // Store at 0x4010 + (-1) = 0x400F using offset 0xFF
         TINY16_ASM(TINY16_OPCODE_STORE,
                    TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0xFF);
         TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
         TINY16_ASM(TINY16_OPCODE_LOAD,
                    TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0xFF);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0x99);
+    assert(vm->cpu.R[1] == 0xAA);
     assert(vm->cpu.R[2] == 0x40);
-    assert(vm->cpu.R[3] == 0x00);
+    assert(vm->cpu.R[3] == 0x10);
+    // Verify memory at negative offset (0x4010 - 1 = 0x400F)
+    assert(vm->memory.bytes[0x400F] == 0xAA);
+
+    // Test offset -128 (0x80 in two's complement)
+    TINY16_TEST_RUN(
+        TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x41); // R2:R3 = 0x4100
+        TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x00); TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xBB);
+        // Store at 0x4100 + (-128) = 0x4080
+        TINY16_ASM(TINY16_OPCODE_STORE,
+                   TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x80);
+        TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x00);
+        TINY16_ASM(TINY16_OPCODE_LOAD,
+                   TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x80);
+        TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
+    assert(vm->cpu.R[1] == 0xBB);
+    // Verify memory at min negative offset (0x4100 - 128 = 0x4080)
+    assert(vm->memory.bytes[0x4080] == 0xBB);
 }
 
 void test_vm_jz_conditional_jump(void) {

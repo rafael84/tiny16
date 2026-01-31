@@ -112,8 +112,14 @@ void tiny16_cpu_trace(uint16_t addr, Tiny16OpCode opcode, uint8_t arg1, uint8_t 
         uint8_t pair = (arg1 >> 1) & 0x3;
         static const char* mode_suffix[] = {"", "+", "-", ""};
         if (mode == TINY16_ADDR_MODE_OFFSET) {
-            snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s + 0x%02X]",
-                     reg, TINY16_CPU_PAIR_NAMES[pair], arg2);
+            int8_t offset = (int8_t)arg2;
+            if (offset >= 0) {
+                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s + %d]",
+                         reg, TINY16_CPU_PAIR_NAMES[pair], offset);
+            } else {
+                snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s - %d]",
+                         reg, TINY16_CPU_PAIR_NAMES[pair], -offset);
+            }
         } else {
             snprintf(tiny16_cpu_trace_buffer, TINY16_CPU_TRACE_BUFFER_SIZE, "R%d, [%s]%s", reg,
                      TINY16_CPU_PAIR_NAMES[pair], mode_suffix[mode]);
@@ -195,7 +201,7 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         uint16_t addr = ((uint16_t)(*hi << 8)) | *lo;
         uint16_t ea = addr; // effective address
 
-        if (mode == TINY16_ADDR_MODE_OFFSET) ea = addr + (uint8_t)arg2;
+        if (mode == TINY16_ADDR_MODE_OFFSET) ea = addr + (int8_t)arg2;
 
         switch (opcode) {
         case TINY16_OPCODE_LOAD: cpu->R[reg] = memory_read(memory_context, ea); break;
