@@ -1,5 +1,5 @@
-.PHONY: all asm tests examples emulator emulator-web build-web serve-web
-.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web
+.PHONY: all asm sec tests examples examples-asm examples-se emulator emulator-web build-web serve-web
+.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -66,33 +66,36 @@ EMCC_FLAGS = -std=c99 -O3 -Wall -DNDEBUG -Ivm -Ithirdparty $(RAYLIB_INCLUDE) \
     -DPLATFORM_WEB \
     --shell-file $(WEBDIR)/shell.html
 
-BINDIR = bin
+BUILDDIR = build
 WEBDIR = emulator/web
 TOOLSDIR = tools
 
-all: tests asm emulator examples tools
+all: format tests asm sec emulator examples tools
 
-$(BINDIR):
+$(BUILDDIR):
 	mkdir -p $@
 
 tests: tests-vm tests-asm
 
-tests-vm: $(BINDIR) vm/*.c vm/*.h tests/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
-	$(BINDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - -
+tests-vm: $(BUILDDIR) vm/*.c vm/*.h tests/*.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
+	$(BUILDDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - -
 
-tests-asm: $(BINDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
-	$(BINDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
+tests-asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
+	$(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
 
-asm: $(BINDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
+asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
 
-tools: $(BINDIR) $(TOOLSDIR)/*.c vm/*.h | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BINDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c -lm
+sec: $(BUILDDIR) sec/*.h sec/*.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -Isec -o $(BUILDDIR)/tiny16-sec$(EXE_EXT) sec/tiny16se.c
 
-emulator: $(BINDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BINDIR)
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BINDIR)/tiny16-emu$(EXE_EXT) \
+tools: $(BUILDDIR) $(TOOLSDIR)/*.c vm/*.h | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c -lm
+
+emulator: $(BUILDDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BUILDDIR)/tiny16-emu$(EXE_EXT) \
 		emulator/tiny16_core.c emulator/tiny16_native.c $(RAYLIB_LDFLAGS)
 
 emulator-web: $(EMSDK_ENV) $(RAYLIB_LIB_WEB) $(WEBDIR) vm/*.c vm/*.h emulator/*.c | $(WEBDIR)
@@ -142,14 +145,28 @@ $(EMSDK_ENV): $(EMSDK_PATH)/emsdk
 $(WEBDIR):
 	mkdir -p $@
 
-EXAMPLES := $(wildcard examples/*.asm)
-EXAMPLE_OUTPUTS := $(patsubst examples/%.asm,$(BINDIR)/%.tiny16,$(EXAMPLES))
-EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/*.inc) $(wildcard tutorial/includes/*.inc)
+EXAMPLES_ASM := $(wildcard examples/asm/*.asm)
+EXAMPLES_ASM_OUTPUTS := $(patsubst examples/asm/%.asm,$(BUILDDIR)/%.tiny16,$(EXAMPLES_ASM))
 
-examples: asm $(EXAMPLE_OUTPUTS)
+EXAMPLES_SE := $(wildcard examples/se/*.se)
+EXAMPLES_SE_OUTPUTS := $(patsubst examples/se/%.se,$(BUILDDIR)/%_se.tiny16,$(EXAMPLES_SE))
 
-$(BINDIR)/%.tiny16: examples/%.asm $(EXAMPLE_INCLUDES) | $(BINDIR)
-	$(BINDIR)/tiny16-asm$(EXE_EXT) $< $@
+EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard tutorial/includes/*.inc)
+
+examples: examples-asm examples-se
+
+examples-asm: asm $(EXAMPLES_ASM_OUTPUTS)
+
+examples-se: asm sec $(EXAMPLES_SE_OUTPUTS)
+
+# ASM examples: .asm -> .tiny16
+$(BUILDDIR)/%.tiny16: examples/asm/%.asm $(EXAMPLE_INCLUDES) | $(BUILDDIR)
+	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $< $@
+
+# SE examples: .se -> .asm -> .tiny16
+$(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) | $(BUILDDIR)
+	$(BUILDDIR)/tiny16-sec$(EXE_EXT) $< $(BUILDDIR)/$*_se.asm
+	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $(BUILDDIR)/$*_se.asm $@
 
 $(RAYLIB_LIB_NATIVE):
 	@echo "Building raylib for native..."
@@ -178,12 +195,15 @@ raylib-clean:
 	@rm -f $(RAYLIB_LIB_NATIVE) $(RAYLIB_LIB_WEB)
 
 clean:
-	rm -rf $(BINDIR)/*.tiny16 $(BINDIR)/tiny16-asm* $(BINDIR)/tiny16-emu* $(BINDIR)/tiny16-vm-tests* $(BINDIR)/tiny16-asm-tests*
+	rm -rf $(BUILDDIR)/*.tiny16 $(BUILDDIR)/*_se.asm $(BUILDDIR)/tiny16-asm* $(BUILDDIR)/tiny16-sec* $(BUILDDIR)/tiny16-emu* $(BUILDDIR)/tiny16-vm-tests* $(BUILDDIR)/tiny16-asm-tests*
 
 clean-all: clean raylib-clean
 
 clean-emsdk:
 	rm -rf $(EMSDK_PATH)
+
+format:
+	find . -path ./thirdparty -prune -o \( -name '*.c' -o -name '*.h' \) -print | xargs clang-format -i
 
 compile_commands.json:
 	bear -- $(MAKE)

@@ -2,12 +2,19 @@ tiny16se Language Specification
 ===============================
 
 VERSION
-    tiny16se v0.5 (NOT IMPLEMENTED YET)
+    tiny16se v0.6 (NOT IMPLEMENTED YET)
 
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
-    assembly. This spec focuses on language semantics and the assembler
-    features the compiler leverages.
+    assembly through an intermediate representation (TIR - Tiny IR).
+    
+    Compilation Pipeline:
+        Source (.se) -> Parser -> AST -> TIR -> Optimizer -> Assembly -> Binary
+    
+    This spec covers:
+    1. Language semantics (Sections 1-12)
+    2. Intermediate representation (Section 13)
+    3. Optimization passes (Section 14)
 
 ------------------------------------------------------------
 1. LEXICAL CONVENTIONS
@@ -158,17 +165,28 @@ Logical Alias
     (! a) -> lnot
 
 Memory
-    load store addr addr+
+    load store addr addr16
 
 Address Expressions
-    (addr high low)     -> R6=high, R7=low, R0=low
-    (addr+ base off)    -> base address + 8-bit offset
+    (addr high low)     -> R6=high, R7=low
+    (addr16 value)      -> R6=hi(value), R7=lo(value)
+                           If value is a compile-time constant, splits immediately.
+                           If value is an addr expression, loads 16-bit from that address.
+                           Example: (addr16 (addr ptr-hi ptr-lo)) dereferences a pointer.
 
 Memory Primitives
     (load addr-expr)
         Load byte at addr-expr into R0 and return it.
     (store addr-expr value)
         Store value to addr-expr and return value.
+
+Memory Shortcuts (syntactic sugar, inspired by classic BASIC PEEK/POKE)
+    (peek hi lo)            -> (load (addr hi lo))
+    (peek16 addr)           -> (load (addr16 addr))
+    (peek* hi lo)           -> (load (addr16 (addr hi lo)))
+                               Dereferences a 16-bit pointer stored at [hi:lo].
+    (poke hi lo value)      -> (store (addr hi lo) value)
+    (poke16 addr value)     -> (store (addr16 addr) value)
 
 Const Helpers (compile-time only)
     (hi addr) -> upper 8 bits of addr
@@ -275,6 +293,383 @@ Runtime (not trapped by generated code)
     - Stack overflow/underflow
     - Invalid memory access
     - Infinite recursion
+
+------------------------------------------------------------
+13. TINY IR (TIR) - INTERMEDIATE REPRESENTATION
+------------------------------------------------------------
+
+TIR is a simplified intermediate representation that keeps the S-expression
+style but transforms code into A-Normal Form (ANF). This flattens nested
+expressions while remaining consistent with the source language.
+
+DESIGN PRINCIPLES
+
+    1. S-expression syntax (same as source)
+    2. A-Normal Form: all intermediate values are named
+    3. No nested expressions (operands are atoms only)
+    4. Explicit control flow with labels and jumps
+    5. Mutable variables (no SSA complexity)
+
+WHY ANF OVER SSA?
+
+    - Simpler to implement and understand
+    - Natural fit for S-expression languages
+    - Sufficient for an 8-bit target
+    - No phi nodes or complex merging
+    - Easier to lower to assembly
+
+TIR FORMS
+
+Binding (intermediate values)
+    (let* ((t1 expr1)        ; Sequential bindings
+           (t2 expr2))       ; t2 can reference t1
+      body)
+
+Primitives (operands must be atoms: variables or literals)
+    (add a b)                ; All original primitives work
+    (sub a b)                ; But operands cannot be nested
+    (load (addr hi lo))      ; Address construction is allowed
+    (store (addr hi lo) val)
+
+Control Flow
+    (label name)             ; Define a jump target
+    (goto name)              ; Unconditional jump
+    (if-goto cond name)      ; Jump if cond is non-zero
+    (ifnot-goto cond name)   ; Jump if cond is zero
+
+Functions
+    (defn name (params) body)    ; Same as source
+    (call name args...)          ; Explicit call form
+    (return val)                 ; Explicit return
+
+ANF TRANSFORMATION RULES
+
+    1. Literals and variables are atoms (unchanged)
+    2. Nested expressions become let* bindings
+    3. Operands to primitives must be atoms
+    4. Control flow is linearized with labels/gotos
+
+EXAMPLE: SIMPLE FUNCTION
+
+Source:
+    (defn double (x)
+      (+ x x))
+
+TIR (already in ANF):
+    (defn double (x)
+      (add x x))
+
+EXAMPLE: NESTED EXPRESSIONS
+
+Source:
+    (defn quad (x)
+      (+ (+ x x) (+ x x)))
+
+TIR:
+    (defn quad (x)
+      (let* ((t1 (add x x))
+             (t2 (add x x)))
+        (add t1 t2)))
+
+EXAMPLE: CONDITIONAL
+
+Source:
+    (defn abs (x)
+      (if (< x 0)
+          (- 0 x)
+          x))
+
+TIR (naive):
+    (defn abs (x)
+      (let* ((t1 (lt x 0)))
+        (if-goto t1 @then)
+        (goto @else)
+        (label @then)
+        (let* ((t2 (sub 0 x)))
+          (return t2))
+        (label @else)
+        (return x)))
+
+TIR (with fused comparison - preferred):
+    (defn abs (x)
+      (if-goto (lt x 0) @then)    ; comparison fused into branch
+      (goto @else)
+      (label @then)
+      (let* ((t1 (sub 0 x)))
+        (return t1))
+      (label @else)
+      (return x))
+
+The fused form is preferred because it maps directly to CMP + JC,
+avoiding the need to materialize 0/1 comparison results.
+
+EXAMPLE: LOOP
+
+Source:
+    (defn sum-to (n)
+      (let (i 0 total 0)
+        (while (<= i n)
+          (set total (+ total i))
+          (set i (+ i 1)))
+        total))
+
+TIR (with fused comparison):
+    (defn sum-to (n)
+      (let* ((i 0)
+             (total 0))
+        (label @loop)
+        (ifnot-goto (le i n) @done)   ; fused: CMP + JLE inverted
+        (let* ((t1 (add total i)))
+          (set total t1))
+        (let* ((t2 (add i 1)))
+          (set i t2))
+        (goto @loop)
+        (label @done)
+        (return total)))
+
+EXAMPLE: FUNCTION CALL
+
+Source:
+    (defn main ()
+      (double (+ 10 11)))
+
+TIR:
+    (defn main ()
+      (let* ((t1 (add 10 11))
+             (t2 (call double t1)))
+        (return t2)))
+
+EXAMPLE: MEMORY ACCESS
+
+Source:
+    (defn read-mmio ()
+      (load (addr 0xBF 0x22)))
+
+TIR (unchanged, addr is special):
+    (defn read-mmio ()
+      (load (addr 0xBF 0x22)))
+
+Source:
+    (defn write-pixel (x y color)
+      (store (addr (+ 0xC0 y) x) color))
+
+TIR:
+    (defn write-pixel (x y color)
+      (let* ((t1 (add 0xC0 y)))
+        (store (addr t1 x) color)))
+
+------------------------------------------------------------
+14. OPTIMIZATION PASSES
+------------------------------------------------------------
+
+TIR enables optimization passes before lowering to assembly.
+
+TRANSFORMATION PASSES
+
+    constant-fold   Evaluate constant expressions at compile time
+        Before: (let* ((t1 (add 5 3))) ...)
+        After:  (let* ((t1 8)) ...)
+
+    constant-prop   Propagate known constant values
+        Before: (let* ((a 10) (b (add a x))) ...)
+        After:  (let* ((a 10) (b (add 10 x))) ...)
+
+    dead-code       Remove unused bindings and unreachable code
+        Before: (let* ((unused (add a b))) x)
+        After:  x
+
+    copy-prop       Eliminate redundant copies
+        Before: (let* ((a 5) (b a) (c (add b x))) ...)
+        After:  (let* ((a 5) (c (add a x))) ...)
+
+    inline          Inline small functions (< 5 bindings, non-recursive)
+        Before: (call double x)  ; where double is (defn double (x) (add x x))
+        After:  (add x x)
+
+    strength-reduce Convert multiply by power of 2 to shifts
+        Before: (let* ((t1 (mul x 8))) ...)
+        After:  (let* ((t1 (shl (shl (shl x))))) ...)
+
+OPTIMIZATION LEVELS
+
+    -O0     No optimization (default)
+            Direct lowering from source to TIR to assembly
+
+    -O1     Basic optimizations
+            constant-fold, constant-prop, dead-code
+
+    -O2     Full optimizations
+            All passes: fold, prop, copy-prop, dead-code, inline, strength-reduce
+
+------------------------------------------------------------
+15. TIR TO ASSEMBLY LOWERING
+------------------------------------------------------------
+
+The final stage lowers TIR to tiny16 assembly.
+
+COMPILER-EMITTED MACROS
+
+The compiler emits these helper macros at the start of every program:
+
+    ; Test if R0 is zero/non-zero (sets Z flag)
+    ; OR R0, R0 doesn't change value but sets Z=1 if R0==0
+    .macro TEST
+        OR R0, R0
+    .endmacro
+
+    ; Jump if R0 is non-zero (truthy)
+    .macro JTRUE target
+        TEST
+        JNZ target
+    .endmacro
+
+    ; Jump if R0 is zero (falsy)
+    .macro JFALSE target
+        TEST
+        JZ target
+    .endmacro
+
+    ; Comparison jumps (R0 vs R1)
+    .macro JEQ target
+        CMP R0, R1
+        JZ target
+    .endmacro
+
+    .macro JNE target
+        CMP R0, R1
+        JNZ target
+    .endmacro
+
+    .macro JLT target
+        CMP R0, R1
+        JC target
+    .endmacro
+
+    .macro JGE target
+        CMP R0, R1
+        JNC target
+    .endmacro
+
+    .macro JGT target
+        CMP R0, R1
+        JC @skip
+        JZ @skip
+        JMP target
+    @skip:
+    .endmacro
+
+    .macro JLE target
+        CMP R0, R1
+        JC target
+        JZ target
+    .endmacro
+
+REGISTER ALLOCATION
+
+    R0          Result / accumulator / left operand
+    R1          Right operand for comparisons
+    R2-R3       Temporaries
+    R4:R5       Frame pointer (FP)
+    R6:R7       Address pair for memory operations
+
+    Variables and temporaries beyond R2-R3 spill to stack via FP.
+
+LOWERING RULES
+
+    TIR                             Assembly
+    -------------------------------------------------------
+    literal N                       LOADI R0, N
+    variable x                      LOAD R0, [R4:R5 + offset]
+    (set x val)                     ; eval val to R0; STORE R0, [R4:R5 + offset]
+
+    (add a b)                       ; eval a to R0, b to R1; ADD R0, R1
+    (sub a b)                       ; eval a to R0, b to R1; SUB R0, R1
+    (inc a)                         ; eval a to R0; INC R0
+    (dec a)                         ; eval a to R0; DEC R0
+    (shl a)                         ; eval a to R0; SHL R0
+    (shr a)                         ; eval a to R0; SHR R0
+    (and a b)                       ; eval a to R0, b to R1; AND R0, R1
+    (or a b)                        ; eval a to R0, b to R1; OR R0, R1
+    (xor a b)                       ; eval a to R0, b to R1; XOR R0, R1
+
+    (load (addr hi lo))             LOADI R6, hi; LOADI R7, lo; LOAD R0, [R6:R7]
+    (store (addr hi lo) v)          ; eval v to R0; LOADI R6, hi; LOADI R7, lo
+                                    ; STORE R0, [R6:R7]
+
+    (label @name)                   name:
+    (goto @name)                    JMP name
+    (if-goto cond @name)            ; eval cond to R0; JTRUE name
+    (ifnot-goto cond @name)         ; eval cond to R0; JFALSE name
+
+    ; Fused comparison + branch (optimization)
+    (if-goto (eq a b) @name)        ; eval a to R0, b to R1; JEQ name
+    (if-goto (lt a b) @name)        ; eval a to R0, b to R1; JLT name
+    (if-goto (gt a b) @name)        ; eval a to R0, b to R1; JGT name
+    (if-goto (le a b) @name)        ; eval a to R0, b to R1; JLE name
+    (if-goto (ge a b) @name)        ; eval a to R0, b to R1; JGE name
+    (if-goto (ne a b) @name)        ; eval a to R0, b to R1; JNE name
+
+    (call func args...)             ; PUSH each arg; CALL func; adjust SP
+    (return val)                    ; eval val to R0; RET
+
+EXAMPLE: FULL LOWERING
+
+    TIR:
+        (defn double (x)
+          (add x x))
+
+    Assembly:
+        double:
+            MOVSPR R4:R5            ; FP = SP
+            LOAD R0, [R4:R5 + 2]    ; Load arg x
+            MOV R1, R0              ; Copy to R1
+            ADD R0, R1              ; R0 = x + x
+            RET
+
+    TIR:
+        (defn abs (x)
+          (if-goto (lt x 0) @then)  ; Fused comparison
+          (goto @else)
+          (label @then)
+          (let* ((t1 (sub 0 x)))
+            (return t1))
+          (label @else)
+          (return x))
+
+    Assembly:
+        abs:
+            MOVSPR R4:R5            ; FP = SP
+            LOAD R0, [R4:R5 + 2]    ; Load x into R0
+            LOADI R1, 0             ; Load 0 into R1
+            JLT @then               ; Fused: CMP R0, R1; JC @then
+            JMP @else
+        @then:
+            LOADI R0, 0
+            LOAD R1, [R4:R5 + 2]    ; Load x into R1
+            SUB R0, R1              ; R0 = 0 - x
+            RET
+        @else:
+            LOAD R0, [R4:R5 + 2]    ; Load x
+            RET
+
+    TIR:
+        (defn is-positive (x)
+          (if-goto (gt x 0) @yes)
+          (return 0)
+          (label @yes)
+          (return 1))
+
+    Assembly:
+        is_positive:
+            MOVSPR R4:R5
+            LOAD R0, [R4:R5 + 2]    ; Load x
+            LOADI R1, 0
+            JGT @yes                ; x > 0?
+            LOADI R0, 0             ; return 0
+            RET
+        @yes:
+            LOADI R0, 1             ; return 1
+            RET
 
 ------------------------------------------------------------
 END OF SPEC
