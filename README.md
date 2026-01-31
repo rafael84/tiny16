@@ -81,6 +81,17 @@ make tests-sec      # S-expression compiler tests
 
 See [`tests/README.md`](tests/README.md) for details.
 
+## Editor Support
+
+### Neovim
+
+Syntax highlighting and go-to-definition for `.asm` and `.se` files. See [`misc/nvim/`](misc/nvim/) for installation instructions.
+
+Features:
+- Syntax highlighting for assembly and S-expression files
+- Jump to definition (`gd`) for functions, constants, and data labels in `.se` files
+- Zero dependencies - pure Lua/Vimscript
+
 ## Documentation
 
 - [`stdlib/tiny16.inc`](stdlib/tiny16.inc) — Standard library (60+ macros, fully documented)

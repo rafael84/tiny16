@@ -1,43 +1,41 @@
-# tiny16 Neovim Syntax Highlighting
+# tiny16 Neovim Support
 
-Syntax highlighting for tiny16 assembly (`.asm`) and tiny16 SE (`.se`) files.
+Syntax highlighting and go-to-definition for tiny16 assembly (`.asm`) and tiny16 SE (`.se`) files.
+
+## Features
+
+- **Syntax Highlighting**: Full syntax support for both `.asm` and `.se` files
+- **Go to Definition**: Jump to function/constant/data definitions in `.se` files (press `gd`)
+- **Zero Dependencies**: Pure Lua/Vimscript implementation
 
 ## Installation
 
-### Option 1: Copy to Neovim config
-
-Copy the contents to your Neovim configuration directory:
-
-```bash
-# Create directories if they don't exist
-mkdir -p ~/.config/nvim/syntax
-mkdir -p ~/.config/nvim/ftdetect
-
-# Copy syntax files
-cp syntax/tiny16asm.vim ~/.config/nvim/syntax/
-cp syntax/tiny16se.vim ~/.config/nvim/syntax/
-
-# Copy filetype detection
-cp ftdetect/tiny16.vim ~/.config/nvim/ftdetect/
-```
-
-### Option 2: Add as a local plugin (lazy.nvim)
-
-Add to your `lazy.nvim` config:
+### Using lazy.nvim
 
 ```lua
 {
-  dir = "/path/to/tiny16/misc/nvim",
+  dir = "/path/to/tiny16/misc/nvim",  -- Update this path
   ft = { "tiny16asm", "tiny16se" },
+  config = function()
+    require("tiny16se-goto").setup()
+  end,
 }
 ```
 
-### Option 3: Symlink (development)
+### Manual Installation
 
 ```bash
-ln -s /path/to/tiny16/misc/nvim/syntax/tiny16asm.vim ~/.config/nvim/syntax/
-ln -s /path/to/tiny16/misc/nvim/syntax/tiny16se.vim ~/.config/nvim/syntax/
-ln -s /path/to/tiny16/misc/nvim/ftdetect/tiny16.vim ~/.config/nvim/ftdetect/
+# Copy files to your Neovim config directory
+mkdir -p ~/.config/nvim/{syntax,ftdetect,lua}
+cp misc/nvim/syntax/*.vim ~/.config/nvim/syntax/
+cp misc/nvim/ftdetect/tiny16.vim ~/.config/nvim/ftdetect/
+cp misc/nvim/lua/tiny16se-goto.lua ~/.config/nvim/lua/
+```
+
+Then add to your `init.lua`:
+
+```lua
+require("tiny16se-goto").setup()
 ```
 
 ## Filetype Detection
@@ -67,9 +65,24 @@ Or set it manually in Neovim:
 :set filetype=tiny16se
 ```
 
-## Features
+## Usage
 
-### Assembly (`tiny16asm`)
+### Go to Definition (tiny16se only)
+
+When editing a `.se` file:
+
+1. Place cursor on any symbol (function, constant, or data label)
+2. Press `gd` to jump to its definition
+3. Press `<C-o>` to jump back
+
+Available commands:
+
+- `:Tiny16SeIndex` - Re-index all definitions in project
+- `:Tiny16SeGoto` - Jump to definition under cursor
+
+### Syntax Highlighting
+
+#### Assembly (`tiny16asm`)
 
 - Instructions: `LOADI`, `LOAD`, `STORE`, `MOV`, `ADD`, `SUB`, `JMP`, `CALL`, etc.
 - Registers: `R0`-`R7`, `SP`, `PC`, `FP`, register pairs (`R6:R7`)
@@ -80,7 +93,7 @@ Or set it manually in Neovim:
 - Expression operators
 - Common stdlib macros
 
-### SE Language (`tiny16se`)
+#### SE Language (`tiny16se`)
 
 - Special forms: `def`, `defn`, `let`, `set`, `if`, `while`, `do`, `data`, `db`, `repeat`
 - Primitives: arithmetic, bitwise, comparison, memory operations
