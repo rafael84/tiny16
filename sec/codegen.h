@@ -18,7 +18,7 @@ typedef struct {
 
 typedef struct {
     char name[SE_MAX_SYMBOL_LEN];
-    int offset; // Stack offset from FP
+    int offset; // Stack offset from FP (params) or R2:R3 base (let locals)
 } SeLocal;
 
 typedef struct {
@@ -45,6 +45,9 @@ typedef struct {
     SeLocal locals[SE_MAX_LOCALS];
     size_t local_count;
     size_t param_count;
+
+    int let_depth;       // Nesting level of let expressions (0 = not in let)
+    int let_stack_depth; // Current stack depth from R2:R3 base (for negative offsets)
 
     int label_counter;
 

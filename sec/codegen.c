@@ -1,5 +1,6 @@
 #include "codegen.h"
 
+#include <limits.h>
 #include <stdarg.h>
 #include <string.h>
 
@@ -61,7 +62,7 @@ static int find_local(SeCodegen* cg, const char* name) {
             return cg->locals[i].offset;
         }
     }
-    return -1;
+    return INT_MIN; // Use INT_MIN as "not found" sentinel
 }
 
 static bool add_local(SeCodegen* cg, const char* name, int offset) {
@@ -323,14 +324,18 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         }
 
         int offset = find_local(cg, node->as.symbol.name);
-        if (offset != -1) {
-            if (offset < -1000) {
-                // Let-bound local: use R2:R3 base
-                int actual_offset = -(offset + 1000);
-                emit_line(cg, "LOAD R0, [R2:R3 + %d]", actual_offset);
-            } else {
-                // Function parameter: use R4:R5 (FP) base
+        if (offset != INT_MIN) {
+            if (offset >= 3) {
+                // Function parameter: use R4:R5 (FP) base (params start at offset 3)
                 emit_line(cg, "LOAD R0, [R4:R5 + %d]", offset);
+            } else {
+                // Let-bound local: use R2:R3 base with signed offset
+                // offset can be 0, -1, -2, etc.
+                if (offset >= 0) {
+                    emit_line(cg, "LOAD R0, [R2:R3 + %d]", offset);
+                } else {
+                    emit_line(cg, "LOAD R0, [R2:R3 - %d]", -offset);
+                }
             }
             return;
         }
@@ -707,17 +712,21 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     case AST_SET: {
         emit_expr(cg, node->as.set.value);
         int offset = find_local(cg, node->as.set.var);
-        if (offset == -1) {
+        if (offset == INT_MIN) {
             set_error(cg, node->line, "undefined variable in set");
             return;
         }
-        if (offset < -1000) {
-            // Let-bound local: use R2:R3 base
-            int actual_offset = -(offset + 1000);
-            emit_line(cg, "STORE R0, [R2:R3 + %d]", actual_offset);
-        } else {
-            // Function parameter: use R4:R5 (FP) base
+        if (offset >= 3) {
+            // Function parameter: use R4:R5 (FP) base (params start at offset 3)
             emit_line(cg, "STORE R0, [R4:R5 + %d]", offset);
+        } else {
+            // Let-bound local: use R2:R3 base with signed offset
+            // offset can be 0, -1, -2, etc.
+            if (offset >= 0) {
+                emit_line(cg, "STORE R0, [R2:R3 + %d]", offset);
+            } else {
+                emit_line(cg, "STORE R0, [R2:R3 - %d]", -offset);
+            }
         }
         break;
     }
@@ -769,33 +778,31 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         // Save current local count for cleanup
         size_t saved_local_count = cg->local_count;
         size_t binding_count = node->as.let.binding_count;
+        int saved_stack_depth = cg->let_stack_depth;
+        bool is_outermost = (cg->let_depth == 0);
 
-        // Save outer let's base pointer (R2:R3) so nested lets don't clobber it
-        emit_line(cg, "PUSH R2");
-        emit_line(cg, "PUSH R3");
+        cg->let_depth++;
 
-        // Allocate stack space for all locals first (PUSH dummy values)
-        for (size_t i = 0; i < binding_count; i++) {
-            emit_line(cg, "PUSH R0");
+        if (is_outermost) {
+            // Only outermost let saves R2:R3 and establishes new base
+            emit_line(cg, "PUSH R2");
+            emit_line(cg, "PUSH R3");
+            emit_line(cg, "MOVSPR R2:R3");
+            cg->let_stack_depth = 0;
         }
 
-        // Get current SP as base for locals
-        emit_line(cg, "MOVSPR R2:R3");
-
-        // Evaluate each binding and store it, registering BEFORE evaluating
-        // so that later bindings can reference earlier ones
+        // Evaluate each binding, push it, and register it
+        // Locals are accessed with negative offsets from R2:R3
         for (size_t i = 0; i < binding_count; i++) {
-            // Offset for this local from R2:R3 base
-            int offset = (int)(binding_count - i);
-
-            // Register this local first (with uninitialized value)
-            add_local(cg, node->as.let.vars[i], -1000 - offset);
-
-            // Evaluate the binding expression (can now reference earlier let-locals)
+            // Evaluate the binding expression
             emit_expr(cg, node->as.let.vals[i]);
+            emit_line(cg, "PUSH R0");
 
-            // Store the value
-            emit_line(cg, "STORE R0, [R2:R3 + %d]", offset);
+            // Track stack depth and register local
+            // After MOVSPR, first PUSH lands at [R2:R3 + 0], second at [R2:R3 - 1], etc.
+            // So offset = -let_stack_depth (0, -1, -2, ...)
+            add_local(cg, node->as.let.vars[i], -cg->let_stack_depth);
+            cg->let_stack_depth++;
         }
 
         // Evaluate body
@@ -803,16 +810,20 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             emit_expr(cg, node->as.let.body[i]);
         }
 
-        // Deallocate locals (POP dummy values)
+        // Deallocate locals
         for (size_t i = 0; i < binding_count; i++) {
             emit_line(cg, "POP R1");
         }
 
-        // Restore outer let's base pointer (R2:R3)
-        emit_line(cg, "POP R3");
-        emit_line(cg, "POP R2");
+        if (is_outermost) {
+            // Restore outer R2:R3
+            emit_line(cg, "POP R3");
+            emit_line(cg, "POP R2");
+        }
 
-        // Restore local scope
+        // Restore state
+        cg->let_depth--;
+        cg->let_stack_depth = saved_stack_depth;
         cg->local_count = saved_local_count;
         break;
     }
@@ -949,7 +960,7 @@ static void emit_function(SeCodegen* cg, AstNode* node) {
     // and ends up at SP+3, second arg at SP+4, etc.
     for (size_t i = 0; i < node->as.defn.param_count; i++) {
         int offset = 3 + (int)i;
-        add_local(cg, node->as.defn.params[i], offset);
+        add_local(cg, node->as.defn.params[i], offset); // positive offset = parameter
     }
 
     for (size_t i = 0; i < node->as.defn.body_count; i++) {

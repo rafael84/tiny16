@@ -106,7 +106,8 @@ Data Model
 Scope
     - Lexical scoping.
     - Bindings introduced by parameters and let.
-    - Variables stored on the stack, accessed via FP + offset.
+    - Parameters accessed via FP + positive offset.
+    - Let-bound locals accessed via R2:R3 - negative offset.
 
 ------------------------------------------------------------
 6. SPECIAL FORMS
@@ -595,18 +596,21 @@ REGISTER ALLOCATION
     R0          Result / accumulator / left operand
     R1          Right operand for comparisons
     R2-R3       Temporaries
-    R4:R5       Frame pointer (FP)
+    R2:R3       Let-local base pointer (for let-bound variables)
+    R4:R5       Frame pointer (FP) for function parameters
     R6:R7       Address pair for memory operations
 
-    Variables and temporaries beyond R2-R3 spill to stack via FP.
+    Parameters accessed via R4:R5 + positive offset.
+    Let-bound locals accessed via R2:R3 - negative offset.
 
 LOWERING RULES
 
     TIR                             Assembly
     -------------------------------------------------------
     literal N                       LOADI R0, N
-    variable x                      LOAD R0, [R4:R5 + offset]
-    (set x val)                     ; eval val to R0; STORE R0, [R4:R5 + offset]
+    parameter x                     LOAD R0, [R4:R5 + offset]
+    let-local x                     LOAD R0, [R2:R3 - offset]
+    (set x val)                     ; eval val to R0; STORE R0, [R4:R5 + offset] or [R2:R3 - offset]
 
     (add a b)                       ; eval a to R0, b to R1; ADD R0, R1
     (sub a b)                       ; eval a to R0, b to R1; SUB R0, R1
