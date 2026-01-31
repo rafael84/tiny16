@@ -44,7 +44,7 @@ Level 3: Memory & Data (17-24) - Register pairs, arrays, addressing
     19  Array Access           LOAD with offset     Read array[2]
     20  Post-Increment         LOAD [PAIR]+         Array traversal
     21  Post-Decrement         LOAD [PAIR]-         Reverse traverse
-    22  Offset Addressing      LOAD [PAIR + N]      Struct access
+    22  Offset Addressing      LOAD [PAIR +/- N]    Struct/stack access
     23  Array Sum              Loop + LOAD          Sum array
     24  Array Copy             LOAD + STORE         Copy 10 bytes
 
