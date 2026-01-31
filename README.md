@@ -7,11 +7,12 @@ A minimalist 16-bit virtual machine with assembler and emulator.
 ## Features
 
 - 8 general-purpose 8-bit registers (R0-R7)
-- 16-bit stack pointer with direct access (MOVSPR/MOVRSP)
 - 64KB address space with memory-mapped I/O
 - 28-instruction ISA with 3-byte fixed-length format
 - Assembler with macros and file inclusion
-- 128×128 pixel framebuffer (RGB332)
+- S-expression high-level language compiler
+- 128×128 pixel PPU with tiles, sprites, and scrolling
+- 5-channel APU (2 pulse + triangle + noise + wave)
 - Gamepad + mouse input support
 
 ## Building
@@ -63,23 +64,20 @@ build/tiny16-emu build/demo.tiny16                          # Run
 
 ## Examples
 
-**Visual Demos:**
-- [`demo.asm`](examples/demo.asm) — 32 bouncing sprites with PPU
-- [`boing_ball.asm`](examples/boing_ball.asm) — Bouncing ball animation
-- [`input_test.asm`](examples/input_test.asm) — Keyboard-controlled sprite
-- [`mouse_paint.asm`](examples/mouse_paint.asm) — Drawing with mouse
+**Assembly:**
+[`demo.asm`](examples/asm/demo.asm) | [`apu_demo.asm`](examples/asm/apu_demo.asm) | [`input_test.asm`](examples/asm/input_test.asm) | [`scroll_demo.asm`](examples/asm/scroll_demo.asm)
+
+**S-expression:**
+[`demo.se`](examples/se/demo.se) | [`apu_demo.se`](examples/se/apu_demo.se) | [`input_test.se`](examples/se/input_test.se) | [`scroll_demo.se`](examples/se/scroll_demo.se)
 
 ## Testing
 
-Run the automated test suite:
 ```bash
 make tests          # Run all tests
 make tests-vm       # VM instruction tests
 make tests-asm      # Assembler tests
 make tests-sec      # S-expression compiler tests
 ```
-
-See [`tests/README.md`](tests/README.md) for details.
 
 ## Editor Support
 
@@ -96,7 +94,7 @@ Features:
 
 - [`stdlib/tiny16.inc`](stdlib/tiny16.inc) — Standard library (60+ macros, fully documented)
 - [`specs/`](specs/) — ISA and assembler reference
-- [`tutorial/`](tutorial/) — 49 step-by-step tutorials
+- [`tutorial/`](tutorial/) — 48 step-by-step tutorials
 
 ## License
 
