@@ -1,4 +1,4 @@
-.PHONY: all asm sec tests examples examples-asm examples-se emulator emulator-web build-web serve-web
+.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se emulator emulator-web build-web serve-web
 .PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format
 
 UNAME_S := $(shell uname -s)
@@ -75,7 +75,7 @@ all: format tests asm sec emulator examples tools
 $(BUILDDIR):
 	mkdir -p $@
 
-tests: tests-vm tests-asm
+tests: tests-vm tests-asm tests-sec
 
 tests-vm: $(BUILDDIR) vm/*.c vm/*.h tests/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
@@ -84,6 +84,10 @@ tests-vm: $(BUILDDIR) vm/*.c vm/*.h tests/*.c | $(BUILDDIR)
 tests-asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
 	$(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
+
+tests-sec: $(BUILDDIR) sec/*.c sec/*.h tests/*.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -Isec -o $(BUILDDIR)/tiny16-sec-tests$(EXE_EXT) tests/sec_test.c
+	$(BUILDDIR)/tiny16-sec-tests$(EXE_EXT) | column -t | paste - -
 
 asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
@@ -195,7 +199,7 @@ raylib-clean:
 	@rm -f $(RAYLIB_LIB_NATIVE) $(RAYLIB_LIB_WEB)
 
 clean:
-	rm -rf $(BUILDDIR)/*.tiny16 $(BUILDDIR)/*_se.asm $(BUILDDIR)/tiny16-asm* $(BUILDDIR)/tiny16-sec* $(BUILDDIR)/tiny16-emu* $(BUILDDIR)/tiny16-vm-tests* $(BUILDDIR)/tiny16-asm-tests*
+	rm -rf $(BUILDDIR)/*.tiny16 $(BUILDDIR)/*_se.asm $(BUILDDIR)/tiny16-asm* $(BUILDDIR)/tiny16-sec* $(BUILDDIR)/tiny16-emu* $(BUILDDIR)/tiny16-vm-tests* $(BUILDDIR)/tiny16-asm-tests* $(BUILDDIR)/tiny16-sec-tests*
 
 clean-all: clean raylib-clean
 
