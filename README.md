@@ -55,8 +55,8 @@ Or download pre-built binaries from [Releases](https://github.com/rafael84/tiny1
 ## Usage
 
 ```bash
-bin/tiny16-asm examples/demo.asm bin/demo.tiny16   # Assemble
-bin/tiny16-emu bin/demo.tiny16                      # Run
+build/tiny16-asm examples/asm/demo.asm build/demo.tiny16   # Assemble
+build/tiny16-emu build/demo.tiny16                          # Run
 ```
 
 **Controls:** Arrow keys/WASD (D-pad), Z/X (A/B buttons), Enter (Start), P (Pause), ESC (Exit)
@@ -68,6 +68,18 @@ bin/tiny16-emu bin/demo.tiny16                      # Run
 - [`boing_ball.asm`](examples/boing_ball.asm) — Bouncing ball animation
 - [`input_test.asm`](examples/input_test.asm) — Keyboard-controlled sprite
 - [`mouse_paint.asm`](examples/mouse_paint.asm) — Drawing with mouse
+
+## Testing
+
+Run the automated test suite:
+```bash
+make tests          # Run all tests
+make tests-vm       # VM instruction tests
+make tests-asm      # Assembler tests
+make tests-sec      # S-expression compiler tests
+```
+
+See [`tests/README.md`](tests/README.md) for details.
 
 ## Documentation
 
