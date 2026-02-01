@@ -29,6 +29,7 @@ const char* ast_kind_name(AstKind kind) {
     case AST_SHL: return "SHL";
     case AST_SHR: return "SHR";
     case AST_MUL: return "MUL";
+    case AST_DIV: return "DIV";
     case AST_MOD: return "MOD";
     case AST_EQ: return "EQ";
     case AST_NE: return "NE";

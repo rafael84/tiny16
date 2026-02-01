@@ -71,6 +71,8 @@
 (def PIPE_GAP           34)
 (def PIPE_WIDTH         8)
 (def PIPE_SPEED         1)
+(def PIPE_SPAWN_X       136)
+(def PIPE_SPACING       70)
 (def GAP_MIN            38)
 (def GAP_RANGE          50)
 
@@ -282,10 +284,16 @@
 
 (defn init-pipe ()
   (let (seed (read-frame)
-        gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
-    (poke16 pipe_x 135)
-    (poke16 pipe_gap_y gap)
-    (poke16 pipe_passed 0)))
+        gap1 (+ GAP_MIN (mod-by seed GAP_RANGE))
+        gap2 (+ GAP_MIN (mod-by (+ seed 37) GAP_RANGE)))
+    ; Pipe 1
+    (poke16 pipe1_x PIPE_SPAWN_X)
+    (poke16 pipe1_gap_y gap1)
+    (poke16 pipe1_passed 0)
+    ; Pipe 2 (offset by PIPE_SPACING)
+    (poke16 pipe2_x (+ PIPE_SPAWN_X PIPE_SPACING))
+    (poke16 pipe2_gap_y gap2)
+    (poke16 pipe2_passed 0)))
 
 (defn init-game ()
   (hide-sprites)
@@ -349,18 +357,18 @@
 ; Pipe Logic
 ; =============================================================================
 
-(defn update-pipe ()
-  (let (x (peek16 pipe_x)
-        gap-y (peek16 pipe_gap_y)
-        passed (peek16 pipe_passed))
+(defn update-pipe1 ()
+  (let (x (peek16 pipe1_x)
+        gap-y (peek16 pipe1_gap_y)
+        passed (peek16 pipe1_passed))
 
     ; Move left
     (if (>= x PIPE_SPEED)
         (set x (- x PIPE_SPEED))
-        ; Reset pipe
+        ; Reset pipe - spawn ahead
         (let (seed (read-frame)
               new-gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
-          (set x 136)
+          (set x (+ x (+ PIPE_SPACING PIPE_SPACING)))
           (set gap-y new-gap)
           (set passed 0)))
 
@@ -374,36 +382,85 @@
             0)
         0)
 
-    (poke16 pipe_x x)
-    (poke16 pipe_gap_y gap-y)
-    (poke16 pipe_passed passed)))
+    (poke16 pipe1_x x)
+    (poke16 pipe1_gap_y gap-y)
+    (poke16 pipe1_passed passed)))
+
+(defn update-pipe2 ()
+  (let (x (peek16 pipe2_x)
+        gap-y (peek16 pipe2_gap_y)
+        passed (peek16 pipe2_passed))
+
+    ; Move left
+    (if (>= x PIPE_SPEED)
+        (set x (- x PIPE_SPEED))
+        ; Reset pipe - spawn ahead
+        (let (seed (read-frame)
+              new-gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
+          (set x (+ x (+ PIPE_SPACING PIPE_SPACING)))
+          (set gap-y new-gap)
+          (set passed 0)))
+
+    ; Scoring
+    (if (= passed 0)
+        (if (< x BIRD_X)
+            (do
+              (set passed 1)
+              (poke16 score (inc (peek16 score)))
+              (sfx-score))
+            0)
+        0)
+
+    (poke16 pipe2_x x)
+    (poke16 pipe2_gap_y gap-y)
+    (poke16 pipe2_passed passed)))
+
+(defn update-pipes ()
+  (update-pipe1)
+  (update-pipe2))
 
 ; =============================================================================
 ; Collision
 ; =============================================================================
 
 (defn check-collision ()
-  (let (px (peek16 pipe_x)
-        gap-y (peek16 pipe_gap_y)
-        by (peek16 bird_y_hi)
+  (let (by (peek16 bird_y_hi)
         half (>> PIPE_GAP 1)
-        gap-top (- gap-y half)
-        gap-bot (+ gap-y half)
         hit 0)
 
-    ; Only check if pipe is visible
-    (if (< px 128)
-        (if (< px (+ BIRD_X 6))
-            (if (> (+ px PIPE_WIDTH) BIRD_X)
-                ; Horizontally overlapping
-                (if (< by gap-top)
-                    (set hit 1)
-                    (if (> (+ by 6) gap-bot)
-                        (set hit 1)
-                        0))
-                0)
-            0)
-        0)
+    ; Check pipe 1
+    (let (px (peek16 pipe1_x)
+          gap-y (peek16 pipe1_gap_y)
+          gap-top (- gap-y half)
+          gap-bot (+ gap-y half))
+      (if (< px 128)
+          (if (< px (+ BIRD_X 6))
+              (if (> (+ px PIPE_WIDTH) BIRD_X)
+                  (if (< by gap-top)
+                      (set hit 1)
+                      (if (> (+ by 6) gap-bot)
+                          (set hit 1)
+                          0))
+                  0)
+              0)
+          0))
+
+    ; Check pipe 2
+    (let (px (peek16 pipe2_x)
+          gap-y (peek16 pipe2_gap_y)
+          gap-top (- gap-y half)
+          gap-bot (+ gap-y half))
+      (if (< px 128)
+          (if (< px (+ BIRD_X 6))
+              (if (> (+ px PIPE_WIDTH) BIRD_X)
+                  (if (< by gap-top)
+                      (set hit 1)
+                      (if (> (+ by 6) gap-bot)
+                          (set hit 1)
+                          0))
+                  0)
+              0)
+          0))
 
     (if (!= hit 0)
         (do
@@ -426,9 +483,9 @@
             (set tile TILE_BIRD_MID)))
     (draw-spr 0 y BIRD_X tile)))
 
-(defn render-pipe ()
-  (let (px (peek16 pipe_x)
-        gap-y (peek16 pipe_gap_y)
+(defn render-pipe1 ()
+  (let (px (peek16 pipe1_x)
+        gap-y (peek16 pipe1_gap_y)
         half (>> PIPE_GAP 1)
         gap-top (- gap-y half)
         gap-bot (+ gap-y half))
@@ -436,7 +493,6 @@
     (if (< px 138)
         (do
           ; Top pipe (behind background so sky/ground covers it)
-          ; 7 segments: cap + 6 body (56 pixels, 50% longer)
           (draw-spr-attr 1 (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
           (draw-spr-attr 2 (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
           (draw-spr-attr 3 (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
@@ -445,7 +501,6 @@
           (draw-spr-attr 6 (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
           (draw-spr-attr 7 (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
           ; Bottom pipe (behind background so sky/ground covers it)
-          ; 7 segments: cap + 6 body (56 pixels, 50% longer)
           (draw-spr-attr 8 gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
           (draw-spr-attr 9 (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
           (draw-spr-attr 10 (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
@@ -459,10 +514,45 @@
             (draw-spr i 255 0 0)
             (set i (inc i)))))))
 
+(defn render-pipe2 ()
+  (let (px (peek16 pipe2_x)
+        gap-y (peek16 pipe2_gap_y)
+        half (>> PIPE_GAP 1)
+        gap-top (- gap-y half)
+        gap-bot (+ gap-y half))
+
+    (if (< px 138)
+        (do
+          ; Top pipe (behind background so sky/ground covers it)
+          (draw-spr-attr 15 (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
+          (draw-spr-attr 16 (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 17 (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 18 (- gap-top 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 19 (- gap-top 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 20 (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 21 (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          ; Bottom pipe (behind background so sky/ground covers it)
+          (draw-spr-attr 22 gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
+          (draw-spr-attr 23 (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 24 (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 25 (+ gap-bot 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 26 (+ gap-bot 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 27 (+ gap-bot 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 28 (+ gap-bot 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
+        ; Hide if off screen
+        (let (i 15)
+          (while (<= i 28)
+            (draw-spr i 255 0 0)
+            (set i (inc i)))))))
+
+(defn render-pipes ()
+  (render-pipe1)
+  (render-pipe2))
+
 ; Boundaries are now rendered via tilemap (set once at init)
 ; No per-frame sprite rendering needed
 
-; Render score as 2 digits on top right (sprites 15-16)
+; Render score as 2 digits on top right (sprites 29-30)
 (defn render-score ()
   (let (s (peek16 score)
         tens 0
@@ -471,16 +561,16 @@
     (while (>= ones 10)
       (set tens (inc tens))
       (set ones (- ones 10)))
-    ; Draw tens digit (sprite 15) - hide if zero
+    ; Draw tens digit (sprite 29) - hide if zero
     (if (> tens 0)
-        (draw-spr 15 SCORE_Y (- SCORE_X 8) (+ TILE_DIGIT_0 tens))
-        (draw-spr 15 255 0 0))
-    ; Draw ones digit (sprite 16)
-    (draw-spr 16 SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
+        (draw-spr 29 SCORE_Y (- SCORE_X 8) (+ TILE_DIGIT_0 tens))
+        (draw-spr 29 255 0 0))
+    ; Draw ones digit (sprite 30)
+    (draw-spr 30 SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
 
 (defn render-all ()
   (render-bird)
-  (render-pipe)
+  (render-pipes)
   (render-score)
   (render))
 
@@ -512,7 +602,7 @@
           (update-bird)
           (if (= (peek16 game_state) STATE_PLAYING)
               (do
-                (update-pipe)
+                (update-pipes)
                 (check-collision))
               0)))
 
@@ -534,10 +624,15 @@
 (data bird_vel_hi (db 0))
 (data bird_vel_lo (db 0))
 
-; Pipe
-(data pipe_x (db 0))
-(data pipe_gap_y (db 0))
-(data pipe_passed (db 0))
+; Pipe 1
+(data pipe1_x (db 0))
+(data pipe1_gap_y (db 0))
+(data pipe1_passed (db 0))
+
+; Pipe 2
+(data pipe2_x (db 0))
+(data pipe2_gap_y (db 0))
+(data pipe2_passed (db 0))
 
 ; Animation
 (data anim_frame (db 0))

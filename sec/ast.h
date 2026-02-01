@@ -41,6 +41,7 @@ typedef enum {
     AST_SHL, // (<< a b) or (shl a b)
     AST_SHR, // (>> a b) or (shr a b)
     AST_MUL, // (* a b) or (mul a b)
+    AST_DIV, // (/ a b) or (div a b)
     AST_MOD, // (% a b) or (mod a b)
 
     // Comparisons

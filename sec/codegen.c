@@ -186,6 +186,15 @@ static bool eval_const(SeCodegen* cg, AstNode* node, int32_t* result) {
         return true;
     }
 
+    case AST_DIV: {
+        int32_t left, right;
+        if (!eval_const(cg, node->as.binary.left, &left)) return false;
+        if (!eval_const(cg, node->as.binary.right, &right)) return false;
+        if (right == 0) return false;
+        *result = left / right;
+        return true;
+    }
+
     case AST_MOD: {
         int32_t left, right;
         if (!eval_const(cg, node->as.binary.left, &left)) return false;
@@ -462,38 +471,79 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
                 emit_line(cg, "SHL R0");
                 emit_line(cg, "SHL R0");
             } else {
-                // General case: loop multiplication
+                // General case: shift-and-add multiplication (O(8) iterations)
+                // R1 = multiplicand, R6 = multiplier, R0 = result
+                // NOTE: Must NOT use R2/R3 (local var base) or R4/R5 (frame pointer)
                 int lbl_loop = new_label(cg);
+                int lbl_skip = new_label(cg);
                 int lbl_done = new_label(cg);
-                emit_line(cg, "MOV R1, R0");
-                emit_line(cg, "LOADI R0, 0");
-                emit_line(cg, "LOADI R3, 0x%02X", const_val & 0xFF);
+                emit_line(cg, "MOV R1, R0");                         // R1 = multiplicand
+                emit_line(cg, "LOADI R0, 0");                        // R0 = result
+                emit_line(cg, "LOADI R6, 0x%02X", const_val & 0xFF); // R6 = multiplier
                 emit(cg, "__L%d:\n", lbl_loop);
-                emit_line(cg, "OR R3, R3");
+                emit_line(cg, "OR R6, R6"); // test if multiplier == 0
                 emit_line(cg, "JZ __L%d", lbl_done);
-                emit_line(cg, "ADD R0, R1");
-                emit_line(cg, "DEC R3");
+                emit_line(cg, "PUSH R6");            // save multiplier
+                emit_line(cg, "LOADI R7, 1");        // R7 = 1 for bit test
+                emit_line(cg, "AND R6, R7");         // R6 = multiplier & 1
+                emit_line(cg, "JZ __L%d", lbl_skip); // if bit is 0, skip add
+                emit_line(cg, "ADD R0, R1");         // result += multiplicand
+                emit(cg, "__L%d:\n", lbl_skip);
+                emit_line(cg, "SHL R1"); // multiplicand *= 2
+                emit_line(cg, "POP R6"); // restore multiplier
+                emit_line(cg, "SHR R6"); // multiplier /= 2
                 emit_line(cg, "JMP __L%d", lbl_loop);
                 emit(cg, "__L%d:\n", lbl_done);
             }
         } else {
-            // Runtime multiplication
+            // Runtime multiplication using shift-and-add (O(8) iterations)
+            // NOTE: Must NOT use R2/R3 (local var base) or R4/R5 (frame pointer)
             int lbl_loop = new_label(cg);
+            int lbl_skip = new_label(cg);
             int lbl_done = new_label(cg);
-            emit_expr(cg, node->as.binary.right); // multiplier
-            emit_line(cg, "PUSH R0");
-            emit_expr(cg, node->as.binary.left); // multiplicand
-            emit_line(cg, "MOV R1, R0");
-            emit_line(cg, "LOADI R0, 0");
-            emit_line(cg, "POP R3"); // multiplier count
+            emit_expr(cg, node->as.binary.right); // multiplier -> R0
+            emit_line(cg, "PUSH R0");             // save multiplier
+            emit_expr(cg, node->as.binary.left);  // multiplicand -> R0
+            emit_line(cg, "MOV R1, R0");          // R1 = multiplicand
+            emit_line(cg, "LOADI R0, 0");         // R0 = result
+            emit_line(cg, "POP R6");              // R6 = multiplier
             emit(cg, "__L%d:\n", lbl_loop);
-            emit_line(cg, "OR R3, R3");
+            emit_line(cg, "OR R6, R6"); // test if multiplier == 0
             emit_line(cg, "JZ __L%d", lbl_done);
-            emit_line(cg, "ADD R0, R1");
-            emit_line(cg, "DEC R3");
+            emit_line(cg, "PUSH R6");            // save multiplier
+            emit_line(cg, "LOADI R7, 1");        // R7 = 1 for bit test
+            emit_line(cg, "AND R6, R7");         // R6 = multiplier & 1
+            emit_line(cg, "JZ __L%d", lbl_skip); // if bit is 0, skip add
+            emit_line(cg, "ADD R0, R1");         // result += multiplicand
+            emit(cg, "__L%d:\n", lbl_skip);
+            emit_line(cg, "SHL R1"); // multiplicand *= 2
+            emit_line(cg, "POP R6"); // restore multiplier
+            emit_line(cg, "SHR R6"); // multiplier /= 2
             emit_line(cg, "JMP __L%d", lbl_loop);
             emit(cg, "__L%d:\n", lbl_done);
         }
+        break;
+    }
+
+    case AST_DIV: {
+        // Division using repeated subtraction
+        // a / b: count how many times b fits into a
+        // NOTE: Must NOT use R2/R3 (local var base) or R4/R5 (frame pointer)
+        int lbl_loop = new_label(cg);
+        int lbl_done = new_label(cg);
+        emit_expr(cg, node->as.binary.right); // divisor -> R0
+        emit_line(cg, "PUSH R0");             // save divisor
+        emit_expr(cg, node->as.binary.left);  // dividend -> R0
+        emit_line(cg, "POP R1");              // R1 = divisor, R0 = dividend
+        emit_line(cg, "MOV R6, R0");          // R6 = dividend (working copy)
+        emit_line(cg, "LOADI R0, 0");         // R0 = quotient
+        emit(cg, "__L%d:\n", lbl_loop);
+        emit_line(cg, "CMP R6, R1");         // compare dividend with divisor
+        emit_line(cg, "JC __L%d", lbl_done); // if dividend < divisor, done
+        emit_line(cg, "SUB R6, R1");         // dividend -= divisor
+        emit_line(cg, "INC R0");             // quotient++
+        emit_line(cg, "JMP __L%d", lbl_loop);
+        emit(cg, "__L%d:\n", lbl_done);
         break;
     }
 

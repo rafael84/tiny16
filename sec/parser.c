@@ -999,6 +999,7 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, "<<") || is_symbol(parser, "shl")) return parse_binary(parser, AST_SHL);
     if (is_symbol(parser, ">>") || is_symbol(parser, "shr")) return parse_binary(parser, AST_SHR);
     if (is_symbol(parser, "*") || is_symbol(parser, "mul")) return parse_binary(parser, AST_MUL);
+    if (is_symbol(parser, "/") || is_symbol(parser, "div")) return parse_binary(parser, AST_DIV);
     if (is_symbol(parser, "%") || is_symbol(parser, "mod")) return parse_binary(parser, AST_MOD);
 
     // Comparison
