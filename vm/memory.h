@@ -27,25 +27,25 @@ typedef struct {
 #define TINY16_MEMORY_DATA_END   0x4FFF /* USER DATA, 4 KB */
 
 //
-// Graphics (PPU-visible, contiguous, simplified layout)
+// Graphics (PPU-visible, expanded layout)
 //
 #define TINY16_MEMORY_GFX_TILES_BASE 0x5000
-#define TINY16_MEMORY_GFX_TILES_END  0x6FFF /* TILES, 256 x 32 B = 8192 bytes (8 KB) */
+#define TINY16_MEMORY_GFX_TILES_END  0x6FFF // TILES, 256 x 32 B = 8 KB
 
 #define TINY16_MEMORY_GFX_TILEMAP_BASE 0x7000
-#define TINY16_MEMORY_GFX_TILEMAP_END  0x77FF // TILEMAP, 32 x 32 x 2 B = 2 KB (combined tile+attr)
+#define TINY16_MEMORY_GFX_TILEMAP_END  0x8FFF // TILEMAP, 128 x 32 x 2 B = 8 KB
 
-#define TINY16_MEMORY_GFX_OAM_BASE 0x7800
-#define TINY16_MEMORY_GFX_OAM_END  0x78FF /* OAM, 64 sprites x 4 B = 256 B */
+#define TINY16_MEMORY_GFX_OAM_BASE 0x9000
+#define TINY16_MEMORY_GFX_OAM_END  0x91FF // OAM, 128 sprites x 4 B = 512 B
 
-#define TINY16_MEMORY_GFX_PALETTE_BASE 0x7900
-#define TINY16_MEMORY_GFX_PALETTE_END  0x790F /* PALETTE, 16 colors x 1 B = 16 B */
+#define TINY16_MEMORY_GFX_PALETTE_BASE 0x9200
+#define TINY16_MEMORY_GFX_PALETTE_END  0x923F // PALETTE, 4 x 16 colors = 64 B
 
 //
 // Stack
 //
-#define TINY16_MEMORY_STACK_BEGIN 0x8000
-#define TINY16_MEMORY_STACK_END   0xBEFF /* STACK, ~16 KB */
+#define TINY16_MEMORY_STACK_BEGIN 0xA000
+#define TINY16_MEMORY_STACK_END   0xBEFF // STACK, ~7.7 KB
 
 //
 // MMIO
@@ -132,7 +132,7 @@ typedef struct {
 // Data section range: covers user data + all graphics memory
 //
 #define TINY16_DATA_BEGIN TINY16_MEMORY_DATA_BEGIN      // 0x4000
-#define TINY16_DATA_END   TINY16_MEMORY_GFX_PALETTE_END // 0x791F
+#define TINY16_DATA_END   TINY16_MEMORY_GFX_PALETTE_END // 0x923F
 
 //
 // Framebuffer (direct bitmap)

@@ -69,28 +69,29 @@ static void tiny16_ppu_render_tile(uint8_t* framebuffer, const Tiny16Tile* tile,
 }
 
 static void tiny16_ppu_render_sprite(uint8_t* framebuffer, const Tiny16Tile* tiles,
-                                     const Tiny16Palette* palette, const Tiny16OAMEntry* sprite) {
+                                     const Tiny16Palette* palettes, const Tiny16OAMEntry* sprite) {
     if (sprite->y == TINY16_OAM_SPRITE_HIDDEN) return;
-    tiny16_ppu_render_tile(framebuffer, &tiles[sprite->tile], palette, sprite->x, sprite->y,
-                           sprite->attr);
+    uint8_t pal_idx = sprite->attr & TINY16_OAM_ATTR_PALETTE_MASK;
+    tiny16_ppu_render_tile(framebuffer, &tiles[sprite->tile], &palettes[pal_idx], sprite->x,
+                           sprite->y, sprite->attr);
 }
 
 void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
     uint8_t* framebuffer = memory + TINY16_FRAMEBUFFER;
     const Tiny16Tile* tiles = (const Tiny16Tile*)(memory + TINY16_MEMORY_GFX_TILES_BASE);
     const Tiny16Tilemap* tilemap = (const Tiny16Tilemap*)(memory + TINY16_MEMORY_GFX_TILEMAP_BASE);
-    const Tiny16Palette* palette = (const Tiny16Palette*)(memory + TINY16_MEMORY_GFX_PALETTE_BASE);
+    const Tiny16Palette* palettes = (const Tiny16Palette*)(memory + TINY16_MEMORY_GFX_PALETTE_BASE);
     const Tiny16OAMEntry* oam = (const Tiny16OAMEntry*)(memory + TINY16_MEMORY_GFX_OAM_BASE);
 
-    // clear framebuffer to palette color 0
-    memset(framebuffer, palette->entries[0].color,
+    // clear framebuffer to palette 0, color 0
+    memset(framebuffer, palettes[0].entries[0].color,
            TINY16_FRAMEBUFFER_SIZE_WIDTH * TINY16_FRAMEBUFFER_SIZE_HEIGHT);
 
     // Pass 1: Render sprites with BEHIND_BG flag (behind the background)
     if (ppu->ctrl & TINY16_PPU_CTRL_ENABLE_SPRITES) {
         for (int i = 0; i < TINY16_OAM_SPRITE_COUNT; i++) {
             if (oam[i].attr & TINY16_OAM_ATTR_BEHIND_BG) {
-                tiny16_ppu_render_sprite(framebuffer, tiles, palette, &oam[i]);
+                tiny16_ppu_render_sprite(framebuffer, tiles, palettes, &oam[i]);
             }
         }
     }
@@ -102,6 +103,8 @@ void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
                 const Tiny16TilemapEntry* entry = &tilemap->entries[y][x];
                 uint8_t tile_idx = entry->tile;
                 uint8_t attr = entry->attr;
+                uint8_t pal_idx =
+                    (attr & TINY16_TILEMAP_ATTR_PALETTE_MASK) >> TINY16_TILEMAP_ATTR_PALETTE_SHIFT;
 
                 int dst_x = (x * TINY16_TILE_WIDTH) - ppu->scroll_x;
                 int dst_y = (y * TINY16_TILE_HEIGHT) - ppu->scroll_y;
@@ -110,7 +113,8 @@ void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
                 if (dst_x < -TINY16_TILE_WIDTH) dst_x += TINY16_TILEMAP_PIXEL_WIDTH;
                 if (dst_y < -TINY16_TILE_HEIGHT) dst_y += TINY16_TILEMAP_PIXEL_HEIGHT;
 
-                tiny16_ppu_render_tile(framebuffer, &tiles[tile_idx], palette, dst_x, dst_y, attr);
+                tiny16_ppu_render_tile(framebuffer, &tiles[tile_idx], &palettes[pal_idx], dst_x,
+                                       dst_y, attr);
             }
         }
     }
@@ -119,7 +123,7 @@ void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
     if (ppu->ctrl & TINY16_PPU_CTRL_ENABLE_SPRITES) {
         for (int i = 0; i < TINY16_OAM_SPRITE_COUNT; i++) {
             if (!(oam[i].attr & TINY16_OAM_ATTR_BEHIND_BG)) {
-                tiny16_ppu_render_sprite(framebuffer, tiles, palette, &oam[i]);
+                tiny16_ppu_render_sprite(framebuffer, tiles, palettes, &oam[i]);
             }
         }
     }

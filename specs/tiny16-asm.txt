@@ -125,7 +125,7 @@ ORG (Set Origin)
     - Sets the data location counter to addr16:
         - If addr16 > current: pad with 0x00 up to addr16
         - If addr16 < current: error (no rewinding/overwrites)
-    - addr16 can be a number or expression, must evaluate to 0x4000..0x791F
+    - addr16 can be a number or expression, must evaluate to 0x4000..0x923F
 
 TIMES (Repeat)
     - Works in both .code and .data sections
@@ -320,13 +320,12 @@ Code Section (starts at 0x0010):
 Data Section (starts at 0x4000):
 - Padded with zeros from end of code to 0x4000
 - DB directives output here
-- Can extend to 0x791F to initialize graphics memory:
+- Can extend to 0x923F to initialize graphics memory:
   - 0x4000-0x4FFF: User data (4KB)
   - 0x5000-0x6FFF: Tile data (8KB, 256 tiles × 32 bytes)
-  - 0x7000-0x73FF: Tilemap (1KB)
-  - 0x7400-0x77FF: Attrmap (1KB)
-  - 0x7800-0x78FF: OAM (256 bytes, 64 sprites × 4 bytes)
-  - 0x7900-0x791F: Palette (32 bytes, 16 colors × 2 bytes)
+  - 0x7000-0x8FFF: Tilemap (8KB, 128×32 tiles, 2 bytes each: tile + attr)
+  - 0x9000-0x91FF: OAM (512 bytes, 128 sprites × 4 bytes)
+  - 0x9200-0x923F: Palette (64 bytes, 4 palettes × 16 colors)
 
 EXAMPLES
 --------
@@ -379,19 +378,19 @@ Defining graphics data directly:
            DB 0x12, 0x22, 0x22, 0x21  ; Row 1
            ; ... remaining rows ...
 
-    ; Pad to OAM at 0x7800
-    ORG 0x7800
+    ; Pad to OAM at 0x9000
+    ORG 0x9000
 
-    ; Initialize all 64 sprites as hidden (Y = 0xFF)
-    oam:   TIMES 64 DB 0xFF, 0x00, 0x00, 0x00
+    ; Initialize all 128 sprites as hidden (Y = 0xFF)
+    oam:   TIMES 128 DB 0xFF, 0x00, 0x00, 0x00
 
-    ; Palette at 0x7900
+    ; Palette at 0x9200 (palette slot 0)
     palette:
-           ORG 0x7900
-           DB 0x03, 0x00  ; Color 0: dark blue
-           DB 0x1F, 0x00  ; Color 1: blue
-           DB 0xFC, 0x00  ; Color 2: yellow
-           DB 0x00, 0x00  ; Color 3: black
+           ORG 0x9200
+           DB 0x03  ; Color 0: dark blue (RGB332)
+           DB 0x1F  ; Color 1: blue
+           DB 0xFC  ; Color 2: yellow
+           DB 0x00  ; Color 3: black
 
 String data:
 

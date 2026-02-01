@@ -19,15 +19,17 @@ typedef struct {
 //
 // Tilemap (combined tile + attributes)
 //
-#define TINY16_TILEMAP_WIDTH        32
+#define TINY16_TILEMAP_WIDTH        128
 #define TINY16_TILEMAP_HEIGHT       32
-#define TINY16_TILEMAP_PIXEL_WIDTH  (TINY16_TILEMAP_WIDTH * TINY16_TILE_WIDTH)   // 256
+#define TINY16_TILEMAP_PIXEL_WIDTH  (TINY16_TILEMAP_WIDTH * TINY16_TILE_WIDTH)   // 1024
 #define TINY16_TILEMAP_PIXEL_HEIGHT (TINY16_TILEMAP_HEIGHT * TINY16_TILE_HEIGHT) // 256
 
 // Tilemap entry attributes
 enum {
     TINY16_TILEMAP_ATTR_FLIP_H = 1 << 0,
     TINY16_TILEMAP_ATTR_FLIP_V = 1 << 1,
+    TINY16_TILEMAP_ATTR_PALETTE_SHIFT = 2,
+    TINY16_TILEMAP_ATTR_PALETTE_MASK = 0x0C, // bits 2-3: palette index (0-3)
 };
 
 // Combined tilemap entry: 2 bytes per tile
@@ -43,7 +45,8 @@ typedef struct {
 //
 // Palette
 //
-#define TINY16_PALETTE_SIZE 16
+#define TINY16_PALETTE_SIZE  16
+#define TINY16_PALETTE_COUNT 4
 
 typedef struct {
     uint8_t color; // RGB332: RRRGGGBB
@@ -57,19 +60,20 @@ typedef struct {
 // OAM
 //
 enum {
-    TINY16_OAM_ATTR_BEHIND_BG = 1 << 5, // Render behind opaque background pixels
+    TINY16_OAM_ATTR_PALETTE_MASK = 0x03, // bits 0-1: palette index (0-3)
+    TINY16_OAM_ATTR_BEHIND_BG = 1 << 5,  // Render behind opaque background pixels
     TINY16_OAM_ATTR_FLIP_H = 1 << 6,
     TINY16_OAM_ATTR_FLIP_V = 1 << 7,
 };
 
-#define TINY16_OAM_SPRITE_COUNT  64
+#define TINY16_OAM_SPRITE_COUNT  128
 #define TINY16_OAM_SPRITE_HIDDEN 0xFF
 
 typedef struct {
     uint8_t y;    // Y position (0xFF = hidden)
     uint8_t x;    // X position
     uint8_t tile; // Tile index (0-255)
-    uint8_t attr; // Attributes: [VHB_PPPP] V=vflip, H=hflip, B=behind BG, P=palette (unused)
+    uint8_t attr; // Attributes: [VHB__PPP] V=vflip, H=hflip, B=behind BG, P=palette (0-3)
 } Tiny16OAMEntry;
 
 //

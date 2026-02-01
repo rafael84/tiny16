@@ -65,12 +65,11 @@ Layout:
 0x0000-0x000F  file signature (magic, version, entrypoint)
 0x0010–0x3FFF  code (~16KB)
 0x4000–0x4FFF  data (4KB)
-0x5000–0x6FFF  tiles (8KB, 256 x 32 bytes)
-0x7000–0x73FF  tilemap (1KB, 32 x 32)
-0x7400–0x77FF  attrmap (1KB, 32 x 32)
-0x7800–0x78FF  oam (256 bytes, 64 sprites x 4 bytes)
-0x7900–0x791F  palette (32 bytes, 16 colors x 2 bytes)
-0x8000–0xBEFF  stack (grows down, ~16KB)
+0x5000–0x6FFF  tiles (8KB, 256 tiles x 32 bytes)
+0x7000–0x8FFF  tilemap (8KB, 128x32 tiles, 2 bytes each: tile + attr)
+0x9000–0x91FF  oam (512 bytes, 128 sprites x 4 bytes)
+0x9200–0x923F  palette (64 bytes, 4 palettes x 16 colors)
+0xA000–0xBEFF  stack (grows down, ~7.7KB)
 0xBF00–0xBFFF  MMIO control registers (256 bytes)
 0xC000–0xFFFF  framebuffer (16,384 bytes = 128×128)
 
@@ -207,7 +206,7 @@ INSTRUCTIONS
       MEM[SP] = R; SP = SP - 1
       Stores register at current stack pointer, then decrements SP.
       Does not affect flags.
-      Stack overflow occurs if SP goes below 0x8000.
+      Stack overflow occurs if SP goes below 0xA000.
 
 0x2D  POP R
       Pop value from stack into register.
@@ -570,7 +569,7 @@ RESET
 -----
 
 PC = 0x0010
-SP = 0xBEFF
+SP = 0xBEFF (top of stack, grows down from 0xBEFF to 0xA000)
 R0–R7 = 0
 Z = 0
 C = 0
