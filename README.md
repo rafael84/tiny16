@@ -4,7 +4,12 @@
 
 A minimalist 16-bit virtual machine with assembler and emulator.
 
-![Floppy running on tiny16](examples/se/floppy.png)
+<table>
+  <tr>
+    <td><img src="examples/se/floppy.png" alt="Floppy" width="256"></td>
+    <td><img src="examples/asm/boing_ball.png" alt="Boing ball" width="256"></td>
+  </tr>
+</table>
 
 ## Features
 
