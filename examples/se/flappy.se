@@ -23,6 +23,9 @@
 (def OAM_HI             (hi OAM_ADDR))
 (def OAM_LO             (lo OAM_ADDR))
 
+; Sprite attributes
+(def SPRITE_BEHIND_BG   0x20)
+
 (def TILEMAP_ADDR       0x7000)
 (def TILEMAP_HI         (hi TILEMAP_ADDR))
 
@@ -130,6 +133,13 @@
     (poke OAM_HI (+ a 1) x)
     (poke OAM_HI (+ a 2) tile)
     (poke OAM_HI (+ a 3) 0)))
+
+(defn draw-spr-attr (idx y x tile attr)
+  (let (a (oam-addr idx))
+    (poke OAM_HI a y)
+    (poke OAM_HI (+ a 1) x)
+    (poke OAM_HI (+ a 2) tile)
+    (poke OAM_HI (+ a 3) attr)))
 
 (defn render ()
   (poke16 PPU_CTRL PPU_BG_SPRITES))
@@ -417,21 +427,27 @@
 
     (if (< px 138)
         (do
-          ; Top pipe
-          (draw-spr 1 (- gap-top 8) px TILE_PIPE_CAP_DN)
-          (draw-spr 2 (- gap-top 16) px TILE_PIPE_BODY)
-          (draw-spr 3 (- gap-top 24) px TILE_PIPE_BODY)
-          (draw-spr 4 (- gap-top 32) px TILE_PIPE_BODY)
-          (draw-spr 5 (- gap-top 40) px TILE_PIPE_BODY)
-          ; Bottom pipe
-          (draw-spr 6 gap-bot px TILE_PIPE_CAP_UP)
-          (draw-spr 7 (+ gap-bot 8) px TILE_PIPE_BODY)
-          (draw-spr 8 (+ gap-bot 16) px TILE_PIPE_BODY)
-          (draw-spr 9 (+ gap-bot 24) px TILE_PIPE_BODY)
-          (draw-spr 10 (+ gap-bot 32) px TILE_PIPE_BODY))
+          ; Top pipe (behind background so sky/ground covers it)
+          ; 7 segments: cap + 6 body (56 pixels, 50% longer)
+          (draw-spr-attr 1 (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
+          (draw-spr-attr 2 (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 3 (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 4 (- gap-top 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 5 (- gap-top 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 6 (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 7 (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          ; Bottom pipe (behind background so sky/ground covers it)
+          ; 7 segments: cap + 6 body (56 pixels, 50% longer)
+          (draw-spr-attr 8 gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
+          (draw-spr-attr 9 (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 10 (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 11 (+ gap-bot 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 12 (+ gap-bot 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 13 (+ gap-bot 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr 14 (+ gap-bot 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
         ; Hide if off screen
         (let (i 1)
-          (while (<= i 10)
+          (while (<= i 14)
             (draw-spr i 255 0 0)
             (set i (inc i)))))))
 
