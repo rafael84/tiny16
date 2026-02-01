@@ -4,6 +4,8 @@
 
 A minimalist 16-bit virtual machine with assembler and emulator.
 
+![Floppy running on tiny16](examples/se/floppy.png)
+
 ## Features
 
 - 8 general-purpose 8-bit registers (R0-R7)
@@ -68,7 +70,7 @@ build/tiny16-emu build/demo.tiny16                          # Run
 [`demo.asm`](examples/asm/demo.asm) | [`apu_demo.asm`](examples/asm/apu_demo.asm) | [`input_test.asm`](examples/asm/input_test.asm) | [`scroll_demo.asm`](examples/asm/scroll_demo.asm)
 
 **S-expression:**
-[`demo.se`](examples/se/demo.se) | [`apu_demo.se`](examples/se/apu_demo.se) | [`input_test.se`](examples/se/input_test.se) | [`scroll_demo.se`](examples/se/scroll_demo.se)
+[`floppy.se`](examples/se/floppy.se) | [`demo.se`](examples/se/demo.se) | [`apu_demo.se`](examples/se/apu_demo.se) | [`input_test.se`](examples/se/input_test.se) | [`scroll_demo.se`](examples/se/scroll_demo.se)
 
 ## Testing
 

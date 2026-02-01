@@ -1,10 +1,11 @@
-; Flappy Bird - Classic side-scrolling game
+; Floppy - Side-scrolling arcade game
 ;
 ; Gameplay:
+; - Press A to start the game
 ; - Press A to flap and fly upward
 ; - Avoid the pipes (top and bottom)
 ; - Bird dies if it hits pipes or boundaries
-; - Press START to restart after game over
+; - Press A to restart after game over
 ;
 ; Features:
 ; - 8.8 fixed-point subpixel physics
@@ -14,7 +15,7 @@
 ;
 ; BUILD:
 ;   make examples-se
-;   ./build/tiny16-emu build/flappy_se.tiny16
+;   ./build/tiny16-emu build/floppy_se.tiny16
 
 ; Tileset: tiles at 0x5000, palette at 0x9200
 (include "../examples/includes/tileset.inc")
@@ -31,7 +32,7 @@
 (def TILEMAP_HI         (hi TILEMAP_ADDR))
 
 (def MMIO_BASE          0xBF00)
-(def KEYS_PRESSED       (+ MMIO_BASE 0x01))
+(def KEYS_PRESSED       (+ MMIO_BASE 0x01))  ; edge-detected (just pressed)
 (def FRAME_COUNT        (+ MMIO_BASE 0x22))
 (def PPU_CTRL           (+ MMIO_BASE 0x30))
 (def PPU_BG_SPRITES     0x83)
@@ -52,12 +53,21 @@
 (def APU_CH3_ENV_SR     (+ MMIO_BASE 0x58))
 (def APU_CH3_LEN        (+ MMIO_BASE 0x5E))
 
-(def KEY_START          0x02)
 (def KEY_A              0x04)
 
 ; Game states
-(def STATE_PLAYING      0)
-(def STATE_DEAD         1)
+(def STATE_WAITING      0)
+(def STATE_PLAYING      1)
+(def STATE_DEAD         2)
+
+; Delay before allowing restart (in frames, ~60fps)
+(def RESTART_DELAY      45)
+
+; Text display positions (tile coordinates)
+(def TEXT_ROW1          5)
+(def TEXT_ROW2          6)
+(def TEXT_COL           4)
+(def TEXT_MAX_LEN       9)
 
 ; Playable area (inside boundaries)
 (def AREA_TOP           20)
@@ -75,6 +85,11 @@
 (def PIPE_SPACING       70)
 (def GAP_MIN            38)
 (def GAP_RANGE          50)
+
+; Pipe data structure offsets (3 bytes per pipe)
+(def PIPE_OFF_X         0)
+(def PIPE_OFF_GAP_Y     1)
+(def PIPE_OFF_PASSED    2)
 
 ; Physics (8.8 fixed-point constants)
 (def GRAVITY_HI         0)
@@ -107,13 +122,45 @@
 (def TILE_GROUND_MID    97)
 (def TILE_GROUND_BOT    113)
 
-; Digit tiles (ASCII font at tiles 128-255)
-; ASCII '0' = 48, so digit 0 is at tile 128 + 48 = 176
+; Digit tiles (tile = 96 + ASCII)
+; ASCII '0' = 48, so digit 0 is at tile 96 + 48 = 144
 (def TILE_DIGIT_0       144)
 
 ; Score display position (top right)
 (def SCORE_X            112)
 (def SCORE_Y            4)
+
+; Sprite allocation
+(def SPR_BIRD           0)
+(def SPR_PIPE1_BASE     1)
+(def SPR_PIPE2_BASE     15)
+(def SPR_SCORE_TENS     29)
+(def SPR_SCORE_ONES     30)
+(def PIPE_SPRITES       14)
+
+; General constants
+(def TILE_SIZE          8)
+(def SCREEN_WIDTH       128)
+(def SCREEN_TILES       16)
+(def NUM_SPRITES        64)
+(def SPRITE_HIDDEN_Y    255)
+(def NEGATIVE_THRESHOLD 128)
+(def PIPE_VISIBLE_MAX   138)
+(def BIRD_SIZE          6)
+(def ANIM_GOING_UP      2)
+(def ANIM_FALLING       0)
+(def ANIM_NEUTRAL       1)
+(def VEL_NEUTRAL_MAX    2)
+(def INIT_FLAG          0xAA)
+(def RANDOM_OFFSET      37)
+
+; Tilemap row indices
+(def TILE_ROW_SKY1      0)
+(def TILE_ROW_SKY2      1)
+(def TILE_ROW_SKY3      2)
+(def TILE_ROW_GROUND1   13)
+(def TILE_ROW_GROUND2   14)
+(def TILE_ROW_GROUND3   15)
 
 ; =============================================================================
 ; Helpers
@@ -174,28 +221,59 @@
 ; Fill a row of tilemap with a tile
 (defn tilemap-fill-row (ty tile)
   (let (x 0)
-    (while (< x 16)
+    (while (< x SCREEN_TILES)
       (tilemap-set x ty tile)
       (set x (inc x)))))
 
 ; Initialize tilemap with sky and ground boundaries
 (defn init-tilemap ()
-  ; Sky: 3 rows at top (tile rows 0, 1, 2)
-  ; Row 0 (y=0): tile 2
-  (tilemap-fill-row 0 TILE_SKY_TOP)
-  ; Row 1 (y=8): tile 2
-  (tilemap-fill-row 1 TILE_SKY_TOP)
-  ; Row 2 (y=16): tile 1 (closest to play area)
-  (tilemap-fill-row 2 TILE_SKY_BOT)
+  ; Sky: 3 rows at top
+  (tilemap-fill-row TILE_ROW_SKY1 TILE_SKY_TOP)
+  (tilemap-fill-row TILE_ROW_SKY2 TILE_SKY_TOP)
+  (tilemap-fill-row TILE_ROW_SKY3 TILE_SKY_BOT)
 
-  ; Ground: 3 rows at bottom (tile rows 13, 14, 15)
-  ; AREA_BOTTOM = 108, so tile row = 108/8 = 13
-  ; Row 13 (y=104): tile 51
-  (tilemap-fill-row 13 TILE_GROUND_TOP)
-  ; Row 14 (y=112): tile 61
-  (tilemap-fill-row 14 TILE_GROUND_MID)
-  ; Row 15 (y=120): tile 71
-  (tilemap-fill-row 15 TILE_GROUND_BOT))
+  ; Ground: 3 rows at bottom
+  (tilemap-fill-row TILE_ROW_GROUND1 TILE_GROUND_TOP)
+  (tilemap-fill-row TILE_ROW_GROUND2 TILE_GROUND_MID)
+  (tilemap-fill-row TILE_ROW_GROUND3 TILE_GROUND_BOT))
+
+; =============================================================================
+; Text Display
+; =============================================================================
+
+; Draw text string to tilemap at (tx, ty)
+; str-hi, str-lo: 16-bit address of null-terminated string
+; ASCII chars are converted to tile indices (tile = 96 + ASCII)
+(defn tilemap-text (tx ty str-hi str-lo)
+  (let (x tx
+        ptr-hi str-hi
+        ptr-lo str-lo)
+    (while (!= (peek ptr-hi ptr-lo) 0)
+      (let (ch (peek ptr-hi ptr-lo)
+            tile (+ 96 ch))
+        (tilemap-set x ty tile)
+        (set x (inc x))
+        (set ptr-lo (inc ptr-lo))
+        (if (= ptr-lo 0)
+            (set ptr-hi (inc ptr-hi))
+            0)))))
+
+; Clear text area (both rows)
+(defn clear-text ()
+  (let (x 0)
+    (while (< x TEXT_MAX_LEN)
+      (tilemap-set (+ TEXT_COL x) TEXT_ROW1 0)
+      (tilemap-set (+ TEXT_COL x) TEXT_ROW2 0)
+      (set x (inc x)))))
+
+; Show "PRESS A" message (centered on row 1)
+(defn show-press-a ()
+  (tilemap-text (+ TEXT_COL 1) TEXT_ROW1 (hi str_press_a) (lo str_press_a)))
+
+; Show "GAME OVER" and "PRESS A" messages
+(defn show-game-over ()
+  (tilemap-text TEXT_COL TEXT_ROW1 (hi str_game_over) (lo str_game_over))
+  (tilemap-text (+ TEXT_COL 1) TEXT_ROW2 (hi str_press_a) (lo str_press_a)))
 
 ; =============================================================================
 ; Sound Effects
@@ -264,7 +342,7 @@
 ; Clamp fall speed
 (defn clamp-velocity ()
   (let (v-hi (peek16 bird_vel_hi))
-    (if (< v-hi 128)
+    (if (< v-hi NEGATIVE_THRESHOLD)
         (if (> v-hi MAX_FALL_HI)
             (do
               (poke16 bird_vel_hi MAX_FALL_HI)
@@ -278,22 +356,22 @@
 
 (defn hide-sprites ()
   (let (i 0)
-    (while (< i 64)
-      (draw-spr i 255 0 0)
+    (while (< i NUM_SPRITES)
+      (draw-spr i SPRITE_HIDDEN_Y 0 0)
       (set i (inc i)))))
+
+; Initialize a single pipe
+(defn init-single-pipe (data-hi data-lo x gap-y)
+  (poke data-hi (+ data-lo PIPE_OFF_X) x)
+  (poke data-hi (+ data-lo PIPE_OFF_GAP_Y) gap-y)
+  (poke data-hi (+ data-lo PIPE_OFF_PASSED) 0))
 
 (defn init-pipe ()
   (let (seed (read-frame)
         gap1 (+ GAP_MIN (mod-by seed GAP_RANGE))
-        gap2 (+ GAP_MIN (mod-by (+ seed 37) GAP_RANGE)))
-    ; Pipe 1
-    (poke16 pipe1_x PIPE_SPAWN_X)
-    (poke16 pipe1_gap_y gap1)
-    (poke16 pipe1_passed 0)
-    ; Pipe 2 (offset by PIPE_SPACING)
-    (poke16 pipe2_x (+ PIPE_SPAWN_X PIPE_SPACING))
-    (poke16 pipe2_gap_y gap2)
-    (poke16 pipe2_passed 0)))
+        gap2 (+ GAP_MIN (mod-by (+ seed RANDOM_OFFSET) GAP_RANGE)))
+    (init-single-pipe (hi pipe1_data) (lo pipe1_data) PIPE_SPAWN_X gap1)
+    (init-single-pipe (hi pipe2_data) (lo pipe2_data) (+ PIPE_SPAWN_X PIPE_SPACING) gap2)))
 
 (defn init-game ()
   (hide-sprites)
@@ -304,63 +382,74 @@
   (poke16 bird_vel_hi 0)
   (poke16 bird_vel_lo 0)
   ; State
-  (poke16 game_state STATE_PLAYING)
+  (poke16 game_state STATE_WAITING)
   (poke16 score 0)
   (poke16 anim_frame 0)
-  (init-pipe))
+  (init-pipe)
+  ; Show "PRESS A" message
+  (show-press-a))
 
 ; =============================================================================
 ; Bird Physics
 ; =============================================================================
 
-(defn update-bird ()
-  (let (keys (peek16 KEYS_PRESSED))
-    ; Flap on A press
-    (if (!= (& keys KEY_A) 0)
+; Handle death: set state, show message, play sound
+(defn die ()
+  (poke16 game_state STATE_DEAD)
+  (poke16 dead_timer 0)
+  (show-game-over)
+  (sfx-die))
+
+; Start playing: clear text and set state
+(defn start-game ()
+  (clear-text)
+  (poke16 game_state STATE_PLAYING))
+
+(defn update-bird (keys)
+  ; Flap on A press
+  (if (!= (& keys KEY_A) 0)
+      (do
+        (set-flap-velocity)
+        (sfx-flap))
+      0)
+
+  ; Physics
+  (add-gravity)
+  (clamp-velocity)
+  (apply-velocity)
+
+  ; Check boundaries
+  (let (y-hi (peek16 bird_y_hi))
+    ; Hit ceiling (wrapped negative)
+    (if (>= y-hi NEGATIVE_THRESHOLD)
         (do
-          (set-flap-velocity)
-          (sfx-flap))
-        0)
+          (poke16 bird_y_hi AREA_TOP)
+          (poke16 bird_y_lo 0)
+          (die))
+        ; Hit floor
+        (if (> y-hi (- AREA_BOTTOM TILE_SIZE))
+            (do
+              (poke16 bird_y_hi (- AREA_BOTTOM TILE_SIZE))
+              (poke16 bird_y_lo 0)
+              (die))
+            0)))
 
-    ; Physics
-    (add-gravity)
-    (clamp-velocity)
-    (apply-velocity)
-
-    ; Check boundaries
-    (let (y-hi (peek16 bird_y_hi))
-      ; Hit ceiling (wrapped negative)
-      (if (>= y-hi 128)
-          (do
-            (poke16 bird_y_hi AREA_TOP)
-            (poke16 bird_y_lo 0)
-            (poke16 game_state STATE_DEAD)
-            (sfx-die))
-          ; Hit floor
-          (if (> y-hi (- AREA_BOTTOM 8))
-              (do
-                (poke16 bird_y_hi (- AREA_BOTTOM 8))
-                (poke16 bird_y_lo 0)
-                (poke16 game_state STATE_DEAD)
-                (sfx-die))
-              0)))
-
-    ; Update animation (based on velocity)
-    (let (v-hi (peek16 bird_vel_hi))
-      (if (>= v-hi 128)
-          (poke16 anim_frame 2)       ; Going up - wings down
-          (if (> v-hi 2)
-              (poke16 anim_frame 0)   ; Falling - wings up
-              (poke16 anim_frame 1)))))) ; Neutral - wings mid
+  ; Update animation (based on velocity)
+  (let (v-hi (peek16 bird_vel_hi))
+    (if (>= v-hi NEGATIVE_THRESHOLD)
+        (poke16 anim_frame ANIM_GOING_UP)
+        (if (> v-hi VEL_NEUTRAL_MAX)
+            (poke16 anim_frame ANIM_FALLING)
+            (poke16 anim_frame ANIM_NEUTRAL)))))
 
 ; =============================================================================
 ; Pipe Logic
 ; =============================================================================
 
-(defn update-pipe1 ()
-  (let (x (peek16 pipe1_x)
-        gap-y (peek16 pipe1_gap_y)
-        passed (peek16 pipe1_passed))
+(defn update-pipe (data-hi data-lo)
+  (let (x (peek data-hi (+ data-lo PIPE_OFF_X))
+        gap-y (peek data-hi (+ data-lo PIPE_OFF_GAP_Y))
+        passed (peek data-hi (+ data-lo PIPE_OFF_PASSED)))
 
     ; Move left
     (if (>= x PIPE_SPEED)
@@ -382,90 +471,43 @@
             0)
         0)
 
-    (poke16 pipe1_x x)
-    (poke16 pipe1_gap_y gap-y)
-    (poke16 pipe1_passed passed)))
-
-(defn update-pipe2 ()
-  (let (x (peek16 pipe2_x)
-        gap-y (peek16 pipe2_gap_y)
-        passed (peek16 pipe2_passed))
-
-    ; Move left
-    (if (>= x PIPE_SPEED)
-        (set x (- x PIPE_SPEED))
-        ; Reset pipe - spawn ahead
-        (let (seed (read-frame)
-              new-gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
-          (set x (+ x (+ PIPE_SPACING PIPE_SPACING)))
-          (set gap-y new-gap)
-          (set passed 0)))
-
-    ; Scoring
-    (if (= passed 0)
-        (if (< x BIRD_X)
-            (do
-              (set passed 1)
-              (poke16 score (inc (peek16 score)))
-              (sfx-score))
-            0)
-        0)
-
-    (poke16 pipe2_x x)
-    (poke16 pipe2_gap_y gap-y)
-    (poke16 pipe2_passed passed)))
+    (poke data-hi (+ data-lo PIPE_OFF_X) x)
+    (poke data-hi (+ data-lo PIPE_OFF_GAP_Y) gap-y)
+    (poke data-hi (+ data-lo PIPE_OFF_PASSED) passed)))
 
 (defn update-pipes ()
-  (update-pipe1)
-  (update-pipe2))
+  (update-pipe (hi pipe1_data) (lo pipe1_data))
+  (update-pipe (hi pipe2_data) (lo pipe2_data)))
 
 ; =============================================================================
 ; Collision
 ; =============================================================================
 
+; Check collision with a single pipe, returns 1 if hit, 0 otherwise
+(defn check-pipe-hit (data-hi data-lo by half)
+  (let (px (peek data-hi (+ data-lo PIPE_OFF_X))
+        gap-y (peek data-hi (+ data-lo PIPE_OFF_GAP_Y))
+        gap-top (- gap-y half)
+        gap-bot (+ gap-y half))
+    (if (< px SCREEN_WIDTH)
+        (if (< px (+ BIRD_X BIRD_SIZE))
+            (if (> (+ px PIPE_WIDTH) BIRD_X)
+                (if (< by gap-top)
+                    1
+                    (if (> (+ by BIRD_SIZE) gap-bot)
+                        1
+                        0))
+                0)
+            0)
+        0)))
+
 (defn check-collision ()
   (let (by (peek16 bird_y_hi)
         half (>> PIPE_GAP 1)
-        hit 0)
-
-    ; Check pipe 1
-    (let (px (peek16 pipe1_x)
-          gap-y (peek16 pipe1_gap_y)
-          gap-top (- gap-y half)
-          gap-bot (+ gap-y half))
-      (if (< px 128)
-          (if (< px (+ BIRD_X 6))
-              (if (> (+ px PIPE_WIDTH) BIRD_X)
-                  (if (< by gap-top)
-                      (set hit 1)
-                      (if (> (+ by 6) gap-bot)
-                          (set hit 1)
-                          0))
-                  0)
-              0)
-          0))
-
-    ; Check pipe 2
-    (let (px (peek16 pipe2_x)
-          gap-y (peek16 pipe2_gap_y)
-          gap-top (- gap-y half)
-          gap-bot (+ gap-y half))
-      (if (< px 128)
-          (if (< px (+ BIRD_X 6))
-              (if (> (+ px PIPE_WIDTH) BIRD_X)
-                  (if (< by gap-top)
-                      (set hit 1)
-                      (if (> (+ by 6) gap-bot)
-                          (set hit 1)
-                          0))
-                  0)
-              0)
-          0))
-
-    (if (!= hit 0)
-        (do
-          (poke16 game_state STATE_DEAD)
-          (sfx-die))
+        hit1 (check-pipe-hit (hi pipe1_data) (lo pipe1_data) by half)
+        hit2 (check-pipe-hit (hi pipe2_data) (lo pipe2_data) by half))
+    (if (!= (| hit1 hit2) 0)
+        (die)
         0)))
 
 ; =============================================================================
@@ -476,83 +518,52 @@
   (let (y (peek16 bird_y_hi)
         anim (peek16 anim_frame)
         tile TILE_BIRD_MID)
-    (if (= anim 0)
+    (if (= anim ANIM_FALLING)
         (set tile TILE_BIRD_UP)
-        (if (= anim 2)
+        (if (= anim ANIM_GOING_UP)
             (set tile TILE_BIRD_DOWN)
             (set tile TILE_BIRD_MID)))
-    (draw-spr 0 y BIRD_X tile)))
+    (draw-spr SPR_BIRD y BIRD_X tile)))
 
-(defn render-pipe1 ()
-  (let (px (peek16 pipe1_x)
-        gap-y (peek16 pipe1_gap_y)
+(defn render-pipe (data-hi data-lo base)
+  (let (px (peek data-hi (+ data-lo PIPE_OFF_X))
+        gap-y (peek data-hi (+ data-lo PIPE_OFF_GAP_Y))
         half (>> PIPE_GAP 1)
         gap-top (- gap-y half)
         gap-bot (+ gap-y half))
 
-    (if (< px 138)
+    (if (< px PIPE_VISIBLE_MAX)
         (do
           ; Top pipe (behind background so sky/ground covers it)
-          (draw-spr-attr 1 (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
-          (draw-spr-attr 2 (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 3 (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 4 (- gap-top 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 5 (- gap-top 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 6 (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 7 (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr base (- gap-top TILE_SIZE) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 1) (- gap-top (* TILE_SIZE 2)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 2) (- gap-top (* TILE_SIZE 3)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 3) (- gap-top (* TILE_SIZE 4)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 4) (- gap-top (* TILE_SIZE 5)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 5) (- gap-top (* TILE_SIZE 6)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 6) (- gap-top (* TILE_SIZE 7)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
           ; Bottom pipe (behind background so sky/ground covers it)
-          (draw-spr-attr 8 gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
-          (draw-spr-attr 9 (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 10 (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 11 (+ gap-bot 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 12 (+ gap-bot 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 13 (+ gap-bot 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 14 (+ gap-bot 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
+          (draw-spr-attr (+ base 7) gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 8) (+ gap-bot TILE_SIZE) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 9) (+ gap-bot (* TILE_SIZE 2)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 10) (+ gap-bot (* TILE_SIZE 3)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 11) (+ gap-bot (* TILE_SIZE 4)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 12) (+ gap-bot (* TILE_SIZE 5)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (draw-spr-attr (+ base 13) (+ gap-bot (* TILE_SIZE 6)) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
         ; Hide if off screen
-        (let (i 1)
-          (while (<= i 14)
-            (draw-spr i 255 0 0)
-            (set i (inc i)))))))
-
-(defn render-pipe2 ()
-  (let (px (peek16 pipe2_x)
-        gap-y (peek16 pipe2_gap_y)
-        half (>> PIPE_GAP 1)
-        gap-top (- gap-y half)
-        gap-bot (+ gap-y half))
-
-    (if (< px 138)
-        (do
-          ; Top pipe (behind background so sky/ground covers it)
-          (draw-spr-attr 15 (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
-          (draw-spr-attr 16 (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 17 (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 18 (- gap-top 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 19 (- gap-top 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 20 (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 21 (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          ; Bottom pipe (behind background so sky/ground covers it)
-          (draw-spr-attr 22 gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
-          (draw-spr-attr 23 (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 24 (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 25 (+ gap-bot 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 26 (+ gap-bot 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 27 (+ gap-bot 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (draw-spr-attr 28 (+ gap-bot 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
-        ; Hide if off screen
-        (let (i 15)
-          (while (<= i 28)
-            (draw-spr i 255 0 0)
+        (let (i 0)
+          (while (< i PIPE_SPRITES)
+            (draw-spr (+ base i) SPRITE_HIDDEN_Y 0 0)
             (set i (inc i)))))))
 
 (defn render-pipes ()
-  (render-pipe1)
-  (render-pipe2))
+  (render-pipe (hi pipe1_data) (lo pipe1_data) SPR_PIPE1_BASE)
+  (render-pipe (hi pipe2_data) (lo pipe2_data) SPR_PIPE2_BASE))
 
 ; Boundaries are now rendered via tilemap (set once at init)
 ; No per-frame sprite rendering needed
 
-; Render score as 2 digits on top right (sprites 29-30)
+; Render score as 2 digits on top right
 (defn render-score ()
   (let (s (peek16 score)
         tens 0
@@ -561,12 +572,12 @@
     (while (>= ones 10)
       (set tens (inc tens))
       (set ones (- ones 10)))
-    ; Draw tens digit (sprite 29) - hide if zero
+    ; Draw tens digit - hide if zero
     (if (> tens 0)
-        (draw-spr 29 SCORE_Y (- SCORE_X 8) (+ TILE_DIGIT_0 tens))
-        (draw-spr 29 255 0 0))
-    ; Draw ones digit (sprite 30)
-    (draw-spr 30 SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
+        (draw-spr SPR_SCORE_TENS SCORE_Y (- SCORE_X TILE_SIZE) (+ TILE_DIGIT_0 tens))
+        (draw-spr SPR_SCORE_TENS SPRITE_HIDDEN_Y 0 0))
+    ; Draw ones digit
+    (draw-spr SPR_SCORE_ONES SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
 
 (defn render-all ()
   (render-bird)
@@ -580,31 +591,52 @@
 
 (defn main ()
   ; One-time init
-  (if (!= (peek16 initialized) 0xAA)
+  (if (!= (peek16 initialized) INIT_FLAG)
       (do
         (apu-init)
         (init-tilemap)
         (init-game)
-        (poke16 initialized 0xAA))
+        (poke16 initialized INIT_FLAG))
       0)
 
   ; Game loop
   (while 1
     (wait-frame)
 
-    (if (= (peek16 game_state) STATE_DEAD)
-        ; Game over
-        (if (!= (& (peek16 KEYS_PRESSED) KEY_START) 0)
-            (init-game)
-            0)
-        ; Playing
-        (do
-          (update-bird)
-          (if (= (peek16 game_state) STATE_PLAYING)
+    (let (state (peek16 game_state)
+          pressed (peek16 KEYS_PRESSED))  ; edge-detected by emulator
+
+      ; State machine
+      (if (= state STATE_WAITING)
+          ; Waiting for player to press A to start
+          (if (!= (& pressed KEY_A) 0)
               (do
-                (update-pipes)
-                (check-collision))
-              0)))
+                (start-game)
+                (set-flap-velocity)
+                (sfx-flap))
+              0)
+          (if (= state STATE_DEAD)
+              ; Game over - wait for delay then A to restart
+              (let (timer (peek16 dead_timer))
+                (if (< timer RESTART_DELAY)
+                    ; Still in delay period, increment timer
+                    (poke16 dead_timer (inc timer))
+                    ; Delay passed, allow restart on A press
+                    (if (!= (& pressed KEY_A) 0)
+                        (do
+                          (init-game)
+                          (start-game)
+                          (set-flap-velocity)
+                          (sfx-flap))
+                        0)))
+              ; Playing
+              (do
+                (update-bird pressed)
+                (if (= (peek16 game_state) STATE_PLAYING)
+                    (do
+                      (update-pipes)
+                      (check-collision))
+                    0)))))
 
     (render-all)))
 
@@ -615,6 +647,7 @@
 ; Game state
 (data game_state (db 0))
 (data score (db 0))
+(data dead_timer (db 0))
 
 ; Bird position (8.8 fixed-point)
 (data bird_y_hi (db 0))
@@ -624,15 +657,13 @@
 (data bird_vel_hi (db 0))
 (data bird_vel_lo (db 0))
 
-; Pipe 1
-(data pipe1_x (db 0))
-(data pipe1_gap_y (db 0))
-(data pipe1_passed (db 0))
-
-; Pipe 2
-(data pipe2_x (db 0))
-(data pipe2_gap_y (db 0))
-(data pipe2_passed (db 0))
+; Pipe data (3 bytes each: x, gap_y, passed)
+(data pipe1_data (db 0 0 0))
+(data pipe2_data (db 0 0 0))
 
 ; Animation
 (data anim_frame (db 0))
+
+; Text strings (null-terminated)
+(data str_press_a (db "PRESS A" 0))
+(data str_game_over (db "GAME OVER" 0))
