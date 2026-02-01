@@ -1,286 +1,502 @@
-; Flappy Dodger - Simple sprite-based mini game
+; Flappy Bird - Classic side-scrolling game
 ;
 ; Gameplay:
-; - Press A to flap upward.
-; - Avoid incoming obstacles.
-; - Press START to restart after a collision.
+; - Press A to flap and fly upward
+; - Avoid the pipes (top and bottom)
+; - Bird dies if it hits pipes or boundaries
+; - Press START to restart after game over
+;
+; Features:
+; - 8.8 fixed-point subpixel physics
+; - Animated bird sprite
+; - Visual boundaries
+; - Sound effects
 ;
 ; BUILD:
-;   cd project_root
 ;   make examples-se
-;   ./build/tiny16-sec examples/se/flappy.se build/flappy_se.asm
-;   ./build/tiny16-asm build/flappy_se.asm build/flappy_se.tiny16
 ;   ./build/tiny16-emu build/flappy_se.tiny16
 
 (include "../examples/includes/tileset.inc")
 
-; =============================================================================
-; Constants - Memory Map
-; =============================================================================
 
-(def TILE_DATA_ADDR     0x5000)
-(def TILEMAP_ADDR       0x7000)
 (def OAM_ADDR           0x7800)
-
 (def OAM_HI             (hi OAM_ADDR))
 (def OAM_LO             (lo OAM_ADDR))
 
-; =============================================================================
-; Constants - MMIO
-; =============================================================================
+(def TILEMAP_ADDR       0x7000)
+(def TILEMAP_HI         (hi TILEMAP_ADDR))
 
 (def MMIO_BASE          0xBF00)
-(def KEYS_STATE_ADDR    (+ MMIO_BASE 0x00))
-(def KEYS_PRESSED_ADDR  (+ MMIO_BASE 0x01))
-(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
-(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
+(def KEYS_PRESSED       (+ MMIO_BASE 0x01))
+(def FRAME_COUNT        (+ MMIO_BASE 0x22))
+(def PPU_CTRL           (+ MMIO_BASE 0x30))
+(def PPU_BG_SPRITES     0x83)
 
-(def PPU_CTRL_SPRITES_ONLY  0x82)
-
-; =============================================================================
-; Constants - Input
-; =============================================================================
+; APU
+(def APU_CTRL           (+ MMIO_BASE 0x40))
+(def APU_CH0_FREQ_LO    (+ MMIO_BASE 0x42))
+(def APU_CH0_FREQ_HI    (+ MMIO_BASE 0x43))
+(def APU_CH0_VOL        (+ MMIO_BASE 0x44))
+(def APU_CH0_CTRL       (+ MMIO_BASE 0x45))
+(def APU_CH0_ENV_AD     (+ MMIO_BASE 0x51))
+(def APU_CH0_ENV_SR     (+ MMIO_BASE 0x52))
+(def APU_CH0_LEN        (+ MMIO_BASE 0x5B))
+(def APU_CH3_PERIOD     (+ MMIO_BASE 0x4E))
+(def APU_CH3_VOL        (+ MMIO_BASE 0x4F))
+(def APU_CH3_CTRL       (+ MMIO_BASE 0x50))
+(def APU_CH3_ENV_AD     (+ MMIO_BASE 0x57))
+(def APU_CH3_ENV_SR     (+ MMIO_BASE 0x58))
+(def APU_CH3_LEN        (+ MMIO_BASE 0x5E))
 
 (def KEY_START          0x02)
 (def KEY_A              0x04)
 
-; =============================================================================
-; Constants - Game Parameters
-; =============================================================================
-
+; Game states
 (def STATE_PLAYING      0)
-(def STATE_GAME_OVER    1)
+(def STATE_DEAD         1)
 
-(def PLAYER_X           24)
-(def PLAYER_START_Y     64)
-(def PLAYER_MIN_Y       8)
-(def PLAYER_MAX_Y       112)
-(def JUMP_STRENGTH      6)
-(def GRAVITY            1)
+; Playable area (inside boundaries)
+(def AREA_TOP           20)
+(def AREA_BOTTOM        108)
 
-(def OBSTACLE_COUNT     4)
-(def OBSTACLE_STRIDE    3)
-(def OBSTACLE_RESET_X   124)
-(def OBSTACLE_MIN_Y     8)
-(def OBSTACLE_RANGE     96)
+; Bird
+(def BIRD_X             24)
+(def BIRD_START_Y       60)
 
-(def COLLIDE_X          6)
-(def COLLIDE_Y          6)
+; Pipe
+(def PIPE_GAP           34)
+(def PIPE_WIDTH         8)
+(def PIPE_SPEED         1)
+(def GAP_MIN            38)
+(def GAP_RANGE          50)
 
-(def TILE_PLAYER        33)
-(def TILE_OBSTACLE      32)
-(def SPRITE_ATTR_NONE   0x00)
+; Physics (8.8 fixed-point constants)
+(def GRAVITY_HI         0)
+(def GRAVITY_LO         70)       ; ~0.27 per frame
+(def FLAP_VEL_HI        252)      ; -4 in two's complement
+(def FLAP_VEL_LO        0)
+(def MAX_FALL_HI        5)
+(def MAX_FALL_LO        0)
 
 ; =============================================================================
-; Helper Functions
+; Constants - Tiles
 ; =============================================================================
 
-(defn read-frame-count ()
-  (peek16 FRAME_COUNT_ADDR))
+; Bird animation frames
+(def TILE_BIRD_UP       65)
+(def TILE_BIRD_MID      66)
+(def TILE_BIRD_DOWN     67)
+
+; Pipe tiles
+(def TILE_PIPE_CAP_UP   27)
+(def TILE_PIPE_BODY     37)
+(def TILE_PIPE_CAP_DN   47)
+
+; Boundary tiles
+; Sky: top 2 rows = tile 2, bottom row = tile 1
+(def TILE_SKY_TOP       2)
+(def TILE_SKY_BOT       1)
+; Ground: y0 = tile 51, y1 = tile 61, y2 = tile 71
+(def TILE_GROUND_TOP    51)
+(def TILE_GROUND_MID    61)
+(def TILE_GROUND_BOT    71)
+
+; =============================================================================
+; Helpers
+; =============================================================================
+
+(defn read-frame ()
+  (peek16 FRAME_COUNT))
 
 (defn wait-frame ()
   (let (last (peek16 last_frame)
-        current (read-frame-count))
-    (while (= current last)
-      (set current (read-frame-count)))
-    (poke16 last_frame current)
-    0))
+        curr (read-frame))
+    (while (= curr last)
+      (set curr (read-frame)))
+    (poke16 last_frame curr)))
 
-(defn mod-by (value divisor)
-  (let (result value)
-    (while (>= result divisor)
-      (set result (- result divisor)))
-    result))
+(defn mod-by (v d)
+  (let (r v)
+    (while (>= r d)
+      (set r (- r d)))
+    r))
 
-(defn mul7 (n)
-  (+ (<< n 2) (+ (<< n 1) n)))
+(defn oam-addr (idx)
+  (+ OAM_LO (<< idx 2)))
 
-(defn mul3 (n)
-  (+ (<< n 1) n))
+(defn draw-spr (idx y x tile)
+  (let (a (oam-addr idx))
+    (poke OAM_HI a y)
+    (poke OAM_HI (+ a 1) x)
+    (poke OAM_HI (+ a 2) tile)
+    (poke OAM_HI (+ a 3) 0)))
 
-(defn abs-diff (a b)
-  (if (>= a b)
-      (- a b)
-      (- b a)))
-
-(defn oam-lo (index)
-  (+ OAM_LO (<< index 2)))
-
-(defn obstacle-lo (index)
-  (+ (lo obstacle_data) (mul3 index)))
-
-(defn obstacle-y (seed i)
-  (+ OBSTACLE_MIN_Y (mod-by (+ seed (mul7 i)) OBSTACLE_RANGE)))
-
-(defn obstacle-speed (seed i)
-  (+ 1 (& (+ seed i) 1)))
-
-(defn render-frame ()
-  (poke16 PPU_CTRL_ADDR PPU_CTRL_SPRITES_ONLY)
-  0)
+(defn render ()
+  (poke16 PPU_CTRL PPU_BG_SPRITES))
 
 ; =============================================================================
-; Initialization
+; Tilemap Helpers
 ; =============================================================================
 
-(defn init-obstacles ()
-  (let (seed (read-frame-count)
-        i 0)
-    (while (< i OBSTACLE_COUNT)
-      (let (x (+ 96 (<< i 3))
-            y (obstacle-y seed i)
-            speed (obstacle-speed seed i)
-            lo (obstacle-lo i))
-        (poke (hi obstacle_data) lo x)
-        (poke (hi obstacle_data) (+ lo 1) y)
-        (poke (hi obstacle_data) (+ lo 2) speed))
-      (set i (inc i)))
-    0))
+; Write a tile to tilemap at (tx, ty) - tile coordinates
+; Tilemap entry = 2 bytes: tile index + attribute
+; Address = 0x7000 + (ty * 32 + tx) * 2
+; Note: Must handle 16-bit addresses with 8-bit arithmetic
+; Each row = 32 tiles * 2 bytes = 64 bytes
+; High byte = 0x70 + (ty >> 2)
+; Low byte = ((ty & 3) << 6) + (tx << 1)
+(defn tilemap-set (tx ty tile)
+  (let (addr-hi (+ TILEMAP_HI (>> ty 2))
+        addr-lo (+ (<< (& ty 3) 6) (<< tx 1)))
+    (poke addr-hi addr-lo tile)
+    (poke addr-hi (+ addr-lo 1) 0)))
+
+; Fill a row of tilemap with a tile
+(defn tilemap-fill-row (ty tile)
+  (let (x 0)
+    (while (< x 16)
+      (tilemap-set x ty tile)
+      (set x (inc x)))))
+
+; Initialize tilemap with sky and ground boundaries
+(defn init-tilemap ()
+  ; Sky: 3 rows at top (tile rows 0, 1, 2)
+  ; Row 0 (y=0): tile 2
+  (tilemap-fill-row 0 TILE_SKY_TOP)
+  ; Row 1 (y=8): tile 2
+  (tilemap-fill-row 1 TILE_SKY_TOP)
+  ; Row 2 (y=16): tile 1 (closest to play area)
+  (tilemap-fill-row 2 TILE_SKY_BOT)
+
+  ; Ground: 3 rows at bottom (tile rows 13, 14, 15)
+  ; AREA_BOTTOM = 108, so tile row = 108/8 = 13
+  ; Row 13 (y=104): tile 51
+  (tilemap-fill-row 13 TILE_GROUND_TOP)
+  ; Row 14 (y=112): tile 61
+  (tilemap-fill-row 14 TILE_GROUND_MID)
+  ; Row 15 (y=120): tile 71
+  (tilemap-fill-row 15 TILE_GROUND_BOT))
+
+; =============================================================================
+; Sound Effects
+; =============================================================================
+
+(defn apu-init ()
+  (poke16 APU_CTRL 0x81))
+
+(defn sfx-flap ()
+  (poke16 APU_CH0_ENV_AD 0x11)
+  (poke16 APU_CH0_ENV_SR 0x81)
+  (poke16 APU_CH0_LEN 3)
+  (poke16 APU_CH0_FREQ_LO 0xC8)
+  (poke16 APU_CH0_FREQ_HI 0x07)
+  (poke16 APU_CH0_VOL 0x1C)
+  (poke16 APU_CH0_CTRL 0x03))
+
+(defn sfx-die ()
+  (poke16 APU_CH3_ENV_AD 0x15)
+  (poke16 APU_CH3_ENV_SR 0x04)
+  (poke16 APU_CH3_LEN 18)
+  (poke16 APU_CH3_PERIOD 9)
+  (poke16 APU_CH3_VOL 14)
+  (poke16 APU_CH3_CTRL 0x03))
+
+(defn sfx-score ()
+  (poke16 APU_CH0_ENV_AD 0x11)
+  (poke16 APU_CH0_ENV_SR 0x61)
+  (poke16 APU_CH0_LEN 4)
+  (poke16 APU_CH0_FREQ_LO 0xD0)
+  (poke16 APU_CH0_FREQ_HI 0x07)
+  (poke16 APU_CH0_VOL 0x2C)
+  (poke16 APU_CH0_CTRL 0x03))
+
+; =============================================================================
+; Fixed-Point Helpers
+; =============================================================================
+
+; Add gravity to velocity
+(defn add-gravity ()
+  (let (v-lo (peek16 bird_vel_lo)
+        new-lo (+ v-lo GRAVITY_LO)
+        carry (if (< new-lo v-lo) 1 0)
+        v-hi (peek16 bird_vel_hi)
+        new-hi (+ v-hi (+ GRAVITY_HI carry)))
+    (poke16 bird_vel_hi new-hi)
+    (poke16 bird_vel_lo new-lo)))
+
+; Add velocity to position
+(defn apply-velocity ()
+  (let (y-lo (peek16 bird_y_lo)
+        v-lo (peek16 bird_vel_lo)
+        new-lo (+ y-lo v-lo)
+        carry (if (< new-lo y-lo) 1 0)
+        y-hi (peek16 bird_y_hi)
+        v-hi (peek16 bird_vel_hi)
+        new-hi (+ y-hi (+ v-hi carry)))
+    (poke16 bird_y_hi new-hi)
+    (poke16 bird_y_lo new-lo)))
+
+; Set flap velocity
+(defn set-flap-velocity ()
+  (poke16 bird_vel_hi FLAP_VEL_HI)
+  (poke16 bird_vel_lo FLAP_VEL_LO))
+
+; Clamp fall speed
+(defn clamp-velocity ()
+  (let (v-hi (peek16 bird_vel_hi))
+    (if (< v-hi 128)
+        (if (> v-hi MAX_FALL_HI)
+            (do
+              (poke16 bird_vel_hi MAX_FALL_HI)
+              (poke16 bird_vel_lo MAX_FALL_LO))
+            0)
+        0)))
+
+; =============================================================================
+; Game Init
+; =============================================================================
+
+(defn hide-sprites ()
+  (let (i 0)
+    (while (< i 64)
+      (draw-spr i 255 0 0)
+      (set i (inc i)))))
+
+(defn init-pipe ()
+  (let (seed (read-frame)
+        gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
+    (poke16 pipe_x 135)
+    (poke16 pipe_gap_y gap)
+    (poke16 pipe_passed 0)))
 
 (defn init-game ()
-  (poke16 player_y PLAYER_START_Y)
+  (hide-sprites)
+  ; Bird position (8.8)
+  (poke16 bird_y_hi BIRD_START_Y)
+  (poke16 bird_y_lo 0)
+  ; Velocity (8.8)
+  (poke16 bird_vel_hi 0)
+  (poke16 bird_vel_lo 0)
+  ; State
   (poke16 game_state STATE_PLAYING)
-  (init-obstacles)
-  0)
+  (poke16 score 0)
+  (poke16 anim_frame 0)
+  (init-pipe))
 
 ; =============================================================================
-; Player Update
+; Bird Physics
 ; =============================================================================
 
-(defn update-player ()
-  (let (y (peek16 player_y)
-        pressed (peek16 KEYS_PRESSED_ADDR))
-    (if (!= (& pressed KEY_A) 0)
-        (set y (- y JUMP_STRENGTH))
-        (set y (+ y GRAVITY)))
-    (if (< y PLAYER_MIN_Y)
-        (set y PLAYER_MIN_Y)
-        0)
-    (if (>= y PLAYER_MAX_Y)
-        (set y PLAYER_MAX_Y)
-        0)
-    (poke16 player_y y)
-    0))
-
-; =============================================================================
-; Obstacles Update
-; =============================================================================
-
-(defn update-one-obstacle (i seed)
-  (let (lo (obstacle-lo i)
-        x (peek (hi obstacle_data) lo)
-        y (peek (hi obstacle_data) (+ lo 1))
-        speed (peek (hi obstacle_data) (+ lo 2)))
-    (if (< x speed)
+(defn update-bird ()
+  (let (keys (peek16 KEYS_PRESSED))
+    ; Flap on A press
+    (if (!= (& keys KEY_A) 0)
         (do
-          (set x OBSTACLE_RESET_X)
-          (set y (obstacle-y seed i))
-          (set speed (obstacle-speed seed i)))
-        (set x (- x speed)))
-    (poke (hi obstacle_data) lo x)
-    (poke (hi obstacle_data) (+ lo 1) y)
-    (poke (hi obstacle_data) (+ lo 2) speed)
-    0))
+          (set-flap-velocity)
+          (sfx-flap))
+        0)
 
-(defn update-obstacles ()
-  (let (seed (read-frame-count)
-        i 0)
-    (while (< i OBSTACLE_COUNT)
-      (update-one-obstacle i seed)
-      (set i (inc i)))
-    0))
+    ; Physics
+    (add-gravity)
+    (clamp-velocity)
+    (apply-velocity)
+
+    ; Check boundaries
+    (let (y-hi (peek16 bird_y_hi))
+      ; Hit ceiling (wrapped negative)
+      (if (>= y-hi 128)
+          (do
+            (poke16 bird_y_hi AREA_TOP)
+            (poke16 bird_y_lo 0)
+            (poke16 game_state STATE_DEAD)
+            (sfx-die))
+          ; Hit floor
+          (if (> y-hi (- AREA_BOTTOM 8))
+              (do
+                (poke16 bird_y_hi (- AREA_BOTTOM 8))
+                (poke16 bird_y_lo 0)
+                (poke16 game_state STATE_DEAD)
+                (sfx-die))
+              0)))
+
+    ; Update animation (based on velocity)
+    (let (v-hi (peek16 bird_vel_hi))
+      (if (>= v-hi 128)
+          (poke16 anim_frame 2)       ; Going up - wings down
+          (if (> v-hi 2)
+              (poke16 anim_frame 0)   ; Falling - wings up
+              (poke16 anim_frame 1)))))) ; Neutral - wings mid
 
 ; =============================================================================
-; Collision & Game State
+; Pipe Logic
 ; =============================================================================
 
-(defn check-collisions ()
-  (let (i 0
-        y (peek16 player_y)
+(defn update-pipe ()
+  (let (x (peek16 pipe_x)
+        gap-y (peek16 pipe_gap_y)
+        passed (peek16 pipe_passed))
+
+    ; Move left
+    (if (>= x PIPE_SPEED)
+        (set x (- x PIPE_SPEED))
+        ; Reset pipe
+        (let (seed (read-frame)
+              new-gap (+ GAP_MIN (mod-by seed GAP_RANGE)))
+          (set x 136)
+          (set gap-y new-gap)
+          (set passed 0)))
+
+    ; Scoring
+    (if (= passed 0)
+        (if (< x BIRD_X)
+            (do
+              (set passed 1)
+              (poke16 score (inc (peek16 score)))
+              (sfx-score))
+            0)
+        0)
+
+    (poke16 pipe_x x)
+    (poke16 pipe_gap_y gap-y)
+    (poke16 pipe_passed passed)))
+
+; =============================================================================
+; Collision
+; =============================================================================
+
+(defn check-collision ()
+  (let (px (peek16 pipe_x)
+        gap-y (peek16 pipe_gap_y)
+        by (peek16 bird_y_hi)
+        half (>> PIPE_GAP 1)
+        gap-top (- gap-y half)
+        gap-bot (+ gap-y half)
         hit 0)
-    (while (< i OBSTACLE_COUNT)
-      (let (lo (obstacle-lo i)
-            x (peek (hi obstacle_data) lo)
-            oy (peek (hi obstacle_data) (+ lo 1)))
-        (if (< (abs-diff x PLAYER_X) COLLIDE_X)
-            (if (< (abs-diff oy y) COLLIDE_Y)
-                (set hit 1)
-                0)
-            0))
-      (set i (inc i)))
-    (if (!= hit 0)
-        (poke16 game_state STATE_GAME_OVER)
-        0)
-    hit))
 
-(defn handle-game-over ()
-  (let (pressed (peek16 KEYS_PRESSED_ADDR))
-    (if (!= (& pressed KEY_START) 0)
-        (init-game)
+    ; Only check if pipe is visible
+    (if (< px 128)
+        (if (< px (+ BIRD_X 6))
+            (if (> (+ px PIPE_WIDTH) BIRD_X)
+                ; Horizontally overlapping
+                (if (< by gap-top)
+                    (set hit 1)
+                    (if (> (+ by 6) gap-bot)
+                        (set hit 1)
+                        0))
+                0)
+            0)
         0)
-    0))
+
+    (if (!= hit 0)
+        (do
+          (poke16 game_state STATE_DEAD)
+          (sfx-die))
+        0)))
 
 ; =============================================================================
 ; Rendering
 ; =============================================================================
 
-(defn update-player-oam ()
-  (let (y (peek16 player_y)
-        oam (oam-lo 0))
-    (poke OAM_HI oam y)
-    (poke OAM_HI (+ oam 1) PLAYER_X)
-    (poke OAM_HI (+ oam 2) TILE_PLAYER)
-    (poke OAM_HI (+ oam 3) SPRITE_ATTR_NONE)
-    0))
+(defn render-bird ()
+  (let (y (peek16 bird_y_hi)
+        anim (peek16 anim_frame)
+        tile TILE_BIRD_MID)
+    (if (= anim 0)
+        (set tile TILE_BIRD_UP)
+        (if (= anim 2)
+            (set tile TILE_BIRD_DOWN)
+            (set tile TILE_BIRD_MID)))
+    (draw-spr 0 y BIRD_X tile)))
 
-(defn update-obstacle-oam (i)
-  (let (lo (obstacle-lo i)
-        x (peek (hi obstacle_data) lo)
-        y (peek (hi obstacle_data) (+ lo 1))
-        oam (oam-lo (+ i 1)))
-    (poke OAM_HI oam y)
-    (poke OAM_HI (+ oam 1) x)
-    (poke OAM_HI (+ oam 2) TILE_OBSTACLE)
-    (poke OAM_HI (+ oam 3) SPRITE_ATTR_NONE)
-    0))
+(defn render-pipe ()
+  (let (px (peek16 pipe_x)
+        gap-y (peek16 pipe_gap_y)
+        half (>> PIPE_GAP 1)
+        gap-top (- gap-y half)
+        gap-bot (+ gap-y half))
 
-(defn update-oam ()
-  (update-player-oam)
-  (let (i 0)
-    (while (< i OBSTACLE_COUNT)
-      (update-obstacle-oam i)
-      (set i (inc i)))
-    0))
+    (if (< px 138)
+        (do
+          ; Top pipe
+          (draw-spr 1 (- gap-top 8) px TILE_PIPE_CAP_DN)
+          (draw-spr 2 (- gap-top 16) px TILE_PIPE_BODY)
+          (draw-spr 3 (- gap-top 24) px TILE_PIPE_BODY)
+          (draw-spr 4 (- gap-top 32) px TILE_PIPE_BODY)
+          (draw-spr 5 (- gap-top 40) px TILE_PIPE_BODY)
+          ; Bottom pipe
+          (draw-spr 6 gap-bot px TILE_PIPE_CAP_UP)
+          (draw-spr 7 (+ gap-bot 8) px TILE_PIPE_BODY)
+          (draw-spr 8 (+ gap-bot 16) px TILE_PIPE_BODY)
+          (draw-spr 9 (+ gap-bot 24) px TILE_PIPE_BODY)
+          (draw-spr 10 (+ gap-bot 32) px TILE_PIPE_BODY))
+        ; Hide if off screen
+        (let (i 1)
+          (while (<= i 10)
+            (draw-spr i 255 0 0)
+            (set i (inc i)))))))
+
+; Boundaries are now rendered via tilemap (set once at init)
+; No per-frame sprite rendering needed
+
+(defn render-all ()
+  (render-bird)
+  (render-pipe)
+  (render))
 
 ; =============================================================================
 ; Main
 ; =============================================================================
 
 (defn main ()
+  ; One-time init
   (if (!= (peek16 initialized) 0xAA)
       (do
+        (apu-init)
+        (init-tilemap)
         (init-game)
         (poke16 initialized 0xAA))
       0)
 
+  ; Game loop
   (while 1
     (wait-frame)
-    (if (= (peek16 game_state) STATE_GAME_OVER)
-        (handle-game-over)
+
+    (if (= (peek16 game_state) STATE_DEAD)
+        ; Game over
+        (if (!= (& (peek16 KEYS_PRESSED) KEY_START) 0)
+            (init-game)
+            0)
+        ; Playing
         (do
-          (update-player)
-          (update-obstacles)
-          (check-collisions)))
-    (update-oam)
-    (render-frame))
-  0)
+          (update-bird)
+          (if (= (peek16 game_state) STATE_PLAYING)
+              (do
+                (update-pipe)
+                (check-collision))
+              0)))
 
-; =============================================================================
-; Data Section
-; =============================================================================
+    (render-all)))
 
+; System
 (data initialized (db 0))
 (data last_frame (db 0))
+
+; Game state
 (data game_state (db 0))
-(data player_y (db 0))
-(data obstacle_data (repeat 12 (db 0)))
+(data score (db 0))
+
+; Bird position (8.8 fixed-point)
+(data bird_y_hi (db 0))
+(data bird_y_lo (db 0))
+
+; Bird velocity (8.8 fixed-point)
+(data bird_vel_hi (db 0))
+(data bird_vel_lo (db 0))
+
+; Pipe
+(data pipe_x (db 0))
+(data pipe_gap_y (db 0))
+(data pipe_passed (db 0))
+
+; Animation
+(data anim_frame (db 0))
