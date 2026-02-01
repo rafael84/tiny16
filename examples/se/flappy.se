@@ -1,0 +1,286 @@
+; Flappy Dodger - Simple sprite-based mini game
+;
+; Gameplay:
+; - Press A to flap upward.
+; - Avoid incoming obstacles.
+; - Press START to restart after a collision.
+;
+; BUILD:
+;   cd project_root
+;   make examples-se
+;   ./build/tiny16-sec examples/se/flappy.se build/flappy_se.asm
+;   ./build/tiny16-asm build/flappy_se.asm build/flappy_se.tiny16
+;   ./build/tiny16-emu build/flappy_se.tiny16
+
+(include "../examples/includes/tileset.inc")
+
+; =============================================================================
+; Constants - Memory Map
+; =============================================================================
+
+(def TILE_DATA_ADDR     0x5000)
+(def TILEMAP_ADDR       0x7000)
+(def OAM_ADDR           0x7800)
+
+(def OAM_HI             (hi OAM_ADDR))
+(def OAM_LO             (lo OAM_ADDR))
+
+; =============================================================================
+; Constants - MMIO
+; =============================================================================
+
+(def MMIO_BASE          0xBF00)
+(def KEYS_STATE_ADDR    (+ MMIO_BASE 0x00))
+(def KEYS_PRESSED_ADDR  (+ MMIO_BASE 0x01))
+(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
+(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
+
+(def PPU_CTRL_SPRITES_ONLY  0x82)
+
+; =============================================================================
+; Constants - Input
+; =============================================================================
+
+(def KEY_START          0x02)
+(def KEY_A              0x04)
+
+; =============================================================================
+; Constants - Game Parameters
+; =============================================================================
+
+(def STATE_PLAYING      0)
+(def STATE_GAME_OVER    1)
+
+(def PLAYER_X           24)
+(def PLAYER_START_Y     64)
+(def PLAYER_MIN_Y       8)
+(def PLAYER_MAX_Y       112)
+(def JUMP_STRENGTH      6)
+(def GRAVITY            1)
+
+(def OBSTACLE_COUNT     4)
+(def OBSTACLE_STRIDE    3)
+(def OBSTACLE_RESET_X   124)
+(def OBSTACLE_MIN_Y     8)
+(def OBSTACLE_RANGE     96)
+
+(def COLLIDE_X          6)
+(def COLLIDE_Y          6)
+
+(def TILE_PLAYER        33)
+(def TILE_OBSTACLE      32)
+(def SPRITE_ATTR_NONE   0x00)
+
+; =============================================================================
+; Helper Functions
+; =============================================================================
+
+(defn read-frame-count ()
+  (peek16 FRAME_COUNT_ADDR))
+
+(defn wait-frame ()
+  (let (last (peek16 last_frame)
+        current (read-frame-count))
+    (while (= current last)
+      (set current (read-frame-count)))
+    (poke16 last_frame current)
+    0))
+
+(defn mod-by (value divisor)
+  (let (result value)
+    (while (>= result divisor)
+      (set result (- result divisor)))
+    result))
+
+(defn mul7 (n)
+  (+ (<< n 2) (+ (<< n 1) n)))
+
+(defn mul3 (n)
+  (+ (<< n 1) n))
+
+(defn abs-diff (a b)
+  (if (>= a b)
+      (- a b)
+      (- b a)))
+
+(defn oam-lo (index)
+  (+ OAM_LO (<< index 2)))
+
+(defn obstacle-lo (index)
+  (+ (lo obstacle_data) (mul3 index)))
+
+(defn obstacle-y (seed i)
+  (+ OBSTACLE_MIN_Y (mod-by (+ seed (mul7 i)) OBSTACLE_RANGE)))
+
+(defn obstacle-speed (seed i)
+  (+ 1 (& (+ seed i) 1)))
+
+(defn render-frame ()
+  (poke16 PPU_CTRL_ADDR PPU_CTRL_SPRITES_ONLY)
+  0)
+
+; =============================================================================
+; Initialization
+; =============================================================================
+
+(defn init-obstacles ()
+  (let (seed (read-frame-count)
+        i 0)
+    (while (< i OBSTACLE_COUNT)
+      (let (x (+ 96 (<< i 3))
+            y (obstacle-y seed i)
+            speed (obstacle-speed seed i)
+            lo (obstacle-lo i))
+        (poke (hi obstacle_data) lo x)
+        (poke (hi obstacle_data) (+ lo 1) y)
+        (poke (hi obstacle_data) (+ lo 2) speed))
+      (set i (inc i)))
+    0))
+
+(defn init-game ()
+  (poke16 player_y PLAYER_START_Y)
+  (poke16 game_state STATE_PLAYING)
+  (init-obstacles)
+  0)
+
+; =============================================================================
+; Player Update
+; =============================================================================
+
+(defn update-player ()
+  (let (y (peek16 player_y)
+        pressed (peek16 KEYS_PRESSED_ADDR))
+    (if (!= (& pressed KEY_A) 0)
+        (set y (- y JUMP_STRENGTH))
+        (set y (+ y GRAVITY)))
+    (if (< y PLAYER_MIN_Y)
+        (set y PLAYER_MIN_Y)
+        0)
+    (if (>= y PLAYER_MAX_Y)
+        (set y PLAYER_MAX_Y)
+        0)
+    (poke16 player_y y)
+    0))
+
+; =============================================================================
+; Obstacles Update
+; =============================================================================
+
+(defn update-one-obstacle (i seed)
+  (let (lo (obstacle-lo i)
+        x (peek (hi obstacle_data) lo)
+        y (peek (hi obstacle_data) (+ lo 1))
+        speed (peek (hi obstacle_data) (+ lo 2)))
+    (if (< x speed)
+        (do
+          (set x OBSTACLE_RESET_X)
+          (set y (obstacle-y seed i))
+          (set speed (obstacle-speed seed i)))
+        (set x (- x speed)))
+    (poke (hi obstacle_data) lo x)
+    (poke (hi obstacle_data) (+ lo 1) y)
+    (poke (hi obstacle_data) (+ lo 2) speed)
+    0))
+
+(defn update-obstacles ()
+  (let (seed (read-frame-count)
+        i 0)
+    (while (< i OBSTACLE_COUNT)
+      (update-one-obstacle i seed)
+      (set i (inc i)))
+    0))
+
+; =============================================================================
+; Collision & Game State
+; =============================================================================
+
+(defn check-collisions ()
+  (let (i 0
+        y (peek16 player_y)
+        hit 0)
+    (while (< i OBSTACLE_COUNT)
+      (let (lo (obstacle-lo i)
+            x (peek (hi obstacle_data) lo)
+            oy (peek (hi obstacle_data) (+ lo 1)))
+        (if (< (abs-diff x PLAYER_X) COLLIDE_X)
+            (if (< (abs-diff oy y) COLLIDE_Y)
+                (set hit 1)
+                0)
+            0))
+      (set i (inc i)))
+    (if (!= hit 0)
+        (poke16 game_state STATE_GAME_OVER)
+        0)
+    hit))
+
+(defn handle-game-over ()
+  (let (pressed (peek16 KEYS_PRESSED_ADDR))
+    (if (!= (& pressed KEY_START) 0)
+        (init-game)
+        0)
+    0))
+
+; =============================================================================
+; Rendering
+; =============================================================================
+
+(defn update-player-oam ()
+  (let (y (peek16 player_y)
+        oam (oam-lo 0))
+    (poke OAM_HI oam y)
+    (poke OAM_HI (+ oam 1) PLAYER_X)
+    (poke OAM_HI (+ oam 2) TILE_PLAYER)
+    (poke OAM_HI (+ oam 3) SPRITE_ATTR_NONE)
+    0))
+
+(defn update-obstacle-oam (i)
+  (let (lo (obstacle-lo i)
+        x (peek (hi obstacle_data) lo)
+        y (peek (hi obstacle_data) (+ lo 1))
+        oam (oam-lo (+ i 1)))
+    (poke OAM_HI oam y)
+    (poke OAM_HI (+ oam 1) x)
+    (poke OAM_HI (+ oam 2) TILE_OBSTACLE)
+    (poke OAM_HI (+ oam 3) SPRITE_ATTR_NONE)
+    0))
+
+(defn update-oam ()
+  (update-player-oam)
+  (let (i 0)
+    (while (< i OBSTACLE_COUNT)
+      (update-obstacle-oam i)
+      (set i (inc i)))
+    0))
+
+; =============================================================================
+; Main
+; =============================================================================
+
+(defn main ()
+  (if (!= (peek16 initialized) 0xAA)
+      (do
+        (init-game)
+        (poke16 initialized 0xAA))
+      0)
+
+  (while 1
+    (wait-frame)
+    (if (= (peek16 game_state) STATE_GAME_OVER)
+        (handle-game-over)
+        (do
+          (update-player)
+          (update-obstacles)
+          (check-collisions)))
+    (update-oam)
+    (render-frame))
+  0)
+
+; =============================================================================
+; Data Section
+; =============================================================================
+
+(data initialized (db 0))
+(data last_frame (db 0))
+(data game_state (db 0))
+(data player_y (db 0))
+(data obstacle_data (repeat 12 (db 0)))
