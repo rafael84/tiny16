@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -12,6 +11,9 @@
 #include "ppu.h"
 #include "vm.c"
 #include "vm.h"
+
+#include "testing.c"
+#include "testing.h"
 
 void test_vm_arithmetic(void);
 void test_vm_borrow(void);
@@ -76,14 +78,6 @@ void test_vm_movspr_movrsp_roundtrip(void);
 
 #define ADDR16(instruction) (TINY16_MEMORY_CODE_BEGIN + instruction * 3)
 
-#define TINY16_TEST(fn)                                                                            \
-    do {                                                                                           \
-        printf(" ▸ %s", #fn);                                                                      \
-        fflush(stdout);                                                                            \
-        fn();                                                                                      \
-        printf(" ✓\n");                                                                            \
-    } while (0)
-
 static Tiny16VM* vm;
 
 // Write directly to memory.bytes to bypass code segment protection during test setup
@@ -107,69 +101,71 @@ static Tiny16VM* vm;
     } while (0)
 
 int main(void) {
+    test_init();
     vm = tiny16_vm_create();
 
-    TINY16_TEST(test_vm_arithmetic);
-    TINY16_TEST(test_vm_borrow);
-    TINY16_TEST(test_vm_inc_dec_wraparound);
-    TINY16_TEST(test_vm_logic_ops);
-    TINY16_TEST(test_vm_load_store_indirect);
-    TINY16_TEST(test_vm_load_store_pairs);
-    TINY16_TEST(test_vm_load_store_post_inc);
-    TINY16_TEST(test_vm_load_store_post_dec);
-    TINY16_TEST(test_vm_load_store_offset);
-    TINY16_TEST(test_vm_jz_conditional_jump);
-    TINY16_TEST(test_vm_jnz_mirror_test);
-    TINY16_TEST(test_vm_mov_register);
-    TINY16_TEST(test_vm_shift_left);
-    TINY16_TEST(test_vm_shift_right);
-    TINY16_TEST(test_vm_shift_edge_cases);
-    TINY16_TEST(test_vm_push_pop_basic);
-    TINY16_TEST(test_vm_push_pop_multiple);
-    TINY16_TEST(test_vm_all_registers);
-    TINY16_TEST(test_vm_complex_arithmetic);
-    TINY16_TEST(test_vm_nested_loops);
-    TINY16_TEST(test_vm_zero_flag);
-    TINY16_TEST(test_vm_carry_flag_propagation);
-    TINY16_TEST(test_vm_memory_boundary);
-    TINY16_TEST(test_vm_jump_backward_forward);
-    TINY16_TEST(test_vm_xor_self_zeroing);
-    TINY16_TEST(test_vm_address_registers_arithmetic);
-    TINY16_TEST(test_vm_stack_pointer_behavior);
-    TINY16_TEST(test_vm_conditional_jumps_not_taken);
-    TINY16_TEST(test_vm_logic_identity_operations);
-    TINY16_TEST(test_vm_chained_arithmetic_carry);
-    TINY16_TEST(test_vm_shift_until_zero);
-    TINY16_TEST(test_vm_stack_memory_access);
-    TINY16_TEST(test_vm_sub_equal_values);
-    TINY16_TEST(test_vm_max_steps_exceeded);
-    TINY16_TEST(test_vm_call_ret_basic);
-    TINY16_TEST(test_vm_call_ret_with_args);
-    TINY16_TEST(test_vm_call_ret_nested);
-    TINY16_TEST(test_vm_call_ret_preserves_registers);
-    TINY16_TEST(test_vm_jc_with_carry);
-    TINY16_TEST(test_vm_jc_without_carry);
-    TINY16_TEST(test_vm_jnc_with_carry);
-    TINY16_TEST(test_vm_jnc_without_carry);
-    TINY16_TEST(test_vm_cmp_equal);
-    TINY16_TEST(test_vm_cmp_greater);
-    TINY16_TEST(test_vm_cmp_less);
-    TINY16_TEST(test_vm_cmp_preserves_registers);
-    TINY16_TEST(test_vm_cmp_branching);
-    TINY16_TEST(test_vm_adc_no_carry);
-    TINY16_TEST(test_vm_adc_with_carry);
-    TINY16_TEST(test_vm_adc_multibyte);
-    TINY16_TEST(test_vm_adc_overflow);
-    TINY16_TEST(test_vm_sbc_no_borrow);
-    TINY16_TEST(test_vm_sbc_with_borrow);
-    TINY16_TEST(test_vm_sbc_multibyte);
-    TINY16_TEST(test_vm_sbc_underflow);
-    TINY16_TEST(test_vm_movspr_basic);
-    TINY16_TEST(test_vm_movspr_all_pairs);
-    TINY16_TEST(test_vm_movrsp_basic);
-    TINY16_TEST(test_vm_movrsp_all_pairs);
-    TINY16_TEST(test_vm_movspr_movrsp_roundtrip);
-    return 0;
+    TEST(test_vm_arithmetic);
+    TEST(test_vm_borrow);
+    TEST(test_vm_inc_dec_wraparound);
+    TEST(test_vm_logic_ops);
+    TEST(test_vm_load_store_indirect);
+    TEST(test_vm_load_store_pairs);
+    TEST(test_vm_load_store_post_inc);
+    TEST(test_vm_load_store_post_dec);
+    TEST(test_vm_load_store_offset);
+    TEST(test_vm_jz_conditional_jump);
+    TEST(test_vm_jnz_mirror_test);
+    TEST(test_vm_mov_register);
+    TEST(test_vm_shift_left);
+    TEST(test_vm_shift_right);
+    TEST(test_vm_shift_edge_cases);
+    TEST(test_vm_push_pop_basic);
+    TEST(test_vm_push_pop_multiple);
+    TEST(test_vm_all_registers);
+    TEST(test_vm_complex_arithmetic);
+    TEST(test_vm_nested_loops);
+    TEST(test_vm_zero_flag);
+    TEST(test_vm_carry_flag_propagation);
+    TEST(test_vm_memory_boundary);
+    TEST(test_vm_jump_backward_forward);
+    TEST(test_vm_xor_self_zeroing);
+    TEST(test_vm_address_registers_arithmetic);
+    TEST(test_vm_stack_pointer_behavior);
+    TEST(test_vm_conditional_jumps_not_taken);
+    TEST(test_vm_logic_identity_operations);
+    TEST(test_vm_chained_arithmetic_carry);
+    TEST(test_vm_shift_until_zero);
+    TEST(test_vm_stack_memory_access);
+    TEST(test_vm_sub_equal_values);
+    TEST(test_vm_max_steps_exceeded);
+    TEST(test_vm_call_ret_basic);
+    TEST(test_vm_call_ret_with_args);
+    TEST(test_vm_call_ret_nested);
+    TEST(test_vm_call_ret_preserves_registers);
+    TEST(test_vm_jc_with_carry);
+    TEST(test_vm_jc_without_carry);
+    TEST(test_vm_jnc_with_carry);
+    TEST(test_vm_jnc_without_carry);
+    TEST(test_vm_cmp_equal);
+    TEST(test_vm_cmp_greater);
+    TEST(test_vm_cmp_less);
+    TEST(test_vm_cmp_preserves_registers);
+    TEST(test_vm_cmp_branching);
+    TEST(test_vm_adc_no_carry);
+    TEST(test_vm_adc_with_carry);
+    TEST(test_vm_adc_multibyte);
+    TEST(test_vm_adc_overflow);
+    TEST(test_vm_sbc_no_borrow);
+    TEST(test_vm_sbc_with_borrow);
+    TEST(test_vm_sbc_multibyte);
+    TEST(test_vm_sbc_underflow);
+    TEST(test_vm_movspr_basic);
+    TEST(test_vm_movspr_all_pairs);
+    TEST(test_vm_movrsp_basic);
+    TEST(test_vm_movrsp_all_pairs);
+    TEST(test_vm_movspr_movrsp_roundtrip);
+
+    return test_run_all();
 }
 
 void test_vm_arithmetic(void) {
@@ -177,9 +173,9 @@ void test_vm_arithmetic(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x01); // R1 = 1
                     TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);      // R0 = 0, Z=1, C=1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_borrow(void) {
@@ -187,9 +183,9 @@ void test_vm_borrow(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x01); // R1 = 1
                     TINY16_ASM(TINY16_OPCODE_SUB, 0, 1);      // R0 = 255, borrow
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[0] == 0xFF);
-    assert(!(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)));
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 0xFF);
+    TEST_ASSERT(!(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)));
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_inc_dec_wraparound(void) {
@@ -197,7 +193,7 @@ void test_vm_inc_dec_wraparound(void) {
                     TINY16_ASM(TINY16_OPCODE_INC, 0, 0);      // R0 = 0, Z=1
                     TINY16_ASM(TINY16_OPCODE_DEC, 0, 0);      // R0 = 255, Z=0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[0] == 0xFF);
+    TEST_ASSERT(vm->cpu.R[0] == 0xFF);
 }
 
 void test_vm_logic_ops(void) {
@@ -209,8 +205,8 @@ void test_vm_logic_ops(void) {
                     TINY16_ASM(TINY16_OPCODE_XOR, 0, 1); // R0 = 0x00, Z=1
 
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 }
 
 void test_vm_load_store_indirect(void) {
@@ -228,7 +224,7 @@ void test_vm_load_store_indirect(void) {
                                0); // R0 = MEM[0x4000]
 
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[0] == 0xAB);
+    TEST_ASSERT(vm->cpu.R[0] == 0xAB);
 }
 
 void test_vm_load_store_pairs(void) {
@@ -243,7 +239,7 @@ void test_vm_load_store_pairs(void) {
                     TINY16_ASM(TINY16_OPCODE_LOAD,
                                TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_01), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[3] == 0x11);
+    TEST_ASSERT(vm->cpu.R[3] == 0x11);
 
     // Using R2:R3 pair
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x40); // R2:R3 = 0x4010
@@ -255,7 +251,7 @@ void test_vm_load_store_pairs(void) {
                     TINY16_ASM(TINY16_OPCODE_LOAD,
                                TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_23), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0x22);
+    TEST_ASSERT(vm->cpu.R[1] == 0x22);
 
     // Using R4:R5 pair
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 4, 0x40); // R4:R5 = 0x4020
@@ -267,7 +263,7 @@ void test_vm_load_store_pairs(void) {
                     TINY16_ASM(TINY16_OPCODE_LOAD,
                                TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_BASE, TINY16_ADDR_PAIR_45), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0x33);
+    TEST_ASSERT(vm->cpu.R[1] == 0x33);
 }
 
 void test_vm_load_store_post_inc(void) {
@@ -286,12 +282,12 @@ void test_vm_load_store_post_inc(void) {
                    TINY16_ADDR_BYTE1(2, TINY16_ADDR_MODE_INC, TINY16_ADDR_PAIR_67), 0);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     // R6:R7 should now be 0x4003 (incremented 3 times)
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x03);
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x03);
     // Verify memory contents
-    assert(vm->memory.bytes[0x4000] == 0xAA);
-    assert(vm->memory.bytes[0x4001] == 0xBB);
-    assert(vm->memory.bytes[0x4002] == 0xCC);
+    TEST_ASSERT(vm->memory.bytes[0x4000] == 0xAA);
+    TEST_ASSERT(vm->memory.bytes[0x4001] == 0xBB);
+    TEST_ASSERT(vm->memory.bytes[0x4002] == 0xCC);
 
     // Test load with post-increment
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4000
@@ -312,10 +308,10 @@ void test_vm_load_store_post_inc(void) {
                     TINY16_ASM(TINY16_OPCODE_LOAD,
                                TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_INC, TINY16_ADDR_PAIR_67), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[0] == 0x11);
-    assert(vm->cpu.R[1] == 0x22);
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x02);
+    TEST_ASSERT(vm->cpu.R[0] == 0x11);
+    TEST_ASSERT(vm->cpu.R[1] == 0x22);
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x02);
 }
 
 void test_vm_load_store_post_dec(void) {
@@ -332,11 +328,11 @@ void test_vm_load_store_post_dec(void) {
                                TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     // R6:R7 should now be 0x400E (decremented 2 times)
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x0E);
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x0E);
     // Verify memory contents
-    assert(vm->memory.bytes[0x4010] == 0xDD);
-    assert(vm->memory.bytes[0x400F] == 0xEE);
+    TEST_ASSERT(vm->memory.bytes[0x4010] == 0xDD);
+    TEST_ASSERT(vm->memory.bytes[0x400F] == 0xEE);
 
     // Test load with post-decrement
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x40); // R6:R7 = 0x4010
@@ -357,10 +353,10 @@ void test_vm_load_store_post_dec(void) {
                     TINY16_ASM(TINY16_OPCODE_LOAD,
                                TINY16_ADDR_BYTE1(3, TINY16_ADDR_MODE_DEC, TINY16_ADDR_PAIR_67), 0);
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[2] == 0x55); // value at 0x4010
-    assert(vm->cpu.R[3] == 0x66); // value at 0x400F
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x0E);
+    TEST_ASSERT(vm->cpu.R[2] == 0x55); // value at 0x4010
+    TEST_ASSERT(vm->cpu.R[3] == 0x66); // value at 0x400F
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x0E);
 }
 
 void test_vm_load_store_offset(void) {
@@ -374,10 +370,10 @@ void test_vm_load_store_offset(void) {
                    TINY16_ADDR_BYTE1(0, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_67), 0x10);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
     // Pointer should remain unchanged
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x00);
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x00);
     // Verify memory at offset
-    assert(vm->memory.bytes[0x4010] == 0x77);
+    TEST_ASSERT(vm->memory.bytes[0x4010] == 0x77);
 
     // Test load with offset
     TINY16_TEST_RUN(
@@ -392,10 +388,10 @@ void test_vm_load_store_offset(void) {
         TINY16_ASM(TINY16_OPCODE_LOAD,
                    TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_67), 0x20);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0x88);
+    TEST_ASSERT(vm->cpu.R[1] == 0x88);
     // Pointer should remain unchanged
-    assert(vm->cpu.R[6] == 0x40);
-    assert(vm->cpu.R[7] == 0x00);
+    TEST_ASSERT(vm->cpu.R[6] == 0x40);
+    TEST_ASSERT(vm->cpu.R[7] == 0x00);
 
     // Test offset with different pair (R2:R3)
     // Offsets are now SIGNED (-128 to +127)
@@ -409,11 +405,11 @@ void test_vm_load_store_offset(void) {
         TINY16_ASM(TINY16_OPCODE_LOAD,
                    TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x7F);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0x99);
-    assert(vm->cpu.R[2] == 0x40);
-    assert(vm->cpu.R[3] == 0x00);
+    TEST_ASSERT(vm->cpu.R[1] == 0x99);
+    TEST_ASSERT(vm->cpu.R[2] == 0x40);
+    TEST_ASSERT(vm->cpu.R[3] == 0x00);
     // Verify memory at max positive offset
-    assert(vm->memory.bytes[0x407F] == 0x99);
+    TEST_ASSERT(vm->memory.bytes[0x407F] == 0x99);
 
     // Test negative offset: 0xFF = -1 in signed
     TINY16_TEST_RUN(
@@ -426,11 +422,11 @@ void test_vm_load_store_offset(void) {
         TINY16_ASM(TINY16_OPCODE_LOAD,
                    TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0xFF);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0xAA);
-    assert(vm->cpu.R[2] == 0x40);
-    assert(vm->cpu.R[3] == 0x10);
+    TEST_ASSERT(vm->cpu.R[1] == 0xAA);
+    TEST_ASSERT(vm->cpu.R[2] == 0x40);
+    TEST_ASSERT(vm->cpu.R[3] == 0x10);
     // Verify memory at negative offset (0x4010 - 1 = 0x400F)
-    assert(vm->memory.bytes[0x400F] == 0xAA);
+    TEST_ASSERT(vm->memory.bytes[0x400F] == 0xAA);
 
     // Test offset -128 (0x80 in two's complement)
     TINY16_TEST_RUN(
@@ -443,9 +439,9 @@ void test_vm_load_store_offset(void) {
         TINY16_ASM(TINY16_OPCODE_LOAD,
                    TINY16_ADDR_BYTE1(1, TINY16_ADDR_MODE_OFFSET, TINY16_ADDR_PAIR_23), 0x80);
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0));
-    assert(vm->cpu.R[1] == 0xBB);
+    TEST_ASSERT(vm->cpu.R[1] == 0xBB);
     // Verify memory at min negative offset (0x4100 - 128 = 0x4080)
-    assert(vm->memory.bytes[0x4080] == 0xBB);
+    TEST_ASSERT(vm->memory.bytes[0x4080] == 0xBB);
 }
 
 void test_vm_jz_conditional_jump(void) {
@@ -456,7 +452,7 @@ void test_vm_jz_conditional_jump(void) {
         /* 0x03 */ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(1)); // jump back to DEC
         /* 0x04 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[1] == 0);
+    TEST_ASSERT(vm->cpu.R[1] == 0);
 }
 
 void test_vm_jnz_mirror_test(void) {
@@ -465,7 +461,7 @@ void test_vm_jnz_mirror_test(void) {
                     TINY16_ASM(TINY16_OPCODE_JNZ, 0x00, ADDR16(1)); // loop while R1 != 0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[1] == 0);
+    TEST_ASSERT(vm->cpu.R[1] == 0);
 }
 
 void test_vm_mov_register(void) {
@@ -473,9 +469,9 @@ void test_vm_mov_register(void) {
                     TINY16_ASM(TINY16_OPCODE_MOV, 1, 0);      // R1 = R0
                     TINY16_ASM(TINY16_OPCODE_MOV, 2, 1);      // R2 = R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0xAB);
-    assert(vm->cpu.R[1] == 0xAB);
-    assert(vm->cpu.R[2] == 0xAB);
+    TEST_ASSERT(vm->cpu.R[0] == 0xAB);
+    TEST_ASSERT(vm->cpu.R[1] == 0xAB);
+    TEST_ASSERT(vm->cpu.R[2] == 0xAB);
 }
 
 void test_vm_shift_left(void) {
@@ -485,7 +481,7 @@ void test_vm_shift_left(void) {
                     TINY16_ASM(TINY16_OPCODE_SHL, 0, 0);      // R0 = 0b00000100 (4)
                     TINY16_ASM(TINY16_OPCODE_SHL, 0, 0);      // R0 = 0b00001000 (8)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 8);
+    TEST_ASSERT(vm->cpu.R[0] == 8);
 }
 
 void test_vm_shift_right(void) {
@@ -495,7 +491,7 @@ void test_vm_shift_right(void) {
                     TINY16_ASM(TINY16_OPCODE_SHR, 0, 0);      // R0 = 0b00100000 (32)
                     TINY16_ASM(TINY16_OPCODE_SHR, 0, 0);      // R0 = 0b00010000 (16)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 16);
+    TEST_ASSERT(vm->cpu.R[0] == 16);
 }
 
 void test_vm_shift_edge_cases(void) {
@@ -503,14 +499,14 @@ void test_vm_shift_edge_cases(void) {
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xFF); // R0 = 0b11111111
                     TINY16_ASM(TINY16_OPCODE_SHL, 0, 0);      // R0 = 0b11111110, carry = 1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0xFE);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // carry should be set
+    TEST_ASSERT(vm->cpu.R[0] == 0xFE);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // carry should be set
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0xFF); // R1 = 0b11111111
                     TINY16_ASM(TINY16_OPCODE_SHR, 1, 0);      // R1 = 0b01111111, carry = 1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[1] == 0x7F);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // carry should be set
+    TEST_ASSERT(vm->cpu.R[1] == 0x7F);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // carry should be set
 }
 
 void test_vm_push_pop_basic(void) {
@@ -519,7 +515,7 @@ void test_vm_push_pop_basic(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x00); // R0 = 0
                     TINY16_ASM(TINY16_OPCODE_POP, 0, 0);      // pop to R0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0x42);
+    TEST_ASSERT(vm->cpu.R[0] == 0x42);
 }
 
 void test_vm_push_pop_multiple(void) {
@@ -534,9 +530,9 @@ void test_vm_push_pop_multiple(void) {
                     TINY16_ASM(TINY16_OPCODE_POP, 4, 0);      // pop to R4 (should be 0x22)
                     TINY16_ASM(TINY16_OPCODE_POP, 5, 0);      // pop to R5 (should be 0x11)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[3] == 0x33);
-    assert(vm->cpu.R[4] == 0x22);
-    assert(vm->cpu.R[5] == 0x11);
+    TEST_ASSERT(vm->cpu.R[3] == 0x33);
+    TEST_ASSERT(vm->cpu.R[4] == 0x22);
+    TEST_ASSERT(vm->cpu.R[5] == 0x11);
 }
 
 void test_vm_all_registers(void) {
@@ -550,14 +546,14 @@ void test_vm_all_registers(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 6, 0x66); // R6 = 102
                     TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0x77); // R7 = 119
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0x00);
-    assert(vm->cpu.R[1] == 0x11);
-    assert(vm->cpu.R[2] == 0x22);
-    assert(vm->cpu.R[3] == 0x33);
-    assert(vm->cpu.R[4] == 0x44);
-    assert(vm->cpu.R[5] == 0x55);
-    assert(vm->cpu.R[6] == 0x66);
-    assert(vm->cpu.R[7] == 0x77);
+    TEST_ASSERT(vm->cpu.R[0] == 0x00);
+    TEST_ASSERT(vm->cpu.R[1] == 0x11);
+    TEST_ASSERT(vm->cpu.R[2] == 0x22);
+    TEST_ASSERT(vm->cpu.R[3] == 0x33);
+    TEST_ASSERT(vm->cpu.R[4] == 0x44);
+    TEST_ASSERT(vm->cpu.R[5] == 0x55);
+    TEST_ASSERT(vm->cpu.R[6] == 0x66);
+    TEST_ASSERT(vm->cpu.R[7] == 0x77);
 }
 
 void test_vm_complex_arithmetic(void) {
@@ -567,7 +563,7 @@ void test_vm_complex_arithmetic(void) {
                     TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);    // R0 = 30
                     TINY16_ASM(TINY16_OPCODE_SHL, 0, 0);    // R0 = 60 (multiply by 2)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 60);
+    TEST_ASSERT(vm->cpu.R[0] == 60);
 }
 
 void test_vm_nested_loops(void) {
@@ -585,7 +581,7 @@ void test_vm_nested_loops(void) {
         /* 8 */ TINY16_ASM(TINY16_OPCODE_JNZ, 0x00, ADDR16(3)); // if R1 != 0, loop outer
         /* 9 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[0] == 4); // 2 * 2 = 4 iterations
+    TEST_ASSERT(vm->cpu.R[0] == 4); // 2 * 2 = 4 iterations
 }
 
 void test_vm_zero_flag(void) {
@@ -595,20 +591,20 @@ void test_vm_zero_flag(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x05); // R1 = 5
                     TINY16_ASM(TINY16_OPCODE_SUB, 0, 1);      // R0 = 0, Z should be set
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x01); // R0 = 1
                     TINY16_ASM(TINY16_OPCODE_DEC, 0, 0);      // R0 = 0, Z should be set
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x05); // R0 = 5
                     TINY16_ASM(TINY16_OPCODE_INC, 0, 0);      // R0 = 6, Z should be clear
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 6);
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 6);
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 }
 
 void test_vm_carry_flag_propagation(void) {
@@ -617,9 +613,9 @@ void test_vm_carry_flag_propagation(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x80); // R1 = 128
                     TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);      // R0 = 0, C = 1 (overflow)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_memory_boundary(void) {
@@ -652,8 +648,8 @@ void test_vm_memory_boundary(void) {
                    0); // R3 = MEM[0x4800]
 
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[2] == 0xAA);
-    assert(vm->cpu.R[3] == 0xBB);
+    TEST_ASSERT(vm->cpu.R[2] == 0xAA);
+    TEST_ASSERT(vm->cpu.R[3] == 0xBB);
 }
 
 void test_vm_jump_backward_forward(void) {
@@ -665,7 +661,7 @@ void test_vm_jump_backward_forward(void) {
         /* 3 */ TINY16_ASM(TINY16_OPCODE_LOADI, 0, 42);         // R0 = 42
         /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[0] == 42); // Should be 42, not 0 or 99
+    TEST_ASSERT(vm->cpu.R[0] == 42); // Should be 42, not 0 or 99
 }
 
 void test_vm_xor_self_zeroing(void) {
@@ -673,8 +669,8 @@ void test_vm_xor_self_zeroing(void) {
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0xAB); // R0 = 0xAB
                     TINY16_ASM(TINY16_OPCODE_XOR, 0, 0);      // R0 = R0 XOR R0 = 0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 }
 
 void test_vm_address_registers_arithmetic(void) {
@@ -684,9 +680,9 @@ void test_vm_address_registers_arithmetic(void) {
                     TINY16_ASM(TINY16_OPCODE_ADD, 6, 7);    // R6 = R6 + R7 = 15
                     TINY16_ASM(TINY16_OPCODE_SUB, 7, 7);    // R7 = R7 - R7 = 0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[6] == 15);
-    assert(vm->cpu.R[7] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[6] == 15);
+    TEST_ASSERT(vm->cpu.R[7] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 }
 
 void test_vm_stack_pointer_behavior(void) {
@@ -698,13 +694,13 @@ void test_vm_stack_pointer_behavior(void) {
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x11); // R0 = 0x11
                     TINY16_ASM(TINY16_OPCODE_PUSH, 0, 0);     // push R0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.sp == initial_sp - 1); // SP should decrement
+    TEST_ASSERT(vm->cpu.sp == initial_sp - 1); // SP should decrement
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x11); // R0 = 0x11
                     TINY16_ASM(TINY16_OPCODE_PUSH, 0, 0);     // push R0
                     TINY16_ASM(TINY16_OPCODE_POP, 1, 0);      // pop to R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.sp == initial_sp); // SP should be back to initial
+    TEST_ASSERT(vm->cpu.sp == initial_sp); // SP should be back to initial
 }
 
 void test_vm_conditional_jumps_not_taken(void) {
@@ -717,7 +713,7 @@ void test_vm_conditional_jumps_not_taken(void) {
         /* 3 */ TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x42);      // R1 = 0x42 (executed)
         /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);          //
     );
-    assert(vm->cpu.R[1] == 0x42); // Should have executed line 3
+    TEST_ASSERT(vm->cpu.R[1] == 0x42); // Should have executed line 3
 
     // JNZ should NOT jump when Z=1
     TINY16_TEST_RUN(
@@ -727,7 +723,7 @@ void test_vm_conditional_jumps_not_taken(void) {
         /* 3 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0x99);       // R2 = 0x99 (executed)
         /* 4 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[2] == 0x99); // Should have executed line 3
+    TEST_ASSERT(vm->cpu.R[2] == 0x99); // Should have executed line 3
 }
 
 void test_vm_logic_identity_operations(void) {
@@ -735,25 +731,25 @@ void test_vm_logic_identity_operations(void) {
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 0, 0x55); // R0 = 0x55
                     TINY16_ASM(TINY16_OPCODE_OR, 0, 0);       // R0 OR R0 = R0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0x55);
+    TEST_ASSERT(vm->cpu.R[0] == 0x55);
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0xAA); // R1 = 0xAA
                     TINY16_ASM(TINY16_OPCODE_AND, 1, 1);      // R1 AND R1 = R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[1] == 0xAA);
+    TEST_ASSERT(vm->cpu.R[1] == 0xAA);
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 2, 0xFF); // R2 = 0xFF
                     TINY16_ASM(TINY16_OPCODE_LOADI, 3, 0x00); // R3 = 0x00
                     TINY16_ASM(TINY16_OPCODE_AND, 2, 3);      // R2 AND 0 = 0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[2] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[2] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_LOADI, 4, 0x00); // R4 = 0x00
                     TINY16_ASM(TINY16_OPCODE_LOADI, 5, 0xFF); // R5 = 0xFF
                     TINY16_ASM(TINY16_OPCODE_OR, 4, 5);       // R4 OR 0xFF = 0xFF
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[4] == 0xFF);
+    TEST_ASSERT(vm->cpu.R[4] == 0xFF);
 }
 
 void test_vm_chained_arithmetic_carry(void) {
@@ -763,8 +759,8 @@ void test_vm_chained_arithmetic_carry(void) {
                     TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);      // R0 = 0, C=1
                     TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);      // R0 = 1, C=0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 1);
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 1);
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_shift_until_zero(void) {
@@ -775,8 +771,8 @@ void test_vm_shift_until_zero(void) {
                     TINY16_ASM(TINY16_OPCODE_SHR, 0, 0);      // R0 = 1
                     TINY16_ASM(TINY16_OPCODE_SHR, 0, 0);      // R0 = 0, Z=1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
 }
 
 void test_vm_stack_memory_access(void) {
@@ -794,7 +790,7 @@ void test_vm_stack_memory_access(void) {
                                0); // R0 = MEM[0x8000]
 
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0xCD);
+    TEST_ASSERT(vm->cpu.R[0] == 0xCD);
 }
 
 void test_vm_sub_equal_values(void) {
@@ -803,9 +799,9 @@ void test_vm_sub_equal_values(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 0x42); // R1 = 0x42
                     TINY16_ASM(TINY16_OPCODE_SUB, 0, 1);      // R0 = 0, Z=1, C=0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 0);
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_max_steps_exceeded(void) {
@@ -813,8 +809,8 @@ void test_vm_max_steps_exceeded(void) {
     int code = vm->cpu.pc;
     TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(0)); // infinite loop: jump to itself
     bool result = tiny16_vm_exec(vm, 5);
-    assert(result);
-    assert(vm->cpu.pc == TINY16_MEMORY_CODE_BEGIN);
+    TEST_ASSERT(result);
+    TEST_ASSERT(vm->cpu.pc == TINY16_MEMORY_CODE_BEGIN);
 }
 
 void test_vm_call_ret_basic(void) {
@@ -827,7 +823,7 @@ void test_vm_call_ret_basic(void) {
         /* 4 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // subroutine: R0++
         /* 5 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // return
     );
-    assert(vm->cpu.R[0] == 12); // 10 + 1 (in subroutine) + 1 (after return)
+    TEST_ASSERT(vm->cpu.R[0] == 12); // 10 + 1 (in subroutine) + 1 (after return)
 }
 
 void test_vm_call_ret_with_args(void) {
@@ -842,7 +838,7 @@ void test_vm_call_ret_with_args(void) {
         /* 5 */ TINY16_ASM(TINY16_OPCODE_ADD, 0, 1);             // add_r1_to_r0: R0 += R1
         /* 6 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // return
     );
-    assert(vm->cpu.R[0] == 13); // 5 + 7 + 1 = 13
+    TEST_ASSERT(vm->cpu.R[0] == 13); // 5 + 7 + 1 = 13
 }
 
 void test_vm_call_ret_nested(void) {
@@ -859,7 +855,7 @@ void test_vm_call_ret_nested(void) {
         /* 7 */ TINY16_ASM(TINY16_OPCODE_INC, 0, 0);             // func_b: R0++
         /* 8 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // func_b: return
     );
-    assert(vm->cpu.R[0] == 3); // 0 + 1 (func_b call 1) + 1 (func_b call 2) + 1 (main) = 3
+    TEST_ASSERT(vm->cpu.R[0] == 3); // 0 + 1 (func_b call 1) + 1 (func_b call 2) + 1 (main) = 3
 }
 
 void test_vm_call_ret_preserves_registers(void) {
@@ -876,8 +872,8 @@ void test_vm_call_ret_preserves_registers(void) {
         /* 8 */ TINY16_ASM(TINY16_OPCODE_POP, 1, 0);             // subroutine: restore R1
         /* 9 */ TINY16_ASM(TINY16_OPCODE_RET, 0, 0);             // subroutine: return
     );
-    assert(vm->cpu.R[0] == 129); // 10 + 99 (in subroutine) + 20 (after return) = 129
-    assert(vm->cpu.R[1] == 20);  // R1 should be preserved
+    TEST_ASSERT(vm->cpu.R[0] == 129); // 10 + 99 (in subroutine) + 20 (after return) = 129
+    TEST_ASSERT(vm->cpu.R[1] == 20);  // R1 should be preserved
 }
 
 void test_vm_jc_with_carry(void) {
@@ -891,9 +887,9 @@ void test_vm_jc_with_carry(void) {
         /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);        // R2 = 42 (after jump)
         /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);          //
     );
-    assert(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
-    assert(vm->cpu.R[2] == 42); // Should have jumped, so R2 = 42, not 99
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
+    TEST_ASSERT(vm->cpu.R[2] == 42); // Should have jumped, so R2 = 42, not 99
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_jc_without_carry(void) {
@@ -908,9 +904,9 @@ void test_vm_jc_without_carry(void) {
         /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
         /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[0] == 80); // 50 + 30 = 80
-    assert(vm->cpu.R[2] == 99); // Should NOT have jumped, so R2 = 99
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 80); // 50 + 30 = 80
+    TEST_ASSERT(vm->cpu.R[2] == 99); // Should NOT have jumped, so R2 = 99
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_jnc_with_carry(void) {
@@ -925,9 +921,9 @@ void test_vm_jnc_with_carry(void) {
         /* 6 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // error: should NOT execute
         /* 7 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
-    assert(vm->cpu.R[2] == 99); // Should NOT have jumped, so R2 = 99
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
+    TEST_ASSERT(vm->cpu.R[2] == 99); // Should NOT have jumped, so R2 = 99
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_jnc_without_carry(void) {
@@ -941,9 +937,9 @@ void test_vm_jnc_without_carry(void) {
         /* 5 */ TINY16_ASM(TINY16_OPCODE_LOADI, 2, 42);         // R2 = 42 (after jump)
         /* 6 */ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);           //
     );
-    assert(vm->cpu.R[0] == 80); // 50 + 30 = 80
-    assert(vm->cpu.R[2] == 42); // Should have jumped, so R2 = 42, not 99
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 80); // 50 + 30 = 80
+    TEST_ASSERT(vm->cpu.R[2] == 42); // Should have jumped, so R2 = 42, not 99
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_cmp_equal(void) {
@@ -953,10 +949,10 @@ void test_vm_cmp_equal(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 42); // R1 = 42
                     TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);    // compare R0 - R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 42);                                 // R0 should be unchanged
-    assert(vm->cpu.R[1] == 42);                                 // R1 should be unchanged
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));  // Z = 1 (equal)
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
+    TEST_ASSERT(vm->cpu.R[0] == 42);                                 // R0 should be unchanged
+    TEST_ASSERT(vm->cpu.R[1] == 42);                                 // R1 should be unchanged
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));  // Z = 1 (equal)
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
 }
 
 void test_vm_cmp_greater(void) {
@@ -965,10 +961,10 @@ void test_vm_cmp_greater(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 50);  // R1 = 50
                     TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);     // compare R0 - R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 100);                                // R0 should be unchanged
-    assert(vm->cpu.R[1] == 50);                                 // R1 should be unchanged
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
+    TEST_ASSERT(vm->cpu.R[0] == 100);                                // R0 should be unchanged
+    TEST_ASSERT(vm->cpu.R[1] == 50);                                 // R1 should be unchanged
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // C = 0 (no borrow)
 }
 
 void test_vm_cmp_less(void) {
@@ -977,10 +973,10 @@ void test_vm_cmp_less(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 100); // R1 = 100
                     TINY16_ASM(TINY16_OPCODE_CMP, 0, 1);     // compare R0 - R1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 30);                                 // R0 should be unchanged
-    assert(vm->cpu.R[1] == 100);                                // R1 should be unchanged
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));  // C = 1 (borrow occurred)
+    TEST_ASSERT(vm->cpu.R[0] == 30);                                 // R0 should be unchanged
+    TEST_ASSERT(vm->cpu.R[1] == 100);                                // R1 should be unchanged
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Z = 0 (not equal)
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));  // C = 1 (borrow occurred)
 }
 
 void test_vm_cmp_preserves_registers(void) {
@@ -992,9 +988,9 @@ void test_vm_cmp_preserves_registers(void) {
                     TINY16_ASM(TINY16_OPCODE_CMP, 1, 2);     // compare R1 - R2
                     TINY16_ASM(TINY16_OPCODE_CMP, 2, 0);     // compare R2 - R0
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0);   // R0 unchanged
-    assert(vm->cpu.R[1] == 255); // R1 unchanged
-    assert(vm->cpu.R[2] == 128); // R2 unchanged
+    TEST_ASSERT(vm->cpu.R[0] == 0);   // R0 unchanged
+    TEST_ASSERT(vm->cpu.R[1] == 255); // R1 unchanged
+    TEST_ASSERT(vm->cpu.R[2] == 128); // R2 unchanged
 }
 
 void test_vm_cmp_branching(void) {
@@ -1016,9 +1012,9 @@ void test_vm_cmp_branching(void) {
         /* 12*/ TINY16_ASM(TINY16_OPCODE_JMP, 0x00, ADDR16(13)); // jump to end
         /* 13*/ TINY16_ASM(TINY16_OPCODE_HALT, 0, 0);            // end
     );
-    assert(vm->cpu.R[0] == 12);  // R0 unchanged
-    assert(vm->cpu.R[1] == 10);  // R1 unchanged
-    assert(vm->cpu.R[2] == 100); // Took the "greater" path
+    TEST_ASSERT(vm->cpu.R[0] == 12);  // R0 unchanged
+    TEST_ASSERT(vm->cpu.R[1] == 10);  // R1 unchanged
+    TEST_ASSERT(vm->cpu.R[2] == 100); // Took the "greater" path
 }
 
 void test_vm_adc_no_carry(void) {
@@ -1028,10 +1024,10 @@ void test_vm_adc_no_carry(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 20); // R1 = 20
                     TINY16_ASM(TINY16_OPCODE_ADC, 0, 1);    // R0 = 10 + 20 + 0 = 30
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 30);
-    assert(vm->cpu.R[1] == 20); // R1 unchanged
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 30);
+    TEST_ASSERT(vm->cpu.R[1] == 20); // R1 unchanged
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_adc_with_carry(void) {
@@ -1044,10 +1040,10 @@ void test_vm_adc_with_carry(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 3, 20);  // R3 = 20
                     TINY16_ASM(TINY16_OPCODE_ADC, 2, 3);     // R2 = 10 + 20 + 1 = 31
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
-    assert(vm->cpu.R[2] == 31); // 10 + 20 + 1 (carry) = 31
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // No carry from last ADC
+    TEST_ASSERT(vm->cpu.R[0] == 44); // 200 + 100 = 300 & 0xFF = 44
+    TEST_ASSERT(vm->cpu.R[2] == 31); // 10 + 20 + 1 (carry) = 31
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // No carry from last ADC
 }
 
 void test_vm_adc_multibyte(void) {
@@ -1060,11 +1056,11 @@ void test_vm_adc_multibyte(void) {
                     TINY16_ASM(TINY16_OPCODE_ADD, 7, 1);      // R7 = 0xFF + 0x02 = 0x01, C=1
                     TINY16_ASM(TINY16_OPCODE_ADC, 6, 0);      // R6 = 0x01 + 0x00 + 1 = 0x02
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[6] == 0x02); // High byte result
-    assert(vm->cpu.R[7] == 0x01); // Low byte result
+    TEST_ASSERT(vm->cpu.R[6] == 0x02); // High byte result
+    TEST_ASSERT(vm->cpu.R[7] == 0x01); // Low byte result
     // R6:R7 = 0x0201 (513)
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_adc_overflow(void) {
@@ -1076,9 +1072,9 @@ void test_vm_adc_overflow(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 3, 5);   // R3 = 5
                     TINY16_ASM(TINY16_OPCODE_ADC, 2, 3);     // R2 = 250 + 5 + 1 = 0, C=1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[2] == 0);                                 // 250 + 5 + 1 = 256 & 0xFF = 0
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Result is zero
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // Overflow occurred
+    TEST_ASSERT(vm->cpu.R[2] == 0);                                 // 250 + 5 + 1 = 256 & 0xFF = 0
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z)); // Result is zero
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // Overflow occurred
 }
 
 void test_vm_sbc_no_borrow(void) {
@@ -1088,10 +1084,10 @@ void test_vm_sbc_no_borrow(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 1, 20); // R1 = 20
                     TINY16_ASM(TINY16_OPCODE_SBC, 0, 1);    // R0 = 50 - 20 - 0 = 30
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 30);
-    assert(vm->cpu.R[1] == 20); // R1 unchanged
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(vm->cpu.R[0] == 30);
+    TEST_ASSERT(vm->cpu.R[1] == 20); // R1 unchanged
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_sbc_with_borrow(void) {
@@ -1104,10 +1100,10 @@ void test_vm_sbc_with_borrow(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 3, 20); // R3 = 20
                     TINY16_ASM(TINY16_OPCODE_SBC, 2, 3);    // R2 = 50 - 20 - 1 = 29
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 251); // 5 - 10 = -5 & 0xFF = 251
-    assert(vm->cpu.R[2] == 29);  // 50 - 20 - 1 (borrow) = 29
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // No borrow from last SBC
+    TEST_ASSERT(vm->cpu.R[0] == 251); // 5 - 10 = -5 & 0xFF = 251
+    TEST_ASSERT(vm->cpu.R[2] == 29);  // 50 - 20 - 1 (borrow) = 29
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // No borrow from last SBC
 }
 
 void test_vm_sbc_multibyte(void) {
@@ -1120,11 +1116,11 @@ void test_vm_sbc_multibyte(void) {
                     TINY16_ASM(TINY16_OPCODE_SUB, 7, 1);      // R7 = 0x01 - 0xFF = 0x02, C=1
                     TINY16_ASM(TINY16_OPCODE_SBC, 6, 0);      // R6 = 0x02 - 0x00 - 1 = 0x01
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[6] == 0x01); // High byte result
-    assert(vm->cpu.R[7] == 0x02); // Low byte result
+    TEST_ASSERT(vm->cpu.R[6] == 0x01); // High byte result
+    TEST_ASSERT(vm->cpu.R[7] == 0x02); // Low byte result
     // R6:R7 = 0x0102 (258)
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C));
 }
 
 void test_vm_sbc_underflow(void) {
@@ -1136,9 +1132,9 @@ void test_vm_sbc_underflow(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 3, 10); // R3 = 10
                     TINY16_ASM(TINY16_OPCODE_SBC, 2, 3);    // R2 = 5 - 10 - 0 = 251, C=1
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[2] == 251); // 5 - 10 = -5 & 0xFF = 251
-    assert(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
-    assert(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // Underflow (borrow) occurred
+    TEST_ASSERT(vm->cpu.R[2] == 251); // 5 - 10 = -5 & 0xFF = 251
+    TEST_ASSERT(!TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_Z));
+    TEST_ASSERT(TINY16_CPU_FLAG(vm->cpu.flags, TINY16_CPU_FLAG_C)); // Underflow (borrow) occurred
 }
 
 void test_vm_movspr_basic(void) {
@@ -1146,8 +1142,8 @@ void test_vm_movspr_basic(void) {
     // SP starts at 0xBEFF after reset
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP (pair 3)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[6] == 0xBE); // High byte of SP
-    assert(vm->cpu.R[7] == 0xFF); // Low byte of SP
+    TEST_ASSERT(vm->cpu.R[6] == 0xBE); // High byte of SP
+    TEST_ASSERT(vm->cpu.R[7] == 0xFF); // Low byte of SP
 }
 
 void test_vm_movspr_all_pairs(void) {
@@ -1157,10 +1153,10 @@ void test_vm_movspr_all_pairs(void) {
                     TINY16_ASM(TINY16_OPCODE_MOVSPR, 2, 0); // R4:R5 = SP
                     TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[0] == 0xBE && vm->cpu.R[1] == 0xFF); // R0:R1
-    assert(vm->cpu.R[2] == 0xBE && vm->cpu.R[3] == 0xFF); // R2:R3
-    assert(vm->cpu.R[4] == 0xBE && vm->cpu.R[5] == 0xFF); // R4:R5
-    assert(vm->cpu.R[6] == 0xBE && vm->cpu.R[7] == 0xFF); // R6:R7
+    TEST_ASSERT(vm->cpu.R[0] == 0xBE && vm->cpu.R[1] == 0xFF); // R0:R1
+    TEST_ASSERT(vm->cpu.R[2] == 0xBE && vm->cpu.R[3] == 0xFF); // R2:R3
+    TEST_ASSERT(vm->cpu.R[4] == 0xBE && vm->cpu.R[5] == 0xFF); // R4:R5
+    TEST_ASSERT(vm->cpu.R[6] == 0xBE && vm->cpu.R[7] == 0xFF); // R6:R7
 }
 
 void test_vm_movrsp_basic(void) {
@@ -1169,7 +1165,7 @@ void test_vm_movrsp_basic(void) {
                     TINY16_ASM(TINY16_OPCODE_LOADI, 7, 0xCD); // R7 = 0xCD
                     TINY16_ASM(TINY16_OPCODE_MOVRSP, 3, 0);   // SP = R6:R7 (pair 3)
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.sp == 0xABCD);
+    TEST_ASSERT(vm->cpu.sp == 0xABCD);
 }
 
 void test_vm_movrsp_all_pairs(void) {
@@ -1186,9 +1182,9 @@ void test_vm_movrsp_all_pairs(void) {
         TINY16_ASM(TINY16_OPCODE_MOVRSP, 1, 0);   // SP = R2:R3 = 0x9011
         TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0);   // R6:R7 = SP (verify)
         TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.R[4] == 0x80 && vm->cpu.R[5] == 0x00); // Verified first MOVRSP
-    assert(vm->cpu.R[6] == 0x90 && vm->cpu.R[7] == 0x11); // Verified second MOVRSP
-    assert(vm->cpu.sp == 0x9011);                         // Final SP value
+    TEST_ASSERT(vm->cpu.R[4] == 0x80 && vm->cpu.R[5] == 0x00); // Verified first MOVRSP
+    TEST_ASSERT(vm->cpu.R[6] == 0x90 && vm->cpu.R[7] == 0x11); // Verified second MOVRSP
+    TEST_ASSERT(vm->cpu.sp == 0x9011);                         // Final SP value
 }
 
 void test_vm_movspr_movrsp_roundtrip(void) {
@@ -1196,7 +1192,7 @@ void test_vm_movspr_movrsp_roundtrip(void) {
     TINY16_TEST_RUN(TINY16_ASM(TINY16_OPCODE_MOVSPR, 3, 0); // R6:R7 = SP
                     TINY16_ASM(TINY16_OPCODE_MOVRSP, 3, 0); // SP = R6:R7
                     TINY16_ASM(TINY16_OPCODE_HALT, 0, 0););
-    assert(vm->cpu.sp == 0xBEFF); // SP should be preserved
-    assert(vm->cpu.R[6] == 0xBE); // R6:R7 has SP value
-    assert(vm->cpu.R[7] == 0xFF);
+    TEST_ASSERT(vm->cpu.sp == 0xBEFF); // SP should be preserved
+    TEST_ASSERT(vm->cpu.R[6] == 0xBE); // R6:R7 has SP value
+    TEST_ASSERT(vm->cpu.R[7] == 0xFF);
 }

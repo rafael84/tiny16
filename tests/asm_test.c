@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -30,13 +29,8 @@
 #include "memory.c"
 #include "memory.h"
 
-#define ASM_TEST(fn)                                                                               \
-    do {                                                                                           \
-        printf(" ▸ %s", #fn);                                                                      \
-        fflush(stdout);                                                                            \
-        fn();                                                                                      \
-        printf(" ✓\n");                                                                            \
-    } while (0)
+#include "testing.c"
+#include "testing.h"
 
 void test_lexer_empty(void);
 void test_lexer_comments(void);
@@ -107,94 +101,97 @@ void test_pp_macro_emits_definition_markers(void);
 void test_parser_file_line_directives(void);
 
 int main(void) {
-    ASM_TEST(test_lexer_empty);
-    ASM_TEST(test_lexer_comments);
-    ASM_TEST(test_lexer_symbols);
-    ASM_TEST(test_lexer_numbers_decimal);
-    ASM_TEST(test_lexer_numbers_hex);
-    ASM_TEST(test_lexer_numbers_binary);
-    ASM_TEST(test_lexer_strings);
-    ASM_TEST(test_lexer_punctuation);
-    ASM_TEST(test_lexer_keywords);
-    ASM_TEST(test_lexer_multiline);
-    ASM_TEST(test_lexer_whitespace);
-    ASM_TEST(test_parser_label_declaration);
-    ASM_TEST(test_parser_label_resolution);
-    ASM_TEST(test_parser_duplicate_label);
-    ASM_TEST(test_parser_section_code);
-    ASM_TEST(test_parser_section_data);
-    ASM_TEST(test_parser_instruction_loadi);
-    ASM_TEST(test_parser_instruction_arithmetic);
-    ASM_TEST(test_parser_instruction_jumps);
-    ASM_TEST(test_parser_instruction_load_store);
-    ASM_TEST(test_parser_register_parsing);
-    ASM_TEST(test_parser_register_pairs);
-    ASM_TEST(test_parser_addressing_modes);
-    ASM_TEST(test_parser_data_directive_db);
-    ASM_TEST(test_parser_data_directive_string);
-    ASM_TEST(test_parser_data_directive_times);
-    ASM_TEST(test_parser_data_directive_org_pads_forward);
-    ASM_TEST(test_parser_data_directive_org_rewind_errors);
-    ASM_TEST(test_parser_data_directive_org_out_of_range_errors);
-    ASM_TEST(test_parser_data_directive_org_updates_label_addr);
-    ASM_TEST(test_parser_const_simple_number);
-    ASM_TEST(test_parser_const_duplicate_errors);
-    ASM_TEST(test_parser_const_label_collision_errors);
-    ASM_TEST(test_parser_const_out_of_range_errors);
-    ASM_TEST(test_parser_label_forward_reference);
-    ASM_TEST(test_parser_label_backward_reference);
-    ASM_TEST(test_parser_expr_simple_number);
-    ASM_TEST(test_parser_expr_hex_binary_numbers);
-    ASM_TEST(test_parser_expr_symbol_reference);
-    ASM_TEST(test_parser_expr_addition_subtraction);
-    ASM_TEST(test_parser_expr_multiplication_division_modulo);
-    ASM_TEST(test_parser_expr_bitwise_operators);
-    ASM_TEST(test_parser_expr_shift_operators);
-    ASM_TEST(test_parser_expr_unary_minus);
-    ASM_TEST(test_parser_expr_unary_not);
-    ASM_TEST(test_parser_expr_parentheses);
-    ASM_TEST(test_parser_expr_precedence);
-    ASM_TEST(test_parser_expr_complex);
-    ASM_TEST(test_parser_expr_division_by_zero);
-    ASM_TEST(test_parser_expr_undefined_symbol);
-    ASM_TEST(test_integration_simple_program);
-    ASM_TEST(test_integration_loop_program);
-    ASM_TEST(test_pp_no_macros);
-    ASM_TEST(test_pp_simple_macro);
-    ASM_TEST(test_pp_macro_with_multiple_params);
-    ASM_TEST(test_pp_macro_local_labels);
-    ASM_TEST(test_pp_macro_multiple_invocations);
-    ASM_TEST(test_pp_macro_preserves_indentation);
-    ASM_TEST(test_pp_passthrough_comments);
-    ASM_TEST(test_pp_passthrough_labels);
-    ASM_TEST(test_pp_passthrough_sections);
-    ASM_TEST(test_pp_emits_file_line_markers);
-    ASM_TEST(test_pp_include_emits_markers);
-    ASM_TEST(test_pp_macro_emits_definition_markers);
-    ASM_TEST(test_parser_file_line_directives);
-    return 0;
+    test_init();
+
+    TEST(test_lexer_empty);
+    TEST(test_lexer_comments);
+    TEST(test_lexer_symbols);
+    TEST(test_lexer_numbers_decimal);
+    TEST(test_lexer_numbers_hex);
+    TEST(test_lexer_numbers_binary);
+    TEST(test_lexer_strings);
+    TEST(test_lexer_punctuation);
+    TEST(test_lexer_keywords);
+    TEST(test_lexer_multiline);
+    TEST(test_lexer_whitespace);
+    TEST(test_parser_label_declaration);
+    TEST(test_parser_label_resolution);
+    TEST(test_parser_duplicate_label);
+    TEST(test_parser_section_code);
+    TEST(test_parser_section_data);
+    TEST(test_parser_instruction_loadi);
+    TEST(test_parser_instruction_arithmetic);
+    TEST(test_parser_instruction_jumps);
+    TEST(test_parser_instruction_load_store);
+    TEST(test_parser_register_parsing);
+    TEST(test_parser_register_pairs);
+    TEST(test_parser_addressing_modes);
+    TEST(test_parser_data_directive_db);
+    TEST(test_parser_data_directive_string);
+    TEST(test_parser_data_directive_times);
+    TEST(test_parser_data_directive_org_pads_forward);
+    TEST(test_parser_data_directive_org_rewind_errors);
+    TEST(test_parser_data_directive_org_out_of_range_errors);
+    TEST(test_parser_data_directive_org_updates_label_addr);
+    TEST(test_parser_const_simple_number);
+    TEST(test_parser_const_duplicate_errors);
+    TEST(test_parser_const_label_collision_errors);
+    TEST(test_parser_const_out_of_range_errors);
+    TEST(test_parser_label_forward_reference);
+    TEST(test_parser_label_backward_reference);
+    TEST(test_parser_expr_simple_number);
+    TEST(test_parser_expr_hex_binary_numbers);
+    TEST(test_parser_expr_symbol_reference);
+    TEST(test_parser_expr_addition_subtraction);
+    TEST(test_parser_expr_multiplication_division_modulo);
+    TEST(test_parser_expr_bitwise_operators);
+    TEST(test_parser_expr_shift_operators);
+    TEST(test_parser_expr_unary_minus);
+    TEST(test_parser_expr_unary_not);
+    TEST(test_parser_expr_parentheses);
+    TEST(test_parser_expr_precedence);
+    TEST(test_parser_expr_complex);
+    TEST(test_parser_expr_division_by_zero);
+    TEST(test_parser_expr_undefined_symbol);
+    TEST(test_integration_simple_program);
+    TEST(test_integration_loop_program);
+    TEST(test_pp_no_macros);
+    TEST(test_pp_simple_macro);
+    TEST(test_pp_macro_with_multiple_params);
+    TEST(test_pp_macro_local_labels);
+    TEST(test_pp_macro_multiple_invocations);
+    TEST(test_pp_macro_preserves_indentation);
+    TEST(test_pp_passthrough_comments);
+    TEST(test_pp_passthrough_labels);
+    TEST(test_pp_passthrough_sections);
+    TEST(test_pp_emits_file_line_markers);
+    TEST(test_pp_include_emits_markers);
+    TEST(test_pp_macro_emits_definition_markers);
+    TEST(test_parser_file_line_directives);
+
+    return test_run_all();
 }
 
 void test_lexer_empty(void) {
     const char* input = "";
     Lexer lexer = lexer_new(input, strlen(input));
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_END);
-    assert(token.line == 1);
+    TEST_ASSERT(token.kind == TOKEN_END);
+    TEST_ASSERT(token.line == 1);
 }
 
 void test_lexer_comments(void) {
     const char* input = "; this is a comment\n";
     Lexer lexer = lexer_new(input, strlen(input));
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_COMMENT);
-    assert(token.line == 1);
+    TEST_ASSERT(token.kind == TOKEN_COMMENT);
+    TEST_ASSERT(token.line == 1);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_EOL);
+    TEST_ASSERT(token.kind == TOKEN_EOL);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_END);
+    TEST_ASSERT(token.kind == TOKEN_END);
 }
 
 void test_lexer_symbols(void) {
@@ -202,20 +199,20 @@ void test_lexer_symbols(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "loadi", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "loadi", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "add", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "add", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "r0", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "r0", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "label123", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "label123", token.text_len) == 0);
 }
 
 void test_lexer_numbers_decimal(void) {
@@ -223,20 +220,20 @@ void test_lexer_numbers_decimal(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "42", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "42", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "255", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "255", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "1234", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "1234", token.text_len) == 0);
 }
 
 void test_lexer_numbers_hex(void) {
@@ -244,16 +241,16 @@ void test_lexer_numbers_hex(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0x00", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0x00", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0xFF", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0xFF", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0xABCD", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0xABCD", token.text_len) == 0);
 }
 
 void test_lexer_numbers_binary(void) {
@@ -261,16 +258,16 @@ void test_lexer_numbers_binary(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0b0", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0b0", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0b1010", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0b1010", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_NUMBER);
-    assert(strncmp(token.text, "0b11111111", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_NUMBER);
+    TEST_ASSERT(strncmp(token.text, "0b11111111", token.text_len) == 0);
 }
 
 void test_lexer_strings(void) {
@@ -278,25 +275,25 @@ void test_lexer_strings(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_STRING);
+    TEST_ASSERT(token.kind == TOKEN_STRING);
     // String tokens include the quotes
-    assert(strncmp(token.text, "\"hello\"", token.text_len) == 0);
+    TEST_ASSERT(strncmp(token.text, "\"hello\"", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_STRING);
-    assert(strncmp(token.text, "\"world\"", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_STRING);
+    TEST_ASSERT(strncmp(token.text, "\"world\"", token.text_len) == 0);
 }
 
 void test_lexer_punctuation(void) {
     const char* input = ", : [ ] + -";
     Lexer lexer = lexer_new(input, strlen(input));
 
-    assert(lexer_next(&lexer).kind == TOKEN_COMMA);
-    assert(lexer_next(&lexer).kind == TOKEN_COLON);
-    assert(lexer_next(&lexer).kind == TOKEN_LBRACKET);
-    assert(lexer_next(&lexer).kind == TOKEN_RBRACKET);
-    assert(lexer_next(&lexer).kind == TOKEN_PLUS);
-    assert(lexer_next(&lexer).kind == TOKEN_MINUS);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_COMMA);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_COLON);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_LBRACKET);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_RBRACKET);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_PLUS);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_MINUS);
 }
 
 void test_lexer_keywords(void) {
@@ -304,14 +301,14 @@ void test_lexer_keywords(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     // Keywords are case-insensitive
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
-    assert(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
+    TEST_ASSERT(lexer_next(&lexer).kind == TOKEN_KEYWORD);
 }
 
 void test_lexer_multiline(void) {
@@ -319,17 +316,17 @@ void test_lexer_multiline(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(token.line == 1);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(token.line == 1);
 
     while (token.kind != TOKEN_EOL) {
         token = lexer_next(&lexer);
     }
-    assert(token.line == 1);
+    TEST_ASSERT(token.line == 1);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(token.line == 2);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(token.line == 2);
 }
 
 void test_lexer_whitespace(void) {
@@ -337,12 +334,12 @@ void test_lexer_whitespace(void) {
     Lexer lexer = lexer_new(input, strlen(input));
 
     Token token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "loadi", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "loadi", token.text_len) == 0);
 
     token = lexer_next(&lexer);
-    assert(token.kind == TOKEN_SYMBOL);
-    assert(strncmp(token.text, "r0", token.text_len) == 0);
+    TEST_ASSERT(token.kind == TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "r0", token.text_len) == 0);
 }
 
 void test_parser_label_declaration(void) {
@@ -357,11 +354,11 @@ void test_parser_label_declaration(void) {
     tiny16_parser_next(&parser);
     bool result = tiny16_parser_parse_label(&parser);
 
-    assert(result == true);
-    assert(parser.symbol_count == 1);
-    assert(strcmp(parser.symbols[0].name, "start") == 0);
-    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
-    assert(parser.symbols[0].value == TINY16_MEMORY_CODE_BEGIN);
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(parser.symbol_count == 1);
+    TEST_ASSERT(strcmp(parser.symbols[0].name, "start") == 0);
+    TEST_ASSERT(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+    TEST_ASSERT(parser.symbols[0].value == TINY16_MEMORY_CODE_BEGIN);
 }
 
 void test_parser_label_resolution(void) {
@@ -376,11 +373,11 @@ void test_parser_label_resolution(void) {
 
     // resolve the label
     uint16_t addr = tiny16_parser_label_addr(&parser, "loop", 4);
-    assert(addr == 0x1000);
+    TEST_ASSERT(addr == 0x1000);
 
     // try non-existent label
     addr = tiny16_parser_label_addr(&parser, "notfound", 8);
-    assert(addr == TINY16_PARSER_LABEL_NOT_FOUND);
+    TEST_ASSERT(addr == TINY16_PARSER_LABEL_NOT_FOUND);
 }
 
 void test_parser_duplicate_label(void) {
@@ -396,16 +393,16 @@ void test_parser_duplicate_label(void) {
 
     // first label should succeed
     bool result = tiny16_parser_parse_label(&parser);
-    assert(result == true);
-    assert(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
 
     tiny16_parser_skip_trivia(&parser);
 
     // second label (duplicate) should set an error
     result = tiny16_parser_parse_label(&parser);
-    assert(result == true); // Still returns true (consumed the label)
-    assert(tiny16_parser_has_error(&parser));
-    assert(parser.error == TINY16_PARSER_ERROR_DUPLICATE_LABEL);
+    TEST_ASSERT(result == true); // Still returns true (consumed the label)
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_DUPLICATE_LABEL);
 }
 
 void test_parser_section_code(void) {
@@ -420,8 +417,8 @@ void test_parser_section_code(void) {
     tiny16_parser_next(&parser);
     bool result = tiny16_parser_parse_section(&parser);
 
-    assert(result == true);
-    assert(parser.current_section == TINY16_PARSER_SECTION_CODE);
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(parser.current_section == TINY16_PARSER_SECTION_CODE);
 }
 
 void test_parser_section_data(void) {
@@ -436,8 +433,8 @@ void test_parser_section_data(void) {
     tiny16_parser_next(&parser);
     bool result = tiny16_parser_parse_section(&parser);
 
-    assert(result == true);
-    assert(parser.current_section == TINY16_PARSER_SECTION_DATA);
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(parser.current_section == TINY16_PARSER_SECTION_DATA);
 }
 
 void test_parser_instruction_loadi(void) {
@@ -450,7 +447,7 @@ void test_parser_instruction_loadi(void) {
     tiny16_parser_next(&parser);
     Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(&parser);
 
-    assert(opcode == TINY16_OPCODE_LOADI);
+    TEST_ASSERT(opcode == TINY16_OPCODE_LOADI);
 }
 
 void test_parser_instruction_arithmetic(void) {
@@ -466,7 +463,7 @@ void test_parser_instruction_arithmetic(void) {
 
         tiny16_parser_next(&parser);
         Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(&parser);
-        assert(opcode == expected[i]);
+        TEST_ASSERT(opcode == expected[i]);
     }
 }
 
@@ -483,7 +480,7 @@ void test_parser_instruction_jumps(void) {
 
         tiny16_parser_next(&parser);
         Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(&parser);
-        assert(opcode == expected[i]);
+        TEST_ASSERT(opcode == expected[i]);
     }
 }
 
@@ -499,7 +496,7 @@ void test_parser_instruction_load_store(void) {
 
         tiny16_parser_next(&parser);
         Tiny16OpCode opcode = tiny16_parser_parse_mnemonic(&parser);
-        assert(opcode == expected[i]);
+        TEST_ASSERT(opcode == expected[i]);
     }
 }
 
@@ -515,7 +512,7 @@ void test_parser_register_parsing(void) {
 
         tiny16_parser_next(&parser);
         uint8_t reg = tiny16_parser_parse_reg(&parser);
-        assert(reg == i);
+        TEST_ASSERT(reg == i);
     }
 }
 
@@ -532,7 +529,7 @@ void test_parser_register_pairs(void) {
 
         tiny16_parser_next(&parser);
         Tiny16AddrPair pair = tiny16_parser_parse_reg_pair(&parser);
-        assert(pair == expected[i]);
+        TEST_ASSERT(pair == expected[i]);
     }
 }
 
@@ -547,9 +544,9 @@ void test_parser_addressing_modes(void) {
 
         tiny16_parser_next(&parser);
         Tiny16Addr addr = tiny16_parser_parse_addr(&parser);
-        assert(addr.reg == 0);
-        assert(addr.mode == TINY16_ADDR_MODE_BASE);
-        assert(addr.pair == TINY16_ADDR_PAIR_67);
+        TEST_ASSERT(addr.reg == 0);
+        TEST_ASSERT(addr.mode == TINY16_ADDR_MODE_BASE);
+        TEST_ASSERT(addr.pair == TINY16_ADDR_PAIR_67);
     }
 
     // Test post-increment mode: r1, [r0:r1]+
@@ -562,9 +559,9 @@ void test_parser_addressing_modes(void) {
 
         tiny16_parser_next(&parser);
         Tiny16Addr addr = tiny16_parser_parse_addr(&parser);
-        assert(addr.reg == 1);
-        assert(addr.mode == TINY16_ADDR_MODE_INC);
-        assert(addr.pair == TINY16_ADDR_PAIR_01);
+        TEST_ASSERT(addr.reg == 1);
+        TEST_ASSERT(addr.mode == TINY16_ADDR_MODE_INC);
+        TEST_ASSERT(addr.pair == TINY16_ADDR_PAIR_01);
     }
 
     // Test post-decrement mode: r2, [r2:r3]-
@@ -577,9 +574,9 @@ void test_parser_addressing_modes(void) {
 
         tiny16_parser_next(&parser);
         Tiny16Addr addr = tiny16_parser_parse_addr(&parser);
-        assert(addr.reg == 2);
-        assert(addr.mode == TINY16_ADDR_MODE_DEC);
-        assert(addr.pair == TINY16_ADDR_PAIR_23);
+        TEST_ASSERT(addr.reg == 2);
+        TEST_ASSERT(addr.mode == TINY16_ADDR_MODE_DEC);
+        TEST_ASSERT(addr.pair == TINY16_ADDR_PAIR_23);
     }
 
     // Test offset mode: r3, [r4:r5 + 10]
@@ -592,10 +589,10 @@ void test_parser_addressing_modes(void) {
 
         tiny16_parser_next(&parser);
         Tiny16Addr addr = tiny16_parser_parse_addr(&parser);
-        assert(addr.reg == 3);
-        assert(addr.mode == TINY16_ADDR_MODE_OFFSET);
-        assert(addr.pair == TINY16_ADDR_PAIR_45);
-        assert(addr.offset == 10);
+        TEST_ASSERT(addr.reg == 3);
+        TEST_ASSERT(addr.mode == TINY16_ADDR_MODE_OFFSET);
+        TEST_ASSERT(addr.pair == TINY16_ADDR_PAIR_45);
+        TEST_ASSERT(addr.offset == 10);
     }
 }
 
@@ -611,8 +608,8 @@ void test_parser_data_directive_db(void) {
     tiny16_parser_next(&parser);
     tiny16_parser_parse_data(&parser);
 
-    assert(parser.data_size == 1);
-    assert(parser.data_buffer[0] == 0x42);
+    TEST_ASSERT(parser.data_size == 1);
+    TEST_ASSERT(parser.data_buffer[0] == 0x42);
 }
 
 void test_parser_data_directive_string(void) {
@@ -627,9 +624,9 @@ void test_parser_data_directive_string(void) {
     tiny16_parser_next(&parser);
     tiny16_parser_parse_data(&parser);
 
-    assert(parser.data_size == 2);
-    assert(parser.data_buffer[0] == 'A');
-    assert(parser.data_buffer[1] == 'B');
+    TEST_ASSERT(parser.data_size == 2);
+    TEST_ASSERT(parser.data_buffer[0] == 'A');
+    TEST_ASSERT(parser.data_buffer[1] == 'B');
 }
 
 void test_parser_data_directive_times(void) {
@@ -643,7 +640,7 @@ void test_parser_data_directive_times(void) {
 
     tiny16_parser_next(&parser);
     uint16_t times = tiny16_parser_parse_times_prefix(&parser);
-    assert(times == 3);
+    TEST_ASSERT(times == 3);
 
     // Simulate what the assembler does: call parse_data multiple times
     for (uint16_t i = 0; i < times; ++i) {
@@ -656,10 +653,10 @@ void test_parser_data_directive_times(void) {
         }
     }
 
-    assert(parser.data_size == 3);
-    assert(parser.data_buffer[0] == 0xFF);
-    assert(parser.data_buffer[1] == 0xFF);
-    assert(parser.data_buffer[2] == 0xFF);
+    TEST_ASSERT(parser.data_size == 3);
+    TEST_ASSERT(parser.data_buffer[0] == 0xFF);
+    TEST_ASSERT(parser.data_buffer[1] == 0xFF);
+    TEST_ASSERT(parser.data_buffer[2] == 0xFF);
 }
 
 static Tiny16Parser run_pass1_data_only(const char* input) {
@@ -725,14 +722,14 @@ void test_parser_data_directive_org_pads_forward(void) {
                         "db 0x12\n";
 
     Tiny16Parser parser = run_pass1_data_only(input);
-    assert(!tiny16_parser_has_error(&parser));
-    assert(parser.data_size == 5);
-    assert(parser.data_buffer[0] == 0x10);
-    assert(parser.data_buffer[1] == 0x11);
-    assert(parser.data_buffer[2] == 0x00);
-    assert(parser.data_buffer[3] == 0x00);
-    assert(parser.data_buffer[4] == 0x12);
-    assert(parser.data_pc == (TINY16_DATA_BEGIN + parser.data_size));
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.data_size == 5);
+    TEST_ASSERT(parser.data_buffer[0] == 0x10);
+    TEST_ASSERT(parser.data_buffer[1] == 0x11);
+    TEST_ASSERT(parser.data_buffer[2] == 0x00);
+    TEST_ASSERT(parser.data_buffer[3] == 0x00);
+    TEST_ASSERT(parser.data_buffer[4] == 0x12);
+    TEST_ASSERT(parser.data_pc == (TINY16_DATA_BEGIN + parser.data_size));
 }
 
 void test_parser_data_directive_org_rewind_errors(void) {
@@ -741,8 +738,8 @@ void test_parser_data_directive_org_rewind_errors(void) {
                         "org 0x4000\n";
 
     Tiny16Parser parser = run_pass1_data_only(input);
-    assert(tiny16_parser_has_error(&parser));
-    assert(parser.error == TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED);
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_ORG_REWIND_NOT_ALLOWED);
 }
 
 void test_parser_data_directive_org_out_of_range_errors(void) {
@@ -751,17 +748,17 @@ void test_parser_data_directive_org_out_of_range_errors(void) {
         const char* input = "section .data\n"
                             "org 0x3FFF\n";
         Tiny16Parser parser = run_pass1_data_only(input);
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
     }
 
-    // Above data end (0x791F)
+    // Above data end (0x923F)
     {
         const char* input = "section .data\n"
-                            "org 0x7920\n";
+                            "org 0x9240\n";
         Tiny16Parser parser = run_pass1_data_only(input);
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
     }
 }
 
@@ -772,11 +769,11 @@ void test_parser_data_directive_org_updates_label_addr(void) {
                         "db 0xAA\n";
 
     Tiny16Parser parser = run_pass1_data_only(input);
-    assert(!tiny16_parser_has_error(&parser));
-    assert(parser.symbol_count == 1);
-    assert(strcmp(parser.symbols[0].name, "tile0") == 0);
-    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
-    assert(parser.symbols[0].value == 0x5000);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.symbol_count == 1);
+    TEST_ASSERT(strcmp(parser.symbols[0].name, "tile0") == 0);
+    TEST_ASSERT(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+    TEST_ASSERT(parser.symbols[0].value == 0x5000);
 }
 
 static Tiny16Parser run_pass1_symbols_only(const char* input) {
@@ -816,39 +813,39 @@ static Tiny16Parser run_pass1_symbols_only(const char* input) {
 
 void test_parser_const_simple_number(void) {
     Tiny16Parser parser = run_pass1_symbols_only("X = 123\n");
-    assert(!tiny16_parser_has_error(&parser));
-    assert(parser.symbol_count == 1);
-    assert(strcmp(parser.symbols[0].name, "X") == 0);
-    assert(parser.symbols[0].kind == TINY16_SYMBOL_CONST);
-    assert(parser.symbols[0].value == 123);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.symbol_count == 1);
+    TEST_ASSERT(strcmp(parser.symbols[0].name, "X") == 0);
+    TEST_ASSERT(parser.symbols[0].kind == TINY16_SYMBOL_CONST);
+    TEST_ASSERT(parser.symbols[0].value == 123);
 }
 
 void test_parser_const_duplicate_errors(void) {
     Tiny16Parser parser = run_pass1_symbols_only("X = 1\nX = 2\n");
-    assert(tiny16_parser_has_error(&parser));
-    assert(parser.error == TINY16_PARSER_ERROR_DUPLICATE_CONST);
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_DUPLICATE_CONST);
 }
 
 void test_parser_const_label_collision_errors(void) {
     // Const first, then label
     {
         Tiny16Parser parser = run_pass1_symbols_only("X = 1\nX:\n");
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
     }
 
     // Label first, then const
     {
         Tiny16Parser parser = run_pass1_symbols_only("X:\nX = 1\n");
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_SYMBOL_ALREADY_DEFINED);
     }
 }
 
 void test_parser_const_out_of_range_errors(void) {
     Tiny16Parser parser = run_pass1_symbols_only("X = 70000\n");
-    assert(tiny16_parser_has_error(&parser));
-    assert(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_OUT_OF_RANGE);
 }
 
 void test_parser_label_forward_reference(void) {
@@ -856,7 +853,7 @@ void test_parser_label_forward_reference(void) {
     parser.source_filename = "test";
 
     uint16_t addr = tiny16_parser_label_addr(&parser, "end", 3);
-    assert(addr == TINY16_PARSER_LABEL_NOT_FOUND);
+    TEST_ASSERT(addr == TINY16_PARSER_LABEL_NOT_FOUND);
 
     strcpy(parser.symbols[0].name, "end");
     parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
@@ -864,7 +861,7 @@ void test_parser_label_forward_reference(void) {
     parser.symbol_count = 1;
 
     addr = tiny16_parser_label_addr(&parser, "end", 3);
-    assert(addr == 0x2000);
+    TEST_ASSERT(addr == 0x2000);
 }
 
 void test_parser_label_backward_reference(void) {
@@ -877,7 +874,7 @@ void test_parser_label_backward_reference(void) {
     parser.symbol_count = 1;
 
     uint16_t addr = tiny16_parser_label_addr(&parser, "start", 5);
-    assert(addr == 0x1000);
+    TEST_ASSERT(addr == 0x1000);
 }
 
 void test_parser_complete_program(void) {
@@ -895,16 +892,16 @@ void test_parser_complete_program(void) {
     tiny16_parser_next(&parser);
 
     bool result = tiny16_parser_parse_section(&parser);
-    assert(result == true);
-    assert(parser.current_section == TINY16_PARSER_SECTION_CODE);
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(parser.current_section == TINY16_PARSER_SECTION_CODE);
 
     tiny16_parser_skip_trivia(&parser);
 
     result = tiny16_parser_parse_label(&parser);
-    assert(result == true);
-    assert(parser.symbol_count == 1);
-    assert(strcmp(parser.symbols[0].name, "start") == 0);
-    assert(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
+    TEST_ASSERT(result == true);
+    TEST_ASSERT(parser.symbol_count == 1);
+    TEST_ASSERT(strcmp(parser.symbols[0].name, "start") == 0);
+    TEST_ASSERT(parser.symbols[0].kind == TINY16_SYMBOL_LABEL);
 }
 
 void test_parser_expr_simple_number(void) {
@@ -917,8 +914,8 @@ void test_parser_expr_simple_number(void) {
     tiny16_parser_next(&parser);
     long result = tiny16_parser_parse_expression(&parser);
 
-    assert(!tiny16_parser_has_error(&parser));
-    assert(result == 42);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(result == 42);
 }
 
 void test_parser_expr_hex_binary_numbers(void) {
@@ -933,8 +930,8 @@ void test_parser_expr_hex_binary_numbers(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 255);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 255);
     }
 
     // Binary number
@@ -948,8 +945,8 @@ void test_parser_expr_hex_binary_numbers(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 10);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 10);
     }
 }
 
@@ -969,8 +966,8 @@ void test_parser_expr_symbol_reference(void) {
     tiny16_parser_next(&parser);
     long result = tiny16_parser_parse_expression(&parser);
 
-    assert(!tiny16_parser_has_error(&parser));
-    assert(result == 320);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(result == 320);
 }
 
 void test_parser_expr_addition_subtraction(void) {
@@ -985,8 +982,8 @@ void test_parser_expr_addition_subtraction(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 15);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 15);
     }
 
     // Subtraction
@@ -1000,8 +997,8 @@ void test_parser_expr_addition_subtraction(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 7);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 7);
     }
 
     // Chained operations
@@ -1015,8 +1012,8 @@ void test_parser_expr_addition_subtraction(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 85);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 85);
     }
 }
 
@@ -1032,8 +1029,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 32);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 32);
     }
 
     // Division
@@ -1047,8 +1044,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 5);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 5);
     }
 
     // Modulo
@@ -1062,8 +1059,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 2);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 2);
     }
 }
 
@@ -1079,8 +1076,8 @@ void test_parser_expr_bitwise_operators(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 0x0F);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 0x0F);
     }
 
     // OR
@@ -1094,8 +1091,8 @@ void test_parser_expr_bitwise_operators(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 0xFF);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 0xFF);
     }
 
     // XOR
@@ -1109,8 +1106,8 @@ void test_parser_expr_bitwise_operators(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 0xF0);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 0xF0);
     }
 }
 
@@ -1126,8 +1123,8 @@ void test_parser_expr_shift_operators(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 16);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 16);
     }
 
     // Right shift
@@ -1141,8 +1138,8 @@ void test_parser_expr_shift_operators(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 16);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 16);
     }
 }
 
@@ -1158,8 +1155,8 @@ void test_parser_expr_unary_minus(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == -42);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == -42);
     }
 
     // Unary minus in expression
@@ -1173,8 +1170,8 @@ void test_parser_expr_unary_minus(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 5);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 5);
     }
 }
 
@@ -1188,8 +1185,8 @@ void test_parser_expr_unary_not(void) {
     tiny16_parser_next(&parser);
     long result = tiny16_parser_parse_expression(&parser);
 
-    assert(!tiny16_parser_has_error(&parser));
-    assert(result == ~0xFF);
+    TEST_ASSERT(!tiny16_parser_has_error(&parser));
+    TEST_ASSERT(result == ~0xFF);
 }
 
 void test_parser_expr_parentheses(void) {
@@ -1204,8 +1201,8 @@ void test_parser_expr_parentheses(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 8);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 8);
     }
 
     // Parentheses changing precedence
@@ -1219,8 +1216,8 @@ void test_parser_expr_parentheses(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 16);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 16);
     }
 
     // Nested parentheses
@@ -1234,8 +1231,8 @@ void test_parser_expr_parentheses(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 27);
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 27);
     }
 }
 
@@ -1251,8 +1248,8 @@ void test_parser_expr_precedence(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 14); // Not 20
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 14); // Not 20
     }
 
     // Shift before addition
@@ -1266,8 +1263,8 @@ void test_parser_expr_precedence(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 12); // (1 + 2) << 2 = 3 << 2 = 12
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 12); // (1 + 2) << 2 = 3 << 2 = 12
     }
 
     // Bitwise AND before OR
@@ -1281,8 +1278,8 @@ void test_parser_expr_precedence(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 0xFF); // 0xFF | (0x0F & 0xF0) = 0xFF | 0 = 0xFF
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 0xFF); // 0xFF | (0x0F & 0xF0) = 0xFF | 0 = 0xFF
     }
 }
 
@@ -1307,8 +1304,8 @@ void test_parser_expr_complex(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 8000); // 320 * 200 / 8
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 8000); // 320 * 200 / 8
     }
 
     // Complex expression with all operator types
@@ -1322,8 +1319,8 @@ void test_parser_expr_complex(void) {
         tiny16_parser_next(&parser);
         long result = tiny16_parser_parse_expression(&parser);
 
-        assert(!tiny16_parser_has_error(&parser));
-        assert(result == 15); // ((10 + 20) * 2) >> 2 & 0xFF = 60 >> 2 & 0xFF = 15 & 0xFF = 15
+        TEST_ASSERT(!tiny16_parser_has_error(&parser));
+        TEST_ASSERT(result == 15); // ((10 + 20) * 2) >> 2 & 0xFF = 60 >> 2 & 0xFF = 15 & 0xFF = 15
     }
 }
 
@@ -1339,8 +1336,8 @@ void test_parser_expr_division_by_zero(void) {
         tiny16_parser_next(&parser);
         tiny16_parser_parse_expression(&parser);
 
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
     }
 
     // Modulo by zero
@@ -1354,8 +1351,8 @@ void test_parser_expr_division_by_zero(void) {
         tiny16_parser_next(&parser);
         tiny16_parser_parse_expression(&parser);
 
-        assert(tiny16_parser_has_error(&parser));
-        assert(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
+        TEST_ASSERT(tiny16_parser_has_error(&parser));
+        TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_INVALID_NUMBER);
     }
 }
 
@@ -1369,8 +1366,8 @@ void test_parser_expr_undefined_symbol(void) {
     tiny16_parser_next(&parser);
     tiny16_parser_parse_expression(&parser);
 
-    assert(tiny16_parser_has_error(&parser));
-    assert(parser.error == TINY16_PARSER_ERROR_UNDEFINED_SYMBOL);
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(parser.error == TINY16_PARSER_ERROR_UNDEFINED_SYMBOL);
 }
 
 void test_integration_simple_program(void) {
@@ -1426,14 +1423,14 @@ void test_integration_subroutine_program(void) {
 
 static void write_text_file(const char* path, const char* content) {
     FILE* file = fopen(path, "wb");
-    assert(file != NULL);
+    TEST_ASSERT(file != NULL);
     fwrite(content, 1, strlen(content), file);
     fclose(file);
 }
 
 static void ensure_dir(const char* path) {
     if (TINY16_MKDIR(path) != 0 && errno != EEXIST) {
-        assert(0 && "failed to create temp directory");
+        TEST_ASSERT(0 && "failed to create temp directory");
     }
 }
 
@@ -1451,7 +1448,7 @@ static void make_temp_dir(char* path, size_t size) {
         if (TINY16_MKDIR(path) == 0) return;
         if (errno != EEXIST) break;
     }
-    assert(0 && "failed to create temp directory");
+    TEST_ASSERT(0 && "failed to create temp directory");
 }
 
 static char* preprocess_file_raw(const char* filename) {
@@ -1497,7 +1494,7 @@ static char* test_preprocess_string(const char* source) {
     write_text_file(path, source);
 
     char* raw = preprocess_file_raw(path);
-    assert(raw != NULL);
+    TEST_ASSERT(raw != NULL);
     char* stripped = strip_file_line_markers(raw);
 
     free(raw);
@@ -1510,8 +1507,8 @@ static char* test_preprocess_string(const char* source) {
 void test_pp_no_macros(void) {
     const char* source = "LOADI R0, 42\nHALT\n";
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strcmp(result, source) == 0);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strcmp(result, source) == 0);
     free(result);
 }
 
@@ -1524,10 +1521,10 @@ void test_pp_simple_macro(void) {
                          "HALT\n";
 
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "XOR R0, R0") != NULL);
-    assert(strstr(result, ".macro") == NULL);
-    assert(strstr(result, "CLEAR R0") == NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "XOR R0, R0") != NULL);
+    TEST_ASSERT(strstr(result, ".macro") == NULL);
+    TEST_ASSERT(strstr(result, "CLEAR R0") == NULL);
     free(result);
 }
 
@@ -1542,10 +1539,10 @@ void test_pp_macro_with_multiple_params(void) {
                          "HALT\n";
 
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "LOADI R6, 0xBF") != NULL);
-    assert(strstr(result, "LOADI R7, 0x22") != NULL);
-    assert(strstr(result, "LOAD R0, [R6:R7]") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "LOADI R6, 0xBF") != NULL);
+    TEST_ASSERT(strstr(result, "LOADI R7, 0x22") != NULL);
+    TEST_ASSERT(strstr(result, "LOAD R0, [R6:R7]") != NULL);
     free(result);
 }
 
@@ -1560,10 +1557,10 @@ void test_pp_macro_local_labels(void) {
                          "WAIT R1\n";
 
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "__WAIT_1_loop") != NULL);
-    assert(strstr(result, "__WAIT_2_loop") != NULL);
-    assert(strstr(result, "@loop") == NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "__WAIT_1_loop") != NULL);
+    TEST_ASSERT(strstr(result, "__WAIT_2_loop") != NULL);
+    TEST_ASSERT(strstr(result, "@loop") == NULL);
     free(result);
 }
 
@@ -1578,10 +1575,10 @@ void test_pp_macro_multiple_invocations(void) {
                          "HALT\n";
 
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "XOR R0, R0") != NULL);
-    assert(strstr(result, "XOR R1, R1") != NULL);
-    assert(strstr(result, "XOR R2, R2") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "XOR R0, R0") != NULL);
+    TEST_ASSERT(strstr(result, "XOR R1, R1") != NULL);
+    TEST_ASSERT(strstr(result, "XOR R2, R2") != NULL);
     free(result);
 }
 
@@ -1594,33 +1591,33 @@ void test_pp_macro_preserves_indentation(void) {
                          "    TEST R0\n";
 
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "    INC R0") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "    INC R0") != NULL);
     free(result);
 }
 
 void test_pp_passthrough_comments(void) {
     const char* source = "; comment\nLOADI R0, 42\n";
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "; comment") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "; comment") != NULL);
     free(result);
 }
 
 void test_pp_passthrough_labels(void) {
     const char* source = "START:\nLOADI R0, 42\nJMP START\n";
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "START:") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "START:") != NULL);
     free(result);
 }
 
 void test_pp_passthrough_sections(void) {
     const char* source = "section .code\nLOADI R0, 42\nsection .data\nDB 0xFF\n";
     char* result = test_preprocess_string(source);
-    assert(result != NULL);
-    assert(strstr(result, "section .code") != NULL);
-    assert(strstr(result, "section .data") != NULL);
+    TEST_ASSERT(result != NULL);
+    TEST_ASSERT(strstr(result, "section .code") != NULL);
+    TEST_ASSERT(strstr(result, "section .data") != NULL);
     free(result);
 }
 
@@ -1632,11 +1629,11 @@ void test_pp_emits_file_line_markers(void) {
     write_text_file(path, "LOADI R0, 1\nHALT\n");
 
     char* output = preprocess_file_raw(path);
-    assert(output != NULL);
+    TEST_ASSERT(output != NULL);
 
     char prefix[256];
     snprintf(prefix, sizeof(prefix), ".file \"%s\"\n.line 1\n", path);
-    assert(strncmp(output, prefix, strlen(prefix)) == 0);
+    TEST_ASSERT(strncmp(output, prefix, strlen(prefix)) == 0);
 
     free(output);
     remove(path);
@@ -1655,15 +1652,15 @@ void test_pp_include_emits_markers(void) {
     write_text_file(main_path, ".include \"inc.asm\"\nLOADI R0, 1\n");
 
     char* output = preprocess_file_raw(main_path);
-    assert(output != NULL);
+    TEST_ASSERT(output != NULL);
 
     char include_block[256];
     char resume_block[256];
     snprintf(include_block, sizeof(include_block), ".file \"%s\"\n.line 1\nHALT\n", inc_path);
     snprintf(resume_block, sizeof(resume_block), ".file \"%s\"\n.line 2\nLOADI R0, 1\n", main_path);
 
-    assert(strstr(output, include_block) != NULL);
-    assert(strstr(output, resume_block) != NULL);
+    TEST_ASSERT(strstr(output, include_block) != NULL);
+    TEST_ASSERT(strstr(output, resume_block) != NULL);
 
     free(output);
     remove(main_path);
@@ -1686,11 +1683,11 @@ void test_pp_macro_emits_definition_markers(void) {
                                "BAD\n");
 
     char* output = preprocess_file_raw(main_path);
-    assert(output != NULL);
+    TEST_ASSERT(output != NULL);
 
     char macro_block[256];
     snprintf(macro_block, sizeof(macro_block), ".file \"%s\"\n.line 2\n", inc_path);
-    assert(strstr(output, macro_block) != NULL);
+    TEST_ASSERT(strstr(output, macro_block) != NULL);
 
     free(output);
     remove(main_path);
@@ -1742,7 +1739,7 @@ void test_parser_file_line_directives(void) {
         tiny16_parser_skip_to_eol(&parser);
     }
 
-    assert(tiny16_parser_has_error(&parser));
-    assert(strcmp(parser.source_filename, "inc.asm") == 0);
-    assert(parser.error_line == 1);
+    TEST_ASSERT(tiny16_parser_has_error(&parser));
+    TEST_ASSERT(strcmp(parser.source_filename, "inc.asm") == 0);
+    TEST_ASSERT(parser.error_line == 1);
 }

@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -16,13 +15,8 @@
 #include "../sec/parser.c"
 #include "../sec/parser.h"
 
-#define SEC_TEST(fn)                                                                               \
-    do {                                                                                           \
-        printf(" ▸ %s", #fn);                                                                      \
-        fflush(stdout);                                                                            \
-        fn();                                                                                      \
-        printf(" ✓\n");                                                                            \
-    } while (0)
+#include "testing.c"
+#include "testing.h"
 
 // =============================================================================
 // Lexer Tests
@@ -97,67 +91,69 @@ void test_integration_fibonacci(void);
 void test_integration_data_and_code(void);
 
 int main(void) {
+    test_init();
+
     // Lexer tests
-    SEC_TEST(test_lexer_empty);
-    SEC_TEST(test_lexer_whitespace);
-    SEC_TEST(test_lexer_comments);
-    SEC_TEST(test_lexer_parentheses);
-    SEC_TEST(test_lexer_numbers_decimal);
-    SEC_TEST(test_lexer_numbers_hex);
-    SEC_TEST(test_lexer_strings);
-    SEC_TEST(test_lexer_symbols);
-    SEC_TEST(test_lexer_multiline);
-    SEC_TEST(test_lexer_special_symbols);
+    TEST(test_lexer_empty);
+    TEST(test_lexer_whitespace);
+    TEST(test_lexer_comments);
+    TEST(test_lexer_parentheses);
+    TEST(test_lexer_numbers_decimal);
+    TEST(test_lexer_numbers_hex);
+    TEST(test_lexer_strings);
+    TEST(test_lexer_symbols);
+    TEST(test_lexer_multiline);
+    TEST(test_lexer_special_symbols);
 
     // Parser tests
-    SEC_TEST(test_parser_number);
-    SEC_TEST(test_parser_string);
-    SEC_TEST(test_parser_symbol);
-    SEC_TEST(test_parser_def);
-    SEC_TEST(test_parser_defn_simple);
-    SEC_TEST(test_parser_defn_with_params);
-    SEC_TEST(test_parser_let);
-    SEC_TEST(test_parser_set);
-    SEC_TEST(test_parser_if);
-    SEC_TEST(test_parser_while);
-    SEC_TEST(test_parser_do);
-    SEC_TEST(test_parser_add);
-    SEC_TEST(test_parser_arithmetic_ops);
-    SEC_TEST(test_parser_comparison_ops);
-    SEC_TEST(test_parser_bitwise_ops);
-    SEC_TEST(test_parser_nested_expressions);
-    SEC_TEST(test_parser_function_call);
-    SEC_TEST(test_parser_data);
-    SEC_TEST(test_parser_db);
-    SEC_TEST(test_parser_repeat);
-    SEC_TEST(test_parser_addr);
-    SEC_TEST(test_parser_addr16);
-    SEC_TEST(test_parser_load_store);
-    SEC_TEST(test_parser_hi_lo);
-    SEC_TEST(test_parser_error_expected_lparen);
-    SEC_TEST(test_parser_error_expected_rparen);
-    SEC_TEST(test_parser_error_unknown_form);
+    TEST(test_parser_number);
+    TEST(test_parser_string);
+    TEST(test_parser_symbol);
+    TEST(test_parser_def);
+    TEST(test_parser_defn_simple);
+    TEST(test_parser_defn_with_params);
+    TEST(test_parser_let);
+    TEST(test_parser_set);
+    TEST(test_parser_if);
+    TEST(test_parser_while);
+    TEST(test_parser_do);
+    TEST(test_parser_add);
+    TEST(test_parser_arithmetic_ops);
+    TEST(test_parser_comparison_ops);
+    TEST(test_parser_bitwise_ops);
+    TEST(test_parser_nested_expressions);
+    TEST(test_parser_function_call);
+    TEST(test_parser_data);
+    TEST(test_parser_db);
+    TEST(test_parser_repeat);
+    TEST(test_parser_addr);
+    TEST(test_parser_addr16);
+    TEST(test_parser_load_store);
+    TEST(test_parser_hi_lo);
+    TEST(test_parser_error_expected_lparen);
+    TEST(test_parser_error_expected_rparen);
+    TEST(test_parser_error_unknown_form);
 
     // Codegen tests
-    SEC_TEST(test_codegen_def);
-    SEC_TEST(test_codegen_simple_function);
-    SEC_TEST(test_codegen_function_with_params);
-    SEC_TEST(test_codegen_arithmetic);
-    SEC_TEST(test_codegen_if_statement);
-    SEC_TEST(test_codegen_while_loop);
-    SEC_TEST(test_codegen_function_call);
-    SEC_TEST(test_codegen_let_bindings);
-    SEC_TEST(test_codegen_data_section);
-    SEC_TEST(test_codegen_error_undefined_symbol);
-    SEC_TEST(test_codegen_error_duplicate_function);
+    TEST(test_codegen_def);
+    TEST(test_codegen_simple_function);
+    TEST(test_codegen_function_with_params);
+    TEST(test_codegen_arithmetic);
+    TEST(test_codegen_if_statement);
+    TEST(test_codegen_while_loop);
+    TEST(test_codegen_function_call);
+    TEST(test_codegen_let_bindings);
+    TEST(test_codegen_data_section);
+    TEST(test_codegen_error_undefined_symbol);
+    TEST(test_codegen_error_duplicate_function);
 
     // Integration tests
-    SEC_TEST(test_integration_hello_world);
-    SEC_TEST(test_integration_factorial);
-    SEC_TEST(test_integration_fibonacci);
-    SEC_TEST(test_integration_data_and_code);
+    TEST(test_integration_hello_world);
+    TEST(test_integration_factorial);
+    TEST(test_integration_fibonacci);
+    TEST(test_integration_data_and_code);
 
-    return 0;
+    return test_run_all();
 }
 
 // =============================================================================
@@ -168,14 +164,14 @@ void test_lexer_empty(void) {
     const char* input = "";
     SeLexer lexer = se_lexer_new(input, strlen(input));
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_END);
+    TEST_ASSERT(token.kind == SE_TOKEN_END);
 }
 
 void test_lexer_whitespace(void) {
     const char* input = "   \t\n  ";
     SeLexer lexer = se_lexer_new(input, strlen(input));
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_END);
+    TEST_ASSERT(token.kind == SE_TOKEN_END);
 }
 
 void test_lexer_comments(void) {
@@ -183,11 +179,11 @@ void test_lexer_comments(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 42);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 42);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_END);
+    TEST_ASSERT(token.kind == SE_TOKEN_END);
 }
 
 void test_lexer_parentheses(void) {
@@ -195,13 +191,13 @@ void test_lexer_parentheses(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_LPAREN);
+    TEST_ASSERT(token.kind == SE_TOKEN_LPAREN);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_RPAREN);
+    TEST_ASSERT(token.kind == SE_TOKEN_RPAREN);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_END);
+    TEST_ASSERT(token.kind == SE_TOKEN_END);
 }
 
 void test_lexer_numbers_decimal(void) {
@@ -209,16 +205,16 @@ void test_lexer_numbers_decimal(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 0);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 42);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 42);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 255);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 255);
 }
 
 void test_lexer_numbers_hex(void) {
@@ -226,16 +222,16 @@ void test_lexer_numbers_hex(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 0x00);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 0x00);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 0xFF);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 0xFF);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.number_value == 0xAB);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.number_value == 0xAB);
 }
 
 void test_lexer_strings(void) {
@@ -243,12 +239,12 @@ void test_lexer_strings(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_STRING);
-    assert(strncmp(token.text, "\"hello\"", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_STRING);
+    TEST_ASSERT(strncmp(token.text, "\"hello\"", token.text_len) == 0);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_STRING);
-    assert(strncmp(token.text, "\"world\"", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_STRING);
+    TEST_ASSERT(strncmp(token.text, "\"world\"", token.text_len) == 0);
 }
 
 void test_lexer_symbols(void) {
@@ -256,20 +252,20 @@ void test_lexer_symbols(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
-    assert(strncmp(token.text, "defn", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "defn", token.text_len) == 0);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
-    assert(strncmp(token.text, "add", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "add", token.text_len) == 0);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
-    assert(strncmp(token.text, "x", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "x", token.text_len) == 0);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
-    assert(strncmp(token.text, "y", token.text_len) == 0);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(strncmp(token.text, "y", token.text_len) == 0);
 }
 
 void test_lexer_multiline(void) {
@@ -277,24 +273,24 @@ void test_lexer_multiline(void) {
     SeLexer lexer = se_lexer_new(input, strlen(input));
 
     SeToken token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_LPAREN);
-    assert(token.line == 1);
+    TEST_ASSERT(token.kind == SE_TOKEN_LPAREN);
+    TEST_ASSERT(token.line == 1);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_SYMBOL);
+    TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_LPAREN);
+    TEST_ASSERT(token.kind == SE_TOKEN_LPAREN);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_RPAREN);
+    TEST_ASSERT(token.kind == SE_TOKEN_RPAREN);
 
     token = se_lexer_next(&lexer);
-    assert(token.kind == SE_TOKEN_NUMBER);
-    assert(token.line == 2);
+    TEST_ASSERT(token.kind == SE_TOKEN_NUMBER);
+    TEST_ASSERT(token.line == 2);
 }
 
 void test_lexer_special_symbols(void) {
@@ -304,8 +300,8 @@ void test_lexer_special_symbols(void) {
     const char* expected[] = {"+", "-", "*", "/", "<", ">", "=", "!=", "<=", ">="};
     for (size_t i = 0; i < sizeof(expected) / sizeof(expected[0]); i++) {
         SeToken token = se_lexer_next(&lexer);
-        assert(token.kind == SE_TOKEN_SYMBOL);
-        assert(strncmp(token.text, expected[i], token.text_len) == 0);
+        TEST_ASSERT(token.kind == SE_TOKEN_SYMBOL);
+        TEST_ASSERT(strncmp(token.text, expected[i], token.text_len) == 0);
     }
 }
 
@@ -320,9 +316,9 @@ void test_parser_number(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_NUMBER);
-    assert(node->as.number == 42);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.number == 42);
 }
 
 void test_parser_string(void) {
@@ -332,9 +328,9 @@ void test_parser_string(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_STRING);
-    assert(strcmp(node->as.symbol.name, "hello") == 0);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_STRING);
+    TEST_ASSERT(strcmp(node->as.symbol.name, "hello") == 0);
 }
 
 void test_parser_symbol(void) {
@@ -344,9 +340,9 @@ void test_parser_symbol(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_SYMBOL);
-    assert(strcmp(node->as.symbol.name, "foo") == 0);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.symbol.name, "foo") == 0);
 }
 
 void test_parser_def(void) {
@@ -356,12 +352,12 @@ void test_parser_def(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DEF);
-    assert(strcmp(node->as.def.name, "x") == 0);
-    assert(node->as.def.value != NULL);
-    assert(node->as.def.value->kind == AST_NUMBER);
-    assert(node->as.def.value->as.number == 42);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DEF);
+    TEST_ASSERT(strcmp(node->as.def.name, "x") == 0);
+    TEST_ASSERT(node->as.def.value != NULL);
+    TEST_ASSERT(node->as.def.value->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.def.value->as.number == 42);
 }
 
 void test_parser_defn_simple(void) {
@@ -371,12 +367,12 @@ void test_parser_defn_simple(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DEFN);
-    assert(strcmp(node->as.defn.name, "foo") == 0);
-    assert(node->as.defn.param_count == 0);
-    assert(node->as.defn.body_count == 1);
-    assert(node->as.defn.body[0]->kind == AST_NUMBER);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DEFN);
+    TEST_ASSERT(strcmp(node->as.defn.name, "foo") == 0);
+    TEST_ASSERT(node->as.defn.param_count == 0);
+    TEST_ASSERT(node->as.defn.body_count == 1);
+    TEST_ASSERT(node->as.defn.body[0]->kind == AST_NUMBER);
 }
 
 void test_parser_defn_with_params(void) {
@@ -386,13 +382,13 @@ void test_parser_defn_with_params(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DEFN);
-    assert(strcmp(node->as.defn.name, "add") == 0);
-    assert(node->as.defn.param_count == 2);
-    assert(strcmp(node->as.defn.params[0], "x") == 0);
-    assert(strcmp(node->as.defn.params[1], "y") == 0);
-    assert(node->as.defn.body_count == 1);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DEFN);
+    TEST_ASSERT(strcmp(node->as.defn.name, "add") == 0);
+    TEST_ASSERT(node->as.defn.param_count == 2);
+    TEST_ASSERT(strcmp(node->as.defn.params[0], "x") == 0);
+    TEST_ASSERT(strcmp(node->as.defn.params[1], "y") == 0);
+    TEST_ASSERT(node->as.defn.body_count == 1);
 }
 
 void test_parser_let(void) {
@@ -402,14 +398,14 @@ void test_parser_let(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_LET);
-    assert(node->as.let.binding_count == 2);
-    assert(strcmp(node->as.let.vars[0], "x") == 0);
-    assert(strcmp(node->as.let.vars[1], "y") == 0);
-    assert(node->as.let.vals[0]->kind == AST_NUMBER);
-    assert(node->as.let.vals[1]->kind == AST_NUMBER);
-    assert(node->as.let.body_count == 1);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_LET);
+    TEST_ASSERT(node->as.let.binding_count == 2);
+    TEST_ASSERT(strcmp(node->as.let.vars[0], "x") == 0);
+    TEST_ASSERT(strcmp(node->as.let.vars[1], "y") == 0);
+    TEST_ASSERT(node->as.let.vals[0]->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.let.vals[1]->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.let.body_count == 1);
 }
 
 void test_parser_set(void) {
@@ -419,11 +415,11 @@ void test_parser_set(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_SET);
-    assert(strcmp(node->as.set.var, "x") == 0);
-    assert(node->as.set.value->kind == AST_NUMBER);
-    assert(node->as.set.value->as.number == 42);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_SET);
+    TEST_ASSERT(strcmp(node->as.set.var, "x") == 0);
+    TEST_ASSERT(node->as.set.value->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.set.value->as.number == 42);
 }
 
 void test_parser_if(void) {
@@ -433,11 +429,11 @@ void test_parser_if(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_IF);
-    assert(node->as.if_expr.cond != NULL);
-    assert(node->as.if_expr.then_branch != NULL);
-    assert(node->as.if_expr.else_branch != NULL);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_IF);
+    TEST_ASSERT(node->as.if_expr.cond != NULL);
+    TEST_ASSERT(node->as.if_expr.then_branch != NULL);
+    TEST_ASSERT(node->as.if_expr.else_branch != NULL);
 }
 
 void test_parser_while(void) {
@@ -447,10 +443,10 @@ void test_parser_while(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_WHILE);
-    assert(node->as.while_expr.cond != NULL);
-    assert(node->as.while_expr.body_count == 1);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_WHILE);
+    TEST_ASSERT(node->as.while_expr.cond != NULL);
+    TEST_ASSERT(node->as.while_expr.body_count == 1);
 }
 
 void test_parser_do(void) {
@@ -460,9 +456,9 @@ void test_parser_do(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DO);
-    assert(node->as.block.expr_count == 3);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DO);
+    TEST_ASSERT(node->as.block.expr_count == 3);
 }
 
 void test_parser_add(void) {
@@ -472,10 +468,10 @@ void test_parser_add(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_ADD);
-    assert(node->as.binary.left->kind == AST_NUMBER);
-    assert(node->as.binary.right->kind == AST_NUMBER);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_ADD);
+    TEST_ASSERT(node->as.binary.left->kind == AST_NUMBER);
+    TEST_ASSERT(node->as.binary.right->kind == AST_NUMBER);
 }
 
 void test_parser_arithmetic_ops(void) {
@@ -488,8 +484,8 @@ void test_parser_arithmetic_ops(void) {
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == expected[i]);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == expected[i]);
     }
 }
 
@@ -503,8 +499,8 @@ void test_parser_comparison_ops(void) {
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == expected[i]);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == expected[i]);
     }
 }
 
@@ -518,8 +514,8 @@ void test_parser_bitwise_ops(void) {
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == expected[i]);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == expected[i]);
     }
 }
 
@@ -530,10 +526,10 @@ void test_parser_nested_expressions(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_ADD);
-    assert(node->as.binary.left->kind == AST_MUL);
-    assert(node->as.binary.right->kind == AST_SUB);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_ADD);
+    TEST_ASSERT(node->as.binary.left->kind == AST_MUL);
+    TEST_ASSERT(node->as.binary.right->kind == AST_SUB);
 }
 
 void test_parser_function_call(void) {
@@ -543,10 +539,10 @@ void test_parser_function_call(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_CALL);
-    assert(strcmp(node->as.call.func, "foo") == 0);
-    assert(node->as.call.arg_count == 3);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_CALL);
+    TEST_ASSERT(strcmp(node->as.call.func, "foo") == 0);
+    TEST_ASSERT(node->as.call.arg_count == 3);
 }
 
 void test_parser_data(void) {
@@ -556,10 +552,10 @@ void test_parser_data(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DATA);
-    assert(strcmp(node->as.data.name, "msg") == 0);
-    assert(node->as.data.body_count == 1);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DATA);
+    TEST_ASSERT(strcmp(node->as.data.name, "msg") == 0);
+    TEST_ASSERT(node->as.data.body_count == 1);
 }
 
 void test_parser_db(void) {
@@ -569,9 +565,9 @@ void test_parser_db(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_DB);
-    assert(node->as.block.expr_count == 3);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DB);
+    TEST_ASSERT(node->as.block.expr_count == 3);
 }
 
 void test_parser_repeat(void) {
@@ -581,10 +577,10 @@ void test_parser_repeat(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_REPEAT);
-    assert(node->as.repeat.count == 10);
-    assert(node->as.repeat.form != NULL);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REPEAT);
+    TEST_ASSERT(node->as.repeat.count == 10);
+    TEST_ASSERT(node->as.repeat.form != NULL);
 }
 
 void test_parser_addr(void) {
@@ -594,10 +590,10 @@ void test_parser_addr(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_ADDR);
-    assert(node->as.addr.hi != NULL);
-    assert(node->as.addr.lo != NULL);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_ADDR);
+    TEST_ASSERT(node->as.addr.hi != NULL);
+    TEST_ASSERT(node->as.addr.lo != NULL);
 }
 
 void test_parser_addr16(void) {
@@ -607,8 +603,8 @@ void test_parser_addr16(void) {
     se_parser_init(&parser, input, strlen(input), &pool);
 
     AstNode* node = se_parser_parse_form(&parser);
-    assert(node != NULL);
-    assert(node->kind == AST_ADDR16);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_ADDR16);
 }
 
 void test_parser_load_store(void) {
@@ -620,9 +616,9 @@ void test_parser_load_store(void) {
         se_parser_init(&parser, input, strlen(input), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == AST_LOAD);
-        assert(node->as.load.addr != NULL);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == AST_LOAD);
+        TEST_ASSERT(node->as.load.addr != NULL);
     }
 
     // Test store
@@ -633,10 +629,10 @@ void test_parser_load_store(void) {
         se_parser_init(&parser, input, strlen(input), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == AST_STORE);
-        assert(node->as.store.addr != NULL);
-        assert(node->as.store.value != NULL);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == AST_STORE);
+        TEST_ASSERT(node->as.store.addr != NULL);
+        TEST_ASSERT(node->as.store.value != NULL);
     }
 }
 
@@ -649,8 +645,8 @@ void test_parser_hi_lo(void) {
         se_parser_init(&parser, input, strlen(input), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == AST_HI);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == AST_HI);
     }
 
     // Test lo
@@ -661,8 +657,8 @@ void test_parser_hi_lo(void) {
         se_parser_init(&parser, input, strlen(input), &pool);
 
         AstNode* node = se_parser_parse_form(&parser);
-        assert(node != NULL);
-        assert(node->kind == AST_LO);
+        TEST_ASSERT(node != NULL);
+        TEST_ASSERT(node->kind == AST_LO);
     }
 }
 
@@ -674,8 +670,8 @@ void test_parser_error_expected_lparen(void) {
 
     AstNode* node = se_parser_parse_form(&parser);
     // Should parse "defn" as a symbol, not fail
-    assert(node != NULL);
-    assert(node->kind == AST_SYMBOL);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_SYMBOL);
 }
 
 void test_parser_error_expected_rparen(void) {
@@ -686,7 +682,7 @@ void test_parser_error_expected_rparen(void) {
 
     AstNode* node = se_parser_parse_form(&parser);
     (void)node; // May or may not be NULL depending on implementation
-    assert(se_parser_has_error(&parser));
+    TEST_ASSERT(se_parser_has_error(&parser));
 }
 
 void test_parser_error_unknown_form(void) {
@@ -697,8 +693,8 @@ void test_parser_error_unknown_form(void) {
 
     AstNode* node = se_parser_parse_form(&parser);
     // Unknown forms are treated as function calls
-    assert(node != NULL);
-    assert(node->kind == AST_CALL);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_CALL);
 }
 
 // =============================================================================
@@ -754,78 +750,78 @@ static char* codegen_to_string(const char* input) {
 void test_codegen_def(void) {
     const char* input = "(def x 42)";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
+    TEST_ASSERT(output != NULL);
     // Codegen emits constants in hex format
-    assert(strstr(output, "x = 0x") != NULL);
+    TEST_ASSERT(strstr(output, "x = 0x") != NULL);
     free(output);
 }
 
 void test_codegen_simple_function(void) {
     const char* input = "(defn foo () 42)";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "foo:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "foo:") != NULL);
     // Codegen emits constants in hex format, e.g., LOADI R0, 0x2A
-    assert(strstr(output, "LOADI R0, 0x") != NULL);
+    TEST_ASSERT(strstr(output, "LOADI R0, 0x") != NULL);
     free(output);
 }
 
 void test_codegen_function_with_params(void) {
     const char* input = "(defn add (x y) (+ x y))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "add:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "add:") != NULL);
     free(output);
 }
 
 void test_codegen_arithmetic(void) {
     const char* input = "(defn test () (+ 1 2))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "test:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "test:") != NULL);
     free(output);
 }
 
 void test_codegen_if_statement(void) {
     const char* input = "(defn test (x) (if (< x 10) 1 0))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "test:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "test:") != NULL);
     free(output);
 }
 
 void test_codegen_while_loop(void) {
     const char* input = "(defn test () (let (i 0) (while (< i 10) (set i (+ i 1))) i))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "test:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "test:") != NULL);
     free(output);
 }
 
 void test_codegen_function_call(void) {
     const char* input = "(defn foo () 42) (defn bar () (foo))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "foo:") != NULL);
-    assert(strstr(output, "bar:") != NULL);
-    assert(strstr(output, "CALL foo") != NULL || strstr(output, "call foo") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "foo:") != NULL);
+    TEST_ASSERT(strstr(output, "bar:") != NULL);
+    TEST_ASSERT(strstr(output, "CALL foo") != NULL || strstr(output, "call foo") != NULL);
     free(output);
 }
 
 void test_codegen_let_bindings(void) {
     const char* input = "(defn test () (let (x 10 y 20) (+ x y)))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "test:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "test:") != NULL);
     free(output);
 }
 
 void test_codegen_data_section(void) {
     const char* input = "(data msg (db 72 101 108 108 111))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "msg:") != NULL);
-    assert(strstr(output, "DB") != NULL || strstr(output, "db") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "msg:") != NULL);
+    TEST_ASSERT(strstr(output, "DB") != NULL || strstr(output, "db") != NULL);
     free(output);
 }
 
@@ -852,9 +848,9 @@ void test_codegen_error_duplicate_function(void) {
 void test_integration_hello_world(void) {
     const char* input = "(defn main () (+ 1 2))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "main:") != NULL);
-    assert(strstr(output, "section") != NULL || strstr(output, ".code") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
+    TEST_ASSERT(strstr(output, "section") != NULL || strstr(output, ".code") != NULL);
     free(output);
 }
 
@@ -864,8 +860,8 @@ void test_integration_factorial(void) {
                         "    1 "
                         "    (* n (factorial (- n 1)))))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "factorial:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "factorial:") != NULL);
     free(output);
 }
 
@@ -875,8 +871,8 @@ void test_integration_fibonacci(void) {
                         "    n "
                         "    (+ (fib (- n 1)) (fib (- n 2)))))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "fib:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "fib:") != NULL);
     free(output);
 }
 
@@ -885,9 +881,9 @@ void test_integration_data_and_code(void) {
                         "(data msg 0x4000 (db \"Hello\")) "
                         "(defn main () (load (addr16 MSG_ADDR)))";
     char* output = codegen_to_string(input);
-    assert(output != NULL);
-    assert(strstr(output, "MSG_ADDR") != NULL);
-    assert(strstr(output, "msg:") != NULL);
-    assert(strstr(output, "main:") != NULL);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "MSG_ADDR") != NULL);
+    TEST_ASSERT(strstr(output, "msg:") != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
     free(output);
 }

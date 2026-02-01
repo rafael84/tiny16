@@ -81,15 +81,15 @@ tests: tests-vm tests-asm tests-sec
 
 tests-vm: $(BUILDDIR) vm/*.c vm/*.h tests/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-vm-tests$(EXE_EXT) tests/vm_test.c
-	$(BUILDDIR)/tiny16-vm-tests$(EXE_EXT) | column -t | paste - -
+	$(BUILDDIR)/tiny16-vm-tests$(EXE_EXT)
 
 tests-asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.c asm/*.h tests/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) tests/asm_test.c
-	$(BUILDDIR)/tiny16-asm-tests$(EXE_EXT) | column -t | paste - -
+	$(BUILDDIR)/tiny16-asm-tests$(EXE_EXT)
 
 tests-sec: $(BUILDDIR) sec/*.c sec/*.h tests/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -Isec -o $(BUILDDIR)/tiny16-sec-tests$(EXE_EXT) tests/sec_test.c
-	$(BUILDDIR)/tiny16-sec-tests$(EXE_EXT) | column -t | paste - -
+	$(BUILDDIR)/tiny16-sec-tests$(EXE_EXT)
 
 asm: $(BUILDDIR) vm/*.c vm/*.h asm/*.h asm/*.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/tiny16-asm$(EXE_EXT) asm/tiny16.c
