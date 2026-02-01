@@ -80,11 +80,22 @@ void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
     const Tiny16Tile* tiles = (const Tiny16Tile*)(memory + TINY16_MEMORY_GFX_TILES_BASE);
     const Tiny16Tilemap* tilemap = (const Tiny16Tilemap*)(memory + TINY16_MEMORY_GFX_TILEMAP_BASE);
     const Tiny16Palette* palette = (const Tiny16Palette*)(memory + TINY16_MEMORY_GFX_PALETTE_BASE);
+    const Tiny16OAMEntry* oam = (const Tiny16OAMEntry*)(memory + TINY16_MEMORY_GFX_OAM_BASE);
 
     // clear framebuffer to palette color 0
     memset(framebuffer, palette->entries[0].color,
            TINY16_FRAMEBUFFER_SIZE_WIDTH * TINY16_FRAMEBUFFER_SIZE_HEIGHT);
 
+    // Pass 1: Render sprites with BEHIND_BG flag (behind the background)
+    if (ppu->ctrl & TINY16_PPU_CTRL_ENABLE_SPRITES) {
+        for (int i = 0; i < TINY16_OAM_SPRITE_COUNT; i++) {
+            if (oam[i].attr & TINY16_OAM_ATTR_BEHIND_BG) {
+                tiny16_ppu_render_sprite(framebuffer, tiles, palette, &oam[i]);
+            }
+        }
+    }
+
+    // Pass 2: Render background (opaque pixels will cover "behind" sprites)
     if (ppu->ctrl & TINY16_PPU_CTRL_ENABLE_BG) {
         for (int y = 0; y < TINY16_TILEMAP_HEIGHT; ++y) {
             for (int x = 0; x < TINY16_TILEMAP_WIDTH; ++x) {
@@ -104,10 +115,12 @@ void tiny16_ppu_render(Tiny16PPU* ppu, uint8_t* memory) {
         }
     }
 
+    // Pass 3: Render normal sprites (on top of background)
     if (ppu->ctrl & TINY16_PPU_CTRL_ENABLE_SPRITES) {
-        const Tiny16OAMEntry* oam = (const Tiny16OAMEntry*)(memory + TINY16_MEMORY_GFX_OAM_BASE);
         for (int i = 0; i < TINY16_OAM_SPRITE_COUNT; i++) {
-            tiny16_ppu_render_sprite(framebuffer, tiles, palette, &oam[i]);
+            if (!(oam[i].attr & TINY16_OAM_ATTR_BEHIND_BG)) {
+                tiny16_ppu_render_sprite(framebuffer, tiles, palette, &oam[i]);
+            }
         }
     }
 

@@ -57,6 +57,7 @@ typedef struct {
 // OAM
 //
 enum {
+    TINY16_OAM_ATTR_BEHIND_BG = 1 << 5, // Render behind opaque background pixels
     TINY16_OAM_ATTR_FLIP_H = 1 << 6,
     TINY16_OAM_ATTR_FLIP_V = 1 << 7,
 };
@@ -68,7 +69,7 @@ typedef struct {
     uint8_t y;    // Y position (0xFF = hidden)
     uint8_t x;    // X position
     uint8_t tile; // Tile index (0-255)
-    uint8_t attr; // Attributes: [VH0P_PPPP] V=vflip, H=hflip, P=palette (unused)
+    uint8_t attr; // Attributes: [VHB_PPPP] V=vflip, H=hflip, B=behind BG, P=palette (unused)
 } Tiny16OAMEntry;
 
 //
