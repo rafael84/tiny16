@@ -16,8 +16,8 @@
 
 ; Graphics memory
 (def TILES_BASE         0x5000)
-(def OAM_BASE           0x7800)
-(def PALETTE_BASE       0x7900)
+(def OAM_BASE           0x9000)
+(def PALETTE_BASE       0x9200)
 (def PALETTE_COLOR1     (+ PALETTE_BASE 1))
 
 ; =============================================================================

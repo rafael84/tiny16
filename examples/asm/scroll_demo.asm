@@ -20,7 +20,7 @@
 USER_DATA_BASE     = 0x4000
 TILE_DATA_ADDR     = 0x5000
 TILEMAP_ADDR       = 0x7000
-PALETTE_ADDR       = 0x7900
+PALETTE_ADDR       = 0x9200
 
 ; Data layout offsets
 LAST_FRAME_ADDR    = USER_DATA_BASE + 0
@@ -71,13 +71,17 @@ MAIN_LOOP:
 ; =============================================================================
 ; INIT_TILEMAP - Create a 4-quadrant pattern for visible scrolling
 ; Top-left: tile 3, Top-right: tile 4, Bottom-left: tile 5, Bottom-right: tile 6
-; This makes scrolling clearly visible as different tiles come into view
+; Tilemap is 128 tiles wide, each row = 256 bytes (one page)
+; Address = 0x7000 + row*256 + col*2
 ; =============================================================================
 INIT_TILEMAP:
-    SETADDR TILEMAP_ADDR
     LOADI R4, 0               ; Row counter
 
 FILL_ROW_LOOP:
+    ; Set address for start of this row: 0x70 + row, 0x00
+    LOADI R6, 0x70
+    ADD   R6, R4              ; R6 = 0x70 + row
+    LOADI R7, 0x00            ; R7 = 0 (start of row)
     LOADI R2, 0               ; Column counter
 
 FILL_COL_LOOP:

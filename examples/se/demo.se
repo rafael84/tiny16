@@ -21,8 +21,8 @@
 
 (def TILE_DATA_ADDR     0x5000)
 (def TILEMAP_ADDR       0x7000)
-(def OAM_ADDR           0x7800)
-(def PALETTE_ADDR       0x7900)
+(def OAM_ADDR           0x9000)
+(def PALETTE_ADDR       0x9200)
 
 ; NOTE: Data labels (initialized, last_frame, bounce_flag, sprite_data)
 ; are auto-resolved by the compiler to their addresses
@@ -55,7 +55,7 @@
 (def VELOCITY_BASE      1)
 (def INITIALIZED_FLAG   0xAA)
 
-(def TILE_SPRITE        68)
+(def TILE_SPRITE        99)
 (def TILE_BACKGROUND    0)
 (def SPRITE_ATTR_NONE   0x00)
 
@@ -112,28 +112,24 @@
     0))
 
 ; =============================================================================
-; FILL_TILEMAP - Fill 32x32 tilemap with background tile
+; FILL_TILEMAP - Fill visible 16x16 tilemap area with background tile
 ; =============================================================================
 
 (defn fill-tilemap ()
-  (let (addr-hi TILEMAP_HI
-        addr-lo TILEMAP_LO
-        count 0)
-    ; Fill 1024 tilemap entries (2 bytes each = 2048 bytes)
-    ; Use a simple count that goes 0..255, 0..255, 0..255, 0..255 (4 times)
-    ; and increment addr-hi each time addr-lo wraps
-    (while (< addr-hi (+ TILEMAP_HI 8))
-      (set count 0)
-      (while (< count 128)
-        ; Write tile index
-        (poke addr-hi addr-lo TILE_BACKGROUND)
-        (set addr-lo (inc addr-lo))
-        ; Write attribute
-        (poke addr-hi addr-lo 0)
-        (set addr-lo (inc addr-lo))
-        (set count (inc count)))
-      ; Move to next 256-byte page
-      (set addr-hi (inc addr-hi)))
+  (let (row 0)
+    ; Fill 16 rows (screen height = 128 pixels / 8 = 16 tiles)
+    ; Tilemap is 128 tiles wide, each row = 256 bytes (one page)
+    ; addr = 0x7000 + row*256 + col*2
+    (while (< row 16)
+      (let (col 0
+            addr-hi (+ TILEMAP_HI row))
+        (while (< col 16)
+          ; Write tile index at col*2
+          (poke addr-hi (<< col 1) TILE_BACKGROUND)
+          ; Write attribute at col*2+1
+          (poke addr-hi (+ (<< col 1) 1) 0)
+          (set col (inc col))))
+      (set row (inc row)))
     0))
 
 ; =============================================================================

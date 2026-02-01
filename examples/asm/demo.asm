@@ -27,8 +27,8 @@
 USER_DATA_BASE     = 0x4000
 TILE_DATA_ADDR     = 0x5000
 TILEMAP_ADDR       = 0x7000
-OAM_ADDR           = 0x7800
-PALETTE_ADDR       = 0x7900
+OAM_ADDR           = 0x9000
+PALETTE_ADDR       = 0x9200
 
 ; Data layout offsets
 INITIALIZED_ADDR   = USER_DATA_BASE + 0
@@ -102,28 +102,28 @@ HIDE_SPRITES_LOOP:
     DEC   R0
     JNZ   HIDE_SPRITES_LOOP
 
-    ; Fill tilemap with background tile (32x32 = 1024 entries, 2 bytes each)
-    SETADDR TILEMAP_ADDR
-    LOADI R4, 0               ; Counter high byte (need 1024 iterations)
-    LOADI R5, 0               ; Counter low byte
-FILL_TILEMAP_LOOP:
+    ; Fill visible tilemap with background tile (16x16 = 256 entries)
+    ; Tilemap is 128 wide, each row = 256 bytes (one page)
+    ; Address = 0x7000 + row*256 + col*2
+    LOADI R4, 0               ; Row counter (0-15)
+FILL_TILEMAP_ROW:
+    ; Set address for this row
+    LOADI R6, 0x70
+    ADD   R6, R4              ; R6 = 0x70 + row (high byte)
+    LOADI R7, 0x00            ; R7 = 0 (low byte, start of row)
+    LOADI R5, 16              ; Column counter (16 tiles)
+FILL_TILEMAP_COL:
     LOADI R0, TILE_BACKGROUND
     STORE R0, [R6:R7]+        ; tile index
     LOADI R0, 0x00
     STORE R0, [R6:R7]+        ; attribute
-    ; Increment 16-bit counter (R4:R5)
-    INC   R5
-    JNZ   FILL_TILEMAP_SKIP_HIGH
-    INC   R4                  ; Carry to high byte
-FILL_TILEMAP_SKIP_HIGH:
-    ; Check if counter reached 1024 (0x0400) = R4=4, R5=0
-    LOADI R0, 4
+    DEC   R5
+    JNZ   FILL_TILEMAP_COL
+    ; Next row
+    INC   R4
+    LOADI R0, 16
     CMP   R4, R0
-    JNZ   FILL_TILEMAP_LOOP   ; R4 != 4, continue
-    ; R4 == 4, check R5 == 0
-    LOADI R0, 0
-    CMP   R5, R0
-    JNZ   FILL_TILEMAP_LOOP   ; R5 != 0, continue
+    JNZ   FILL_TILEMAP_ROW
     ; Done filling tilemap
 
     ; Read FRAME_COUNT for pseudo-random seed
@@ -224,7 +224,7 @@ UPDATE_OAM_LOOP:
     LOAD  R0, [R6:R7 + 0]      ; x at offset 0
     LOAD  R1, [R6:R7 + 1]      ; y at offset 1
 
-    ; Calculate OAM address: 0x7800 + (counter * 4)
+    ; Calculate OAM address: 0x9000 + (counter * 4)
     LOADI R6, OAM_ADDR >> 8
     MOV   R7, R4
     MUL4  R7                   ; counter * 4
@@ -432,7 +432,7 @@ sprite_data:  TIMES SPRITE_DATA_SIZE DB 0
 ; ============================================================================
 ; Tileset and Palette from tileset.inc
 ; - Tiles at 0x5000 (128 tiles × 64 bytes each)
-; - Palette at 0x7900 (colors extracted from PNG)
-; - OAM at 0x7800 is written at runtime (not pre-initialized)
+; - Palette at 0x9200 (colors extracted from PNG)
+; - OAM at 0x9000 is written at runtime (not pre-initialized)
 ; ============================================================================
 .include "../includes/tileset.inc"

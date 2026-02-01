@@ -16,7 +16,7 @@
 (def SPRITE_INDEX_ADDR  0x4002)
 
 (def GFX_TILES_BASE     0x5000)
-(def GFX_OAM_BASE       0x7800)
+(def GFX_OAM_BASE       0x9000)
 (def OAM_HI             (hi GFX_OAM_BASE))
 (def OAM_LO             (lo GFX_OAM_BASE))
 
@@ -507,4 +507,4 @@
 (data text_line7 (db "LT TRI" 0))
 (data text_line8 (db "RT NOISE" 0))
 
-(include "../examples/includes/font.inc")
+(include "../examples/includes/tileset.inc")

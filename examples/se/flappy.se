@@ -16,10 +16,11 @@
 ;   make examples-se
 ;   ./build/tiny16-emu build/flappy_se.tiny16
 
+; Tileset: tiles at 0x5000, palette at 0x9200
 (include "../examples/includes/tileset.inc")
 
 
-(def OAM_ADDR           0x7800)
+(def OAM_ADDR           0x9000)
 (def OAM_HI             (hi OAM_ADDR))
 (def OAM_LO             (lo OAM_ADDR))
 
@@ -75,10 +76,10 @@
 
 ; Physics (8.8 fixed-point constants)
 (def GRAVITY_HI         0)
-(def GRAVITY_LO         70)       ; ~0.27 per frame
-(def FLAP_VEL_HI        252)      ; -4 in two's complement
+(def GRAVITY_LO         70)         ; ~0.27 per frame
+(def FLAP_VEL_HI        (- 256 3))  ; -3 upward velocity (two's complement)
 (def FLAP_VEL_LO        0)
-(def MAX_FALL_HI        5)
+(def MAX_FALL_HI        4)
 (def MAX_FALL_LO        0)
 
 ; =============================================================================
@@ -86,23 +87,31 @@
 ; =============================================================================
 
 ; Bird animation frames
-(def TILE_BIRD_UP       65)
-(def TILE_BIRD_MID      66)
-(def TILE_BIRD_DOWN     67)
+(def TILE_BIRD_UP       101)
+(def TILE_BIRD_MID      103)
+(def TILE_BIRD_DOWN     104)
 
 ; Pipe tiles
-(def TILE_PIPE_CAP_UP   27)
-(def TILE_PIPE_BODY     37)
-(def TILE_PIPE_CAP_DN   47)
+(def TILE_PIPE_CAP_UP   39)
+(def TILE_PIPE_BODY     55)
+(def TILE_PIPE_CAP_DN   71)
 
 ; Boundary tiles
-; Sky: top 2 rows = tile 2, bottom row = tile 1
+; Sky: top 2 rows
 (def TILE_SKY_TOP       2)
 (def TILE_SKY_BOT       1)
-; Ground: y0 = tile 51, y1 = tile 61, y2 = tile 71
-(def TILE_GROUND_TOP    51)
-(def TILE_GROUND_MID    61)
-(def TILE_GROUND_BOT    71)
+; Ground: bottom 3 rows
+(def TILE_GROUND_TOP    81)
+(def TILE_GROUND_MID    97)
+(def TILE_GROUND_BOT    113)
+
+; Digit tiles (ASCII font at tiles 128-255)
+; ASCII '0' = 48, so digit 0 is at tile 128 + 48 = 176
+(def TILE_DIGIT_0       144)
+
+; Score display position (top right)
+(def SCORE_X            112)
+(def SCORE_Y            4)
 
 ; =============================================================================
 ; Helpers
@@ -150,14 +159,13 @@
 
 ; Write a tile to tilemap at (tx, ty) - tile coordinates
 ; Tilemap entry = 2 bytes: tile index + attribute
-; Address = 0x7000 + (ty * 32 + tx) * 2
-; Note: Must handle 16-bit addresses with 8-bit arithmetic
-; Each row = 32 tiles * 2 bytes = 64 bytes
-; High byte = 0x70 + (ty >> 2)
-; Low byte = ((ty & 3) << 6) + (tx << 1)
+; Address = 0x7000 + (ty * 128 + tx) * 2
+; Each row = 128 tiles * 2 bytes = 256 bytes (one page)
+; High byte = 0x70 + ty
+; Low byte = tx * 2
 (defn tilemap-set (tx ty tile)
-  (let (addr-hi (+ TILEMAP_HI (>> ty 2))
-        addr-lo (+ (<< (& ty 3) 6) (<< tx 1)))
+  (let (addr-hi (+ TILEMAP_HI ty)
+        addr-lo (<< tx 1))
     (poke addr-hi addr-lo tile)
     (poke addr-hi (+ addr-lo 1) 0)))
 
@@ -200,7 +208,7 @@
   (poke16 APU_CH0_LEN 3)
   (poke16 APU_CH0_FREQ_LO 0xC8)
   (poke16 APU_CH0_FREQ_HI 0x07)
-  (poke16 APU_CH0_VOL 0x1C)
+  (poke16 APU_CH0_VOL 0x12)
   (poke16 APU_CH0_CTRL 0x03))
 
 (defn sfx-die ()
@@ -454,9 +462,26 @@
 ; Boundaries are now rendered via tilemap (set once at init)
 ; No per-frame sprite rendering needed
 
+; Render score as 2 digits on top right (sprites 15-16)
+(defn render-score ()
+  (let (s (peek16 score)
+        tens 0
+        ones s)
+    ; Calculate tens digit (s / 10)
+    (while (>= ones 10)
+      (set tens (inc tens))
+      (set ones (- ones 10)))
+    ; Draw tens digit (sprite 15) - hide if zero
+    (if (> tens 0)
+        (draw-spr 15 SCORE_Y (- SCORE_X 8) (+ TILE_DIGIT_0 tens))
+        (draw-spr 15 255 0 0))
+    ; Draw ones digit (sprite 16)
+    (draw-spr 16 SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
+
 (defn render-all ()
   (render-bird)
   (render-pipe)
+  (render-score)
   (render))
 
 ; =============================================================================

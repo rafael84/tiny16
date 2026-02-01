@@ -81,8 +81,9 @@ RENDER_ONLY:
 ; =============================================================================
 DRAW_TILEMAP:
     ; Starting tilemap position: X=0, Y=4 (centered vertically)
-    ; Starting address = 0x7000 + (4 * 32 + 0) * 2 = 0x7100
-    LOADI R6, 0x71        ; High byte of start address
+    ; Tilemap is 128 wide, each row = 256 bytes
+    ; Starting address = 0x7000 + 4 * 256 = 0x7400
+    LOADI R6, 0x74        ; High byte of start address
     LOADI R7, 0x00        ; Low byte of start address
 
     ; Load starting tile index
@@ -114,9 +115,9 @@ DRAW_NO_WRAP:
     DEC   R2              ; Decrement column counter
     JNZ   DRAW_COL_LOOP   ; Continue until 16 tiles done
 
-    ; Skip to next row: add (32-16)*2 = 32 bytes to address
-    LOADI R0, 32
-    ADD   R7, R0          ; Add 32 to low byte
+    ; Skip to next row: add (128-16)*2 = 224 bytes to address
+    LOADI R0, 224
+    ADD   R7, R0          ; Add 224 to low byte
     LOADI R0, 0
     ADC   R6, R0          ; Add carry to high byte
 

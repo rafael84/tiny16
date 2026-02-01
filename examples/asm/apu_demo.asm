@@ -5,7 +5,7 @@
 LAST_FRAME_ADDR = 0x4000
 SPRITE_INDEX_ADDR = 0x4002
 GFX_TILES_BASE = 0x5000
-GFX_OAM_BASE = 0x7800
+GFX_OAM_BASE = 0x9000
 OAM_HI = 0x78
 OAM_LO = 0x00
 MMIO_BASE = 0xBF00
@@ -3776,4 +3776,4 @@ text_line8:
     DB 0x52, 0x54, 0x20, 0x4E, 0x4F, 0x49, 0x53, 0x45
     DB 0x00
 
-.include "../includes/font.inc"
+.include "../includes/tileset.inc"
