@@ -30,7 +30,7 @@ typedef struct {
 // Graphics (PPU-visible, contiguous, simplified layout)
 //
 #define TINY16_MEMORY_GFX_TILES_BASE 0x5000
-#define TINY16_MEMORY_GFX_TILES_END  0x6FEF /* TILES, 255 x 32 B = 8160 bytes (~8 KB) */
+#define TINY16_MEMORY_GFX_TILES_END  0x6FFF /* TILES, 256 x 32 B = 8192 bytes (8 KB) */
 
 #define TINY16_MEMORY_GFX_TILEMAP_BASE 0x7000
 #define TINY16_MEMORY_GFX_TILEMAP_END  0x77FF // TILEMAP, 32 x 32 x 2 B = 2 KB (combined tile+attr)

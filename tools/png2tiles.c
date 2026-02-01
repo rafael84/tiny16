@@ -226,9 +226,9 @@ int main(int argc, char** argv) {
     int tiles_y = height / TINY16_TILE_HEIGHT;
     int tile_count = tiles_x * tiles_y;
 
-    if (tile_count > 255) {
-        fprintf(stderr, "Warning: Image contains %d tiles, max 255 supported\n", tile_count);
-        tile_count = 255;
+    if (tile_count > 256) {
+        fprintf(stderr, "Warning: Image contains %d tiles, max 256 supported\n", tile_count);
+        tile_count = 256;
     }
 
     // extract palette from entire image

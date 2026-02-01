@@ -1,4 +1,4 @@
-.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se emulator emulator-web build-web serve-web
+.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se examples-assets emulator emulator-web build-web serve-web
 .PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format ci
 
 UNAME_S := $(shell uname -s)
@@ -157,6 +157,9 @@ EXAMPLES_ASM_OUTPUTS := $(patsubst examples/asm/%.asm,$(BUILDDIR)/%.tiny16,$(EXA
 EXAMPLES_SE := $(wildcard examples/se/*.se)
 EXAMPLES_SE_OUTPUTS := $(patsubst examples/se/%.se,$(BUILDDIR)/%_se.tiny16,$(EXAMPLES_SE))
 
+EXAMPLES_ASSETS := $(wildcard examples/assets/*.png)
+EXAMPLES_ASSETS_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS))
+
 EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard tutorial/includes/*.inc)
 
 examples: examples-asm examples-se
@@ -173,6 +176,12 @@ $(BUILDDIR)/%.tiny16: examples/asm/%.asm $(EXAMPLE_INCLUDES) | $(BUILDDIR)
 $(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) | $(BUILDDIR)
 	$(BUILDDIR)/tiny16-sec$(EXE_EXT) $< $(BUILDDIR)/$*_se.asm
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $(BUILDDIR)/$*_se.asm $@
+
+# PNG -> INC: convert PNG assets to assembly include files
+examples-assets: tools $(EXAMPLES_ASSETS_OUTPUTS)
+
+examples/includes/%.inc: examples/assets/%.png | tools
+	$(BUILDDIR)/png2tiles$(EXE_EXT) $< $@
 
 $(RAYLIB_LIB_NATIVE):
 	@echo "Building raylib for native..."
