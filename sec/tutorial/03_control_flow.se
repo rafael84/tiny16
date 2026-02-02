@@ -1,0 +1,15 @@
+; Tutorial 03: Control Flow (if/while)
+;
+; Build:
+;   ./build/tiny16-sec sec/tutorial/03_control_flow.se build/03_control_flow.asm
+;   ./build/tiny16-asm build/03_control_flow.asm build/03_control_flow.tiny16
+;   ./build/tiny16-emu build/03_control_flow.tiny16 -m 200 -d
+
+(defn main ()
+  (let (i 0
+        sum 0)
+    (while (< i 5)
+      (set sum (+ sum i))
+      (set i (inc i)))
+    ; sum = 0+1+2+3+4 = 10, return 1 if true.
+    (if (= sum 10) 1 0)))

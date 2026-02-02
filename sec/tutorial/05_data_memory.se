@@ -1,0 +1,28 @@
+; Tutorial 05: Data & Memory
+;
+; Build:
+;   ./build/tiny16-sec sec/tutorial/05_data_memory.se build/05_data_memory.asm
+;   ./build/tiny16-asm build/05_data_memory.asm build/05_data_memory.tiny16
+;   ./build/tiny16-emu build/05_data_memory.tiny16 -m 300 -d
+
+(def DATA_COUNT 6)
+
+(data numbers
+  (db 4 8 15 16 23 42))
+
+(data buffer
+  (repeat 6 (db 0)))
+
+(defn copy-byte (index)
+  (let (value (peek (hi numbers) (+ (lo numbers) index)))
+    (poke (hi buffer) (+ (lo buffer) index) value)
+    value))
+
+(defn main ()
+  (let (i 0
+        sum 0)
+    (while (< i DATA_COUNT)
+      (set sum (+ sum (copy-byte i)))
+      (set i (inc i)))
+    ; Return sum of numbers while copying into buffer.
+    sum))

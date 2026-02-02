@@ -101,7 +101,8 @@ Features:
 
 - [`stdlib/tiny16.inc`](stdlib/tiny16.inc) — Standard library (60+ macros, fully documented)
 - [`specs/`](specs/) — ISA and assembler reference
-- [`tutorial/`](tutorial/) — 48 step-by-step tutorials
+- [`asm/tutorial/`](asm/tutorial/) — 48 step-by-step assembly tutorials
+- [`sec/tutorial/`](sec/tutorial/) — tiny16se tutorials
 
 ## License
 
