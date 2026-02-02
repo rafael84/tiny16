@@ -1,11 +1,11 @@
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
 
 #include "args.c"
 #include "args.h"
@@ -65,9 +65,7 @@ static bool scope_contains(SeScope* scope, const char* name) {
     return false;
 }
 
-static bool is_qualified_symbol(const char* name) {
-    return strchr(name, '/') != NULL;
-}
+static bool is_qualified_symbol(const char* name) { return strchr(name, '/') != NULL; }
 
 static void qualify_name(char* name, const char* ns) {
     if (!ns || !*ns) return;
@@ -95,8 +93,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_ASM:
     case AST_INCLUDE:
     case AST_NS:
-    case AST_REQUIRE:
-        return;
+    case AST_REQUIRE: return;
 
     case AST_SYMBOL:
         if (!scope_contains(scope, node->as.symbol.name)) {
@@ -131,9 +128,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         return;
     }
 
-    case AST_SET:
-        apply_namespace(node->as.set.value, ns, scope);
-        return;
+    case AST_SET: apply_namespace(node->as.set.value, ns, scope); return;
 
     case AST_IF:
         apply_namespace(node->as.if_expr.cond, ns, scope);
@@ -159,9 +154,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         apply_namespace_list(node->as.data.body, node->as.data.body_count, ns, scope);
         return;
 
-    case AST_REPEAT:
-        apply_namespace(node->as.repeat.form, ns, scope);
-        return;
+    case AST_REPEAT: apply_namespace(node->as.repeat.form, ns, scope); return;
 
     case AST_ADD:
     case AST_SUB:
@@ -190,18 +183,14 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_LNOT:
     case AST_HI:
     case AST_LO:
-    case AST_ADDR16:
-        apply_namespace(node->as.unary.operand, ns, scope);
-        return;
+    case AST_ADDR16: apply_namespace(node->as.unary.operand, ns, scope); return;
 
     case AST_ADDR:
         apply_namespace(node->as.addr.hi, ns, scope);
         apply_namespace(node->as.addr.lo, ns, scope);
         return;
 
-    case AST_LOAD:
-        apply_namespace(node->as.load.addr, ns, scope);
-        return;
+    case AST_LOAD: apply_namespace(node->as.load.addr, ns, scope); return;
 
     case AST_STORE:
         apply_namespace(node->as.store.addr, ns, scope);
@@ -329,8 +318,8 @@ static bool parse_requires_recursive(const char* filename, AstPool* pool, AstPro
             } else if (req->kind == AST_STRING) {
                 raw_name = req->as.symbol.name;
             } else {
-                fprintf(stderr, "%s:%zu:%zu: error: require expects a symbol or string\n",
-                        filename, node->line, node->column);
+                fprintf(stderr, "%s:%zu:%zu: error: require expects a symbol or string\n", filename,
+                        node->line, node->column);
                 return false;
             }
 

@@ -11,12 +11,8 @@ static void sanitize_name(char* dest, const char* src, size_t max_len) {
         switch (src[i]) {
         case '-':
         case '/':
-        case '.':
-            dest[i] = '_';
-            break;
-        default:
-            dest[i] = src[i];
-            break;
+        case '.': dest[i] = '_'; break;
+        default: dest[i] = src[i]; break;
         }
     }
     dest[i] = '\0';
@@ -929,13 +925,9 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         set_error(cg, node->line, "include cannot be used inside expressions");
         break;
 
-    case AST_NS:
-        set_error(cg, node->line, "ns cannot be used inside expressions");
-        break;
+    case AST_NS: set_error(cg, node->line, "ns cannot be used inside expressions"); break;
 
-    case AST_REQUIRE:
-        set_error(cg, node->line, "require cannot be used inside expressions");
-        break;
+    case AST_REQUIRE: set_error(cg, node->line, "require cannot be used inside expressions"); break;
 
     default: set_error(cg, node->line, "unsupported expression"); break;
     }
