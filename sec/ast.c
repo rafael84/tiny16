@@ -45,6 +45,8 @@ const char* ast_kind_name(AstKind kind) {
     case AST_HI: return "HI";
     case AST_LO: return "LO";
     case AST_CALL: return "CALL";
+    case AST_NS: return "NS";
+    case AST_REQUIRE: return "REQUIRE";
     case AST_INCLUDE: return "INCLUDE";
     case AST_ASM: return "ASM";
     default: return "UNKNOWN";

@@ -67,6 +67,8 @@ typedef enum {
     AST_CALL, // (func args...)
 
     // Special directives
+    AST_NS,      // (ns name)
+    AST_REQUIRE, // (require name...)
     AST_INCLUDE, // (include "filename")
     AST_ASM,     // (asm "raw assembly...")
 } AstKind;
@@ -134,7 +136,7 @@ struct AstNode {
             size_t body_count;
         } while_expr;
 
-        // AST_DO: (do expr...), also used for multi-arg ops
+        // AST_DO: (do expr...), AST_DB, AST_REQUIRE
         struct {
             AstNode* exprs[SE_MAX_CHILDREN];
             size_t expr_count;
