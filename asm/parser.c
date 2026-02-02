@@ -40,6 +40,24 @@ static const char* tiny16_parser_error_messages[] = {
         "org rewind to 0x%04X not allowed, data at 0x%04X",
 };
 
+void tiny16_parser_init(Tiny16Parser* parser) {
+    memset(parser, 0, sizeof(Tiny16Parser));
+    parser->symbol_capacity = 64;
+    parser->symbols = malloc(parser->symbol_capacity * sizeof(Tiny16Symbol));
+    if (!parser->symbols) {
+        parser->symbol_capacity = 0;
+    }
+}
+
+void tiny16_parser_free(Tiny16Parser* parser) {
+    if (parser->symbols) {
+        free(parser->symbols);
+        parser->symbols = NULL;
+    }
+    parser->symbol_count = 0;
+    parser->symbol_capacity = 0;
+}
+
 static void tiny16_parser_set_error(Tiny16Parser* parser, Tiny16ParserError error, ...) {
     if (parser->error != TINY16_PARSER_OK) return; // keep first error
 
@@ -212,11 +230,26 @@ static bool tiny16_parser_add_symbol(Tiny16Parser* parser, Token name_token, Tin
         return false;
     }
 
-    if (parser->symbol_count >= TINY16_PARSER_MAX_SYMBOLS) {
-        tiny16_parser_set_error(parser, (kind == TINY16_SYMBOL_LABEL)
-                                            ? TINY16_PARSER_ERROR_TOO_MANY_LABELS
-                                            : TINY16_PARSER_ERROR_TOO_MANY_CONSTS);
-        return false;
+    if (parser->symbol_count >= parser->symbol_capacity) {
+        int new_capacity = parser->symbol_capacity * 2;
+        if (new_capacity > TINY16_PARSER_MAX_SYMBOLS) {
+            new_capacity = TINY16_PARSER_MAX_SYMBOLS;
+        }
+        if (parser->symbol_count >= new_capacity) {
+            tiny16_parser_set_error(parser, (kind == TINY16_SYMBOL_LABEL)
+                                                ? TINY16_PARSER_ERROR_TOO_MANY_LABELS
+                                                : TINY16_PARSER_ERROR_TOO_MANY_CONSTS);
+            return false;
+        }
+        Tiny16Symbol* new_symbols = realloc(parser->symbols, new_capacity * sizeof(Tiny16Symbol));
+        if (!new_symbols) {
+            tiny16_parser_set_error(parser, (kind == TINY16_SYMBOL_LABEL)
+                                                ? TINY16_PARSER_ERROR_TOO_MANY_LABELS
+                                                : TINY16_PARSER_ERROR_TOO_MANY_CONSTS);
+            return false;
+        }
+        parser->symbols = new_symbols;
+        parser->symbol_capacity = new_capacity;
     }
 
     Tiny16Symbol* sym = &parser->symbols[parser->symbol_count++];

@@ -345,7 +345,8 @@ void test_lexer_whitespace(void) {
 void test_parser_label_declaration(void) {
     const char* input = "start:\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_CODE;
@@ -362,10 +363,14 @@ void test_parser_label_declaration(void) {
 }
 
 void test_parser_label_resolution(void) {
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.source_filename = "test";
 
-    // add a label
+    if (parser.symbol_count >= parser.symbol_capacity) {
+        parser.symbol_capacity = 1;
+        parser.symbols = realloc(parser.symbols, parser.symbol_capacity * sizeof(Tiny16Symbol));
+    }
     strcpy(parser.symbols[0].name, "loop");
     parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
     parser.symbols[0].value = 0x1000;
@@ -383,7 +388,8 @@ void test_parser_label_resolution(void) {
 void test_parser_duplicate_label(void) {
     const char* input = "start:\nstart:\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_CODE;
@@ -408,7 +414,8 @@ void test_parser_duplicate_label(void) {
 void test_parser_section_code(void) {
     const char* input = "section .code\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -424,7 +431,8 @@ void test_parser_section_code(void) {
 void test_parser_section_data(void) {
     const char* input = "section .data\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.data_pc = TINY16_MEMORY_DATA_BEGIN;
@@ -440,7 +448,8 @@ void test_parser_section_data(void) {
 void test_parser_instruction_loadi(void) {
     const char* input = "loadi";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
 
@@ -457,7 +466,8 @@ void test_parser_instruction_arithmetic(void) {
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         Lexer lexer = lexer_new(tests[i], strlen(tests[i]));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -474,7 +484,8 @@ void test_parser_instruction_jumps(void) {
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         Lexer lexer = lexer_new(tests[i], strlen(tests[i]));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -490,7 +501,8 @@ void test_parser_instruction_load_store(void) {
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         Lexer lexer = lexer_new(tests[i], strlen(tests[i]));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -506,7 +518,8 @@ void test_parser_register_parsing(void) {
         snprintf(input, sizeof(input), "r%d", i);
 
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -523,7 +536,8 @@ void test_parser_register_pairs(void) {
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
         Lexer lexer = lexer_new(tests[i], strlen(tests[i]));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -538,7 +552,8 @@ void test_parser_addressing_modes(void) {
     {
         const char* input = "r0, [ r6:r7 ]";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -553,7 +568,8 @@ void test_parser_addressing_modes(void) {
     {
         const char* input = "r1, [ r0:r1 ] +";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -568,7 +584,8 @@ void test_parser_addressing_modes(void) {
     {
         const char* input = "r2, [ r2:r3 ] -";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -583,7 +600,8 @@ void test_parser_addressing_modes(void) {
     {
         const char* input = "r3, [ r4:r5 + 10 ]";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -599,7 +617,8 @@ void test_parser_addressing_modes(void) {
 void test_parser_data_directive_db(void) {
     const char* input = "db 0x42\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_DATA;
@@ -615,7 +634,8 @@ void test_parser_data_directive_db(void) {
 void test_parser_data_directive_string(void) {
     const char* input = "db \"AB\"\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_DATA;
@@ -632,7 +652,8 @@ void test_parser_data_directive_string(void) {
 void test_parser_data_directive_times(void) {
     const char* input = "times 3 db 0xFF\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_DATA;
@@ -660,7 +681,8 @@ void test_parser_data_directive_times(void) {
 }
 
 static Tiny16Parser run_pass1_data_only(const char* input) {
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_DATA;
     parser.data_pc = TINY16_DATA_BEGIN;
@@ -777,7 +799,8 @@ void test_parser_data_directive_org_updates_label_addr(void) {
 }
 
 static Tiny16Parser run_pass1_symbols_only(const char* input) {
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.source_filename = "test";
     parser.current_section = TINY16_PARSER_SECTION_CODE;
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -849,12 +872,17 @@ void test_parser_const_out_of_range_errors(void) {
 }
 
 void test_parser_label_forward_reference(void) {
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.source_filename = "test";
 
     uint16_t addr = tiny16_parser_label_addr(&parser, "end", 3);
     TEST_ASSERT(addr == TINY16_PARSER_LABEL_NOT_FOUND);
 
+    if (parser.symbol_count >= parser.symbol_capacity) {
+        parser.symbol_capacity = 1;
+        parser.symbols = realloc(parser.symbols, parser.symbol_capacity * sizeof(Tiny16Symbol));
+    }
     strcpy(parser.symbols[0].name, "end");
     parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
     parser.symbols[0].value = 0x2000;
@@ -865,9 +893,14 @@ void test_parser_label_forward_reference(void) {
 }
 
 void test_parser_label_backward_reference(void) {
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.source_filename = "test";
 
+    if (parser.symbol_count >= parser.symbol_capacity) {
+        parser.symbol_capacity = 1;
+        parser.symbols = realloc(parser.symbols, parser.symbol_capacity * sizeof(Tiny16Symbol));
+    }
     strcpy(parser.symbols[0].name, "start");
     parser.symbols[0].kind = TINY16_SYMBOL_LABEL;
     parser.symbols[0].value = 0x1000;
@@ -884,7 +917,8 @@ void test_parser_complete_program(void) {
                         "  halt\n";
 
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -907,7 +941,8 @@ void test_parser_complete_program(void) {
 void test_parser_expr_simple_number(void) {
     const char* input = "42";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
 
@@ -923,7 +958,8 @@ void test_parser_expr_hex_binary_numbers(void) {
     {
         const char* input = "0xFF";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -938,7 +974,8 @@ void test_parser_expr_hex_binary_numbers(void) {
     {
         const char* input = "0b1010";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -953,11 +990,15 @@ void test_parser_expr_hex_binary_numbers(void) {
 void test_parser_expr_symbol_reference(void) {
     const char* input = "SCREEN_WIDTH";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
 
-    // Add symbol
+    if (parser.symbol_count >= parser.symbol_capacity) {
+        parser.symbol_capacity = 1;
+        parser.symbols = realloc(parser.symbols, parser.symbol_capacity * sizeof(Tiny16Symbol));
+    }
     strcpy(parser.symbols[0].name, "SCREEN_WIDTH");
     parser.symbols[0].kind = TINY16_SYMBOL_CONST;
     parser.symbols[0].value = 320;
@@ -975,7 +1016,8 @@ void test_parser_expr_addition_subtraction(void) {
     {
         const char* input = "10 + 5";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -990,7 +1032,8 @@ void test_parser_expr_addition_subtraction(void) {
     {
         const char* input = "10 - 3";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1005,7 +1048,8 @@ void test_parser_expr_addition_subtraction(void) {
     {
         const char* input = "100 - 20 + 5";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1022,7 +1066,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
     {
         const char* input = "8 * 4";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1037,7 +1082,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
     {
         const char* input = "20 / 4";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1052,7 +1098,8 @@ void test_parser_expr_multiplication_division_modulo(void) {
     {
         const char* input = "17 % 5";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1069,7 +1116,8 @@ void test_parser_expr_bitwise_operators(void) {
     {
         const char* input = "0xFF & 0x0F";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1084,7 +1132,8 @@ void test_parser_expr_bitwise_operators(void) {
     {
         const char* input = "0xF0 | 0x0F";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1099,7 +1148,8 @@ void test_parser_expr_bitwise_operators(void) {
     {
         const char* input = "0xFF ^ 0x0F";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1116,7 +1166,8 @@ void test_parser_expr_shift_operators(void) {
     {
         const char* input = "1 << 4";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1131,7 +1182,8 @@ void test_parser_expr_shift_operators(void) {
     {
         const char* input = "64 >> 2";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1148,7 +1200,8 @@ void test_parser_expr_unary_minus(void) {
     {
         const char* input = "-42";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1163,7 +1216,8 @@ void test_parser_expr_unary_minus(void) {
     {
         const char* input = "10 + -5";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1178,7 +1232,8 @@ void test_parser_expr_unary_minus(void) {
 void test_parser_expr_unary_not(void) {
     const char* input = "~0xFF";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
 
@@ -1194,7 +1249,8 @@ void test_parser_expr_parentheses(void) {
     {
         const char* input = "(5 + 3)";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1209,7 +1265,8 @@ void test_parser_expr_parentheses(void) {
     {
         const char* input = "(5 + 3) * 2";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1224,7 +1281,8 @@ void test_parser_expr_parentheses(void) {
     {
         const char* input = "((10 + 5) * 2) - 3";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1241,7 +1299,8 @@ void test_parser_expr_precedence(void) {
     {
         const char* input = "2 + 3 * 4";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1256,7 +1315,8 @@ void test_parser_expr_precedence(void) {
     {
         const char* input = "1 + 2 << 2";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1271,7 +1331,8 @@ void test_parser_expr_precedence(void) {
     {
         const char* input = "0xFF | 0x0F & 0xF0";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1288,11 +1349,15 @@ void test_parser_expr_complex(void) {
     {
         const char* input = "WIDTH * HEIGHT / 8";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
-        // Add symbols
+        if (parser.symbol_capacity < 2) {
+            parser.symbol_capacity = 2;
+            parser.symbols = realloc(parser.symbols, parser.symbol_capacity * sizeof(Tiny16Symbol));
+        }
         strcpy(parser.symbols[0].name, "WIDTH");
         parser.symbols[0].kind = TINY16_SYMBOL_CONST;
         parser.symbols[0].value = 320;
@@ -1312,7 +1377,8 @@ void test_parser_expr_complex(void) {
     {
         const char* input = "(10 + 20) * 2 >> 2 & 0xFF";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1329,7 +1395,8 @@ void test_parser_expr_division_by_zero(void) {
     {
         const char* input = "10 / 0";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1344,7 +1411,8 @@ void test_parser_expr_division_by_zero(void) {
     {
         const char* input = "10 % 0";
         Lexer lexer = lexer_new(input, strlen(input));
-        Tiny16Parser parser = {0};
+        Tiny16Parser parser;
+        tiny16_parser_init(&parser);
         parser.lexer = lexer;
         parser.source_filename = "test";
 
@@ -1359,7 +1427,8 @@ void test_parser_expr_division_by_zero(void) {
 void test_parser_expr_undefined_symbol(void) {
     const char* input = "UNDEFINED_SYMBOL";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test";
 
@@ -1376,7 +1445,8 @@ void test_integration_simple_program(void) {
                         "halt\n";
 
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test_simple";
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -1394,7 +1464,8 @@ void test_integration_loop_program(void) {
                         "  halt\n";
 
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test_loop";
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -1412,7 +1483,8 @@ void test_integration_subroutine_program(void) {
                         "  ret\n";
 
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     parser.source_filename = "test_subroutine";
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;
@@ -1698,7 +1770,8 @@ void test_pp_macro_emits_definition_markers(void) {
 void test_parser_file_line_directives(void) {
     const char* input = ".file \"inc.asm\"\n.line 1\nBAD\n";
     Lexer lexer = lexer_new(input, strlen(input));
-    Tiny16Parser parser = {0};
+    Tiny16Parser parser;
+    tiny16_parser_init(&parser);
     parser.lexer = lexer;
     strncpy(parser.current_filename, "main.asm", TINY16_PARSER_MAX_FILENAME - 1);
     parser.current_filename[TINY16_PARSER_MAX_FILENAME - 1] = '\0';

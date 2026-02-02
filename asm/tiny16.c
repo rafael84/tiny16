@@ -37,10 +37,8 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
-    // Tiny16Parser contains large fixed-size buffers (symbols table, data buffer, etc).
     static Tiny16Parser parser;
-    memset(&parser, 0, sizeof(parser));
+    tiny16_parser_init(&parser);
     strncpy(parser.current_filename, args.source_filename, TINY16_PARSER_MAX_FILENAME - 1);
     parser.current_filename[TINY16_PARSER_MAX_FILENAME - 1] = '\0';
     parser.source_filename = parser.current_filename;
@@ -139,6 +137,7 @@ int main(int argc, char** argv) {
         tiny16_parser_print_error(&parser);
         free(source_content);
         fclose(parser.output_file);
+        tiny16_parser_free(&parser);
         return EXIT_FAILURE;
     }
 
@@ -204,6 +203,7 @@ int main(int argc, char** argv) {
         tiny16_parser_print_error(&parser);
         free(source_content);
         fclose(parser.output_file);
+        tiny16_parser_free(&parser);
         return EXIT_FAILURE;
     }
 
@@ -211,6 +211,7 @@ int main(int argc, char** argv) {
 
     free(source_content);
     fclose(parser.output_file);
+    tiny16_parser_free(&parser);
     if (errno) {
         perror("could not close output file");
         return EXIT_FAILURE;
@@ -220,8 +221,6 @@ int main(int argc, char** argv) {
 }
 
 static char* preprocess_source(const char* filename) {
-    // NOTE: This is intentionally static to avoid blowing the stack on Windows.
-    // Tiny16Preprocessor contains a large fixed-size macro table and buffers.
     static Tiny16Preprocessor pp;
     tiny16_pp_init(&pp);
 

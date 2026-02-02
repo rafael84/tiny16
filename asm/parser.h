@@ -60,8 +60,9 @@ typedef struct {
     char current_filename[TINY16_PARSER_MAX_FILENAME];
     int64_t line_base;
 
-    Tiny16Symbol symbols[TINY16_PARSER_MAX_SYMBOLS];
+    Tiny16Symbol* symbols;
     int symbol_count;
+    int symbol_capacity;
 
     FILE* output_file;
     size_t output_file_size;
@@ -83,6 +84,9 @@ typedef struct {
 } Tiny16Parser;
 
 #define TINY16_PARSER_LABEL_NOT_FOUND UINT16_MAX
+
+void tiny16_parser_init(Tiny16Parser* parser);
+void tiny16_parser_free(Tiny16Parser* parser);
 
 bool tiny16_parser_has_error(const Tiny16Parser* parser);
 void tiny16_parser_print_error(const Tiny16Parser* parser);
