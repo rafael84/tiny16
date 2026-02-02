@@ -1,0 +1,23 @@
+; palette - color palette management
+(ns palette)
+
+(def PALETTE_BASE 0x9200)
+(def PALETTE_HI (hi PALETTE_BASE))
+
+; Set palette color at index (0-255)
+; color: RGB332 format (RRR GGG BB)
+(defn set-color (index color)
+  (poke PALETTE_HI index color))
+
+; Get palette color at index
+(defn get-color (index)
+  (peek PALETTE_HI index))
+
+; Fill entire palette with single color (all 256 colors)
+(defn fill (color)
+  (let (i 0)
+    (while (!= i 0)
+      (set-color i color)
+      (set i (inc i)))
+    ; Handle i=0 case (loop starts and ends at 0)
+    (set-color 0 color)))

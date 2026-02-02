@@ -1,0 +1,120 @@
+; apu - audio processing unit
+(ns apu)
+
+(def MMIO_BASE 0xBF00)
+
+; APU control
+(def APU_CTRL (+ MMIO_BASE 0x40))
+
+(defn init ()
+  (poke16 APU_CTRL 0x81))
+
+(defn disable ()
+  (poke16 APU_CTRL 0x00))
+
+; Channel controls
+(def CH0_CTRL (+ MMIO_BASE 0x45))
+(def CH1_CTRL (+ MMIO_BASE 0x49))
+(def CH2_CTRL (+ MMIO_BASE 0x4D))
+(def CH3_CTRL (+ MMIO_BASE 0x50))
+
+(defn stop-all ()
+  (poke16 CH0_CTRL 0x00)
+  (poke16 CH1_CTRL 0x00)
+  (poke16 CH2_CTRL 0x00)
+  (poke16 CH3_CTRL 0x00))
+
+; Channel 0 (square wave)
+(def CH0_FREQ_LO (+ MMIO_BASE 0x42))
+(def CH0_FREQ_HI (+ MMIO_BASE 0x43))
+(def CH0_VOL     (+ MMIO_BASE 0x44))
+(def CH0_ENV_AD  (+ MMIO_BASE 0x51))
+(def CH0_ENV_SR  (+ MMIO_BASE 0x52))
+(def CH0_LEN     (+ MMIO_BASE 0x5B))
+
+(defn ch0-play-note (freq-lo freq-hi vol duration)
+  (poke16 CH0_FREQ_LO freq-lo)
+  (poke16 CH0_FREQ_HI freq-hi)
+  (poke16 CH0_VOL vol)
+  (poke16 CH0_LEN duration)
+  (poke16 CH0_CTRL 0x03))
+
+(defn ch0-set-envelope (attack decay sustain release)
+  (poke16 CH0_ENV_AD (| (* attack 16) decay))
+  (poke16 CH0_ENV_SR (| (* sustain 16) release)))
+
+; Channel 1 (square wave)
+(def CH1_FREQ_LO (+ MMIO_BASE 0x46))
+(def CH1_FREQ_HI (+ MMIO_BASE 0x47))
+(def CH1_VOL     (+ MMIO_BASE 0x48))
+(def CH1_ENV_AD  (+ MMIO_BASE 0x53))
+(def CH1_ENV_SR  (+ MMIO_BASE 0x54))
+(def CH1_LEN     (+ MMIO_BASE 0x5C))
+
+(defn ch1-play-note (freq-lo freq-hi vol duration)
+  (poke16 CH1_FREQ_LO freq-lo)
+  (poke16 CH1_FREQ_HI freq-hi)
+  (poke16 CH1_VOL vol)
+  (poke16 CH1_LEN duration)
+  (poke16 CH1_CTRL 0x03))
+
+(defn ch1-set-envelope (attack decay sustain release)
+  (poke16 CH1_ENV_AD (| (* attack 16) decay))
+  (poke16 CH1_ENV_SR (| (* sustain 16) release)))
+
+; Channel 2 (triangle wave - bass)
+(def CH2_FREQ_LO (+ MMIO_BASE 0x4A))
+(def CH2_FREQ_HI (+ MMIO_BASE 0x4B))
+(def CH2_VOL     (+ MMIO_BASE 0x4C))
+(def CH2_ENV_AD  (+ MMIO_BASE 0x55))
+(def CH2_ENV_SR  (+ MMIO_BASE 0x56))
+(def CH2_LEN     (+ MMIO_BASE 0x5D))
+
+(defn ch2-play-note (freq-lo freq-hi vol duration)
+  (poke16 CH2_FREQ_LO freq-lo)
+  (poke16 CH2_FREQ_HI freq-hi)
+  (poke16 CH2_VOL vol)
+  (poke16 CH2_LEN duration)
+  (poke16 CH2_CTRL 0x03))
+
+; Channel 3 (noise - percussion/SFX)
+(def CH3_PERIOD (+ MMIO_BASE 0x4E))
+(def CH3_VOL    (+ MMIO_BASE 0x4F))
+(def CH3_ENV_AD (+ MMIO_BASE 0x57))
+(def CH3_ENV_SR (+ MMIO_BASE 0x58))
+(def CH3_LEN    (+ MMIO_BASE 0x5E))
+
+(defn ch3-play-noise (period vol duration)
+  (poke16 CH3_PERIOD period)
+  (poke16 CH3_VOL vol)
+  (poke16 CH3_LEN duration)
+  (poke16 CH3_CTRL 0x03))
+
+(defn ch3-set-envelope (attack decay sustain release)
+  (poke16 CH3_ENV_AD (| (* attack 16) decay))
+  (poke16 CH3_ENV_SR (| (* sustain 16) release)))
+
+; Common sound effects
+(defn sfx-jump ()
+  (ch0-set-envelope 1 1 8 1)
+  (ch0-play-note 0xC8 0x07 0x12 3))
+
+(defn sfx-hit ()
+  (ch3-set-envelope 1 5 0 4)
+  (ch3-play-noise 9 14 18))
+
+(defn sfx-coin ()
+  (ch0-set-envelope 1 1 6 1)
+  (ch0-play-note 0xD0 0x07 0x2C 4))
+
+(defn sfx-explosion ()
+  (ch3-set-envelope 2 8 2 6)
+  (ch3-play-noise 12 15 30))
+
+(defn sfx-select ()
+  (ch0-set-envelope 1 1 4 1)
+  (ch0-play-note 0xA0 0x06 0x18 2))
+
+(defn sfx-move ()
+  (ch0-set-envelope 1 1 2 1)
+  (ch0-play-note 0x80 0x05 0x10 1))

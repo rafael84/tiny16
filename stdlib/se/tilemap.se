@@ -1,0 +1,106 @@
+; tilemap - background tilemap and text rendering
+(ns tilemap)
+
+(def TILEMAP_BASE 0x7000)
+(def TILEMAP_HI (hi TILEMAP_BASE))
+(def SCREEN_TILES 16)
+
+; Set tile at tile coordinates (tx, ty)
+(defn put (tx ty tile)
+  (let (addr-hi (+ TILEMAP_HI ty)
+        addr-lo (* tx 2))
+    (poke addr-hi addr-lo tile)
+    (poke addr-hi (+ addr-lo 1) 0)))
+
+; Set tile with attributes
+(defn put-attr (tx ty tile attr)
+  (let (addr-hi (+ TILEMAP_HI ty)
+        addr-lo (* tx 2))
+    (poke addr-hi addr-lo tile)
+    (poke addr-hi (+ addr-lo 1) attr)))
+
+; Get tile at coordinates
+(defn get (tx ty)
+  (let (addr-hi (+ TILEMAP_HI ty)
+        addr-lo (* tx 2))
+    (peek addr-hi addr-lo)))
+
+; Clear tile
+(defn clear (tx ty)
+  (put tx ty 0))
+
+; Fill entire row with a tile
+(defn fill-row (ty tile)
+  (let (x 0)
+    (while (< x SCREEN_TILES)
+      (put x ty tile)
+      (set x (inc x)))))
+
+; Fill entire column with a tile
+(defn fill-col (tx tile)
+  (let (y 0)
+    (while (< y SCREEN_TILES)
+      (put tx y tile)
+      (set y (inc y)))))
+
+; Fill rectangle with a tile
+(defn fill-rect (tx ty width height tile)
+  (let (y 0)
+    (while (< y height)
+      (let (x 0)
+        (while (< x width)
+          (put (+ tx x) (+ ty y) tile)
+          (set x (inc x))))
+      (set y (inc y)))))
+
+; Clear entire tilemap
+(defn clear-all ()
+  (let (y 0)
+    (while (< y SCREEN_TILES)
+      (fill-row y 0)
+      (set y (inc y)))))
+
+(def ASCII_TILE_OFFSET 96)
+
+; Draw text string at (tx, ty)
+; str-hi, str-lo: 16-bit address of null-terminated string
+; ASCII chars converted to tile indices (tile = offset + ASCII)
+(defn text (tx ty str-hi str-lo)
+  (let (x tx
+        ptr-hi str-hi
+        ptr-lo str-lo)
+    (while (!= (peek ptr-hi ptr-lo) 0)
+      (let (ch (peek ptr-hi ptr-lo)
+            tile (+ ASCII_TILE_OFFSET ch))
+        (put x ty tile)
+        (set x (inc x))
+        (set ptr-lo (inc ptr-lo))
+        (if (= ptr-lo 0)
+            (set ptr-hi (inc ptr-hi))
+            0)))))
+
+(def DIGIT_TILE_BASE 144)
+
+; Draw single digit (0-9) at position
+(defn digit (tx ty digit)
+  (let (tile (+ DIGIT_TILE_BASE digit))
+    (put tx ty tile)))
+
+; Draw 8-bit number at position (up to 3 digits)
+(defn number (tx ty num)
+  (let (hundreds 0
+        tens 0
+        ones num)
+    (while (>= ones 100)
+      (set hundreds (inc hundreds))
+      (set ones (- ones 100)))
+    (while (>= ones 10)
+      (set tens (inc tens))
+      (set ones (- ones 10)))
+    (if (> hundreds 0)
+        (digit tx ty hundreds)
+        0)
+    (if (| (> tens 0) (> hundreds 0))
+        (digit (+ tx 1) ty tens)
+        0)
+    (digit (+ tx 2) ty ones)))

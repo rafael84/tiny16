@@ -1,0 +1,112 @@
+; music - higher-level sound and music API
+(ns music)
+
+; Note indices for note() function
+(def NOTE-C3  0)
+(def NOTE-D3  1)
+(def NOTE-E3  2)
+(def NOTE-F3  3)
+(def NOTE-G3  4)
+(def NOTE-A3  5)
+(def NOTE-B3  6)
+(def NOTE-C4  7)
+(def NOTE-D4  8)
+(def NOTE-E4  9)
+(def NOTE-F4  10)
+(def NOTE-G4  11)
+(def NOTE-A4  12)
+(def NOTE-B4  13)
+(def NOTE-C5  14)
+(def NOTE-D5  15)
+(def NOTE-E5  16)
+(def NOTE-F5  17)
+(def NOTE-G5  18)
+(def NOTE-A5  19)
+(def NOTE-B5  20)
+(def NOTE-REST 255)
+
+; Note frequency table (stored as data)
+(data note-freqs-lo (db 0x1A 0x2B 0x3B 0x4C 0x5D 0x6C 0x7A
+                         0x57 0x67 0x7A 0x84 0x8F 0x9C 0xA6
+                         0xAB 0xB6 0xBD 0xC3 0xCA 0xD4 0xDE))
+
+(data note-freqs-hi (db 0x07 0x07 0x07 0x07 0x07 0x07 0x07
+                         0x07 0x07 0x07 0x07 0x07 0x07 0x07
+                         0x07 0x07 0x07 0x07 0x07 0x07 0x07))
+
+; Get frequency lo byte for note index
+(defn get-freq-lo (note-idx)
+  (peek (hi note-freqs-lo) (+ (lo note-freqs-lo) note-idx)))
+
+; Get frequency hi byte for note index
+(defn get-freq-hi (note-idx)
+  (peek (hi note-freqs-hi) (+ (lo note-freqs-hi) note-idx)))
+
+(def MMIO-BASE 0xBF00)
+(def FRAME-COUNT (+ MMIO-BASE 0x22))
+(def MAX-NOTE-INDEX 21)
+
+; Play note on channel 0 (square wave)
+; IMPORTANT: Non-blocking - returns immediately!
+;
+; Calling this again OVERWRITES the channel immediately.
+; You MUST wait between notes or only the last one plays.
+;
+; Example:
+;   (music/note NOTE-C4 15 12)
+;   (music/wait 15)  ; REQUIRED
+;   (music/note NOTE-D4 15 12)
+(defn note (note-idx duration volume)
+  (if (< note-idx MAX-NOTE-INDEX)
+      (let (lo (get-freq-lo note-idx)
+            hi (get-freq-hi note-idx))
+        (apu/ch0-set-envelope 1 1 8 1)
+        (apu/ch0-play-note lo hi volume duration))
+      0))
+
+; Wait for specified number of frames
+(defn wait (frames)
+  (poke16 music-frame-start (peek16 FRAME-COUNT))
+  (poke16 music-frame-count 0)
+  (while (< (peek16 music-frame-count) frames)
+    (let (current (peek16 FRAME-COUNT)
+          start (peek16 music-frame-start))
+      (if (!= current start)
+          (do
+            (poke16 music-frame-start current)
+            (poke16 music-frame-count (inc (peek16 music-frame-count))))
+          0))))
+
+(data music-frame-start (db 0))
+(data music-frame-count (db 0))
+
+(def BEEP-DURATION 5)
+(def BEEP-VOLUME 12)
+
+; Simple beep
+(defn beep (note-idx)
+  (note note-idx BEEP-DURATION BEEP-VOLUME))
+
+(def NOISE-PERIOD 12)
+(def NOISE-VOLUME 14)
+(def NOISE-DURATION 20)
+(def NOISE-ENV-AD 0x15)
+(def NOISE-ENV-SR 0x04)
+
+; Error/negative sound
+(defn error-sound ()
+  (apu/ch3-set-envelope 1 5 0 4)
+  (apu/ch3-play-noise NOISE-PERIOD NOISE-VOLUME NOISE-DURATION))
+
+(def SUCCESS-DURATION 8)
+(def SUCCESS-VOLUME 15)
+(def SELECT-DURATION 3)
+(def SELECT-VOLUME 10)
+
+; Success sound
+(defn success ()
+  (note NOTE-C5 SUCCESS-DURATION SUCCESS-VOLUME))
+
+; Menu selection beep
+(defn select ()
+  (note NOTE-G4 SELECT-DURATION SELECT-VOLUME))

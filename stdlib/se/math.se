@@ -1,0 +1,58 @@
+; math - math operations, fixed-point, random
+(ns math)
+
+; Modulo operation (v mod d)
+(defn mod-by (v d)
+  (let (r v)
+    (while (>= r d)
+      (set r (- r d)))
+    r))
+
+; Integer division (v / d)
+(defn div-by (v d)
+  (let (q 0
+        r v)
+    (while (>= r d)
+      (set q (inc q))
+      (set r (- r d)))
+    q))
+
+; Fixed-point 8.8 addition (a + b)
+; Returns high byte, caller manages storage
+(defn fp-add (a-hi a-lo b-hi b-lo)
+  (let (new-lo (+ a-lo b-lo)
+        carry (if (< new-lo a-lo) 1 0)
+        new-hi (+ a-hi (+ b-hi carry)))
+    new-hi))
+
+; Fixed-point 8.8 subtraction (a - b)
+(defn fp-sub (a-hi a-lo b-hi b-lo)
+  (let (new-lo (- a-lo b-lo)
+        borrow (if (> new-lo a-lo) 1 0)
+        new-hi (- a-hi (+ b-hi borrow)))
+    new-hi))
+
+; Convert integer to fixed-point (shift left 8 bits)
+(defn int-to-fp (val)
+  (* val 256))
+
+; Convert fixed-point to integer
+(defn fp-to-int-hi (fp-hi)
+  fp-hi)
+
+(def FP_NEGATIVE_THRESHOLD 128)
+
+; Check if fixed-point number is negative
+(defn fp-is-negative (fp-hi)
+  (>= fp-hi FP_NEGATIVE_THRESHOLD))
+
+(def FRAME_COUNT 0xBF22)
+
+; Random number [0, max) using frame counter as seed
+(defn random (max)
+  (let (seed (peek16 FRAME_COUNT))
+    (mod-by seed max)))
+
+; Random number [min, max)
+(defn random-range (min-val max-val)
+  (+ min-val (random (- max-val min-val))))
