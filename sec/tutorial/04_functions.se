@@ -1,0 +1,19 @@
+; Tutorial 04: Functions & Composition
+;
+; Build:
+;   ./build/tiny16-sec sec/tutorial/04_functions.se build/04_functions.asm
+;   ./build/tiny16-asm build/04_functions.asm build/04_functions.tiny16
+;   ./build/tiny16-emu build/04_functions.tiny16 -m 200 -d
+
+(defn add3 (a b c)
+  (+ (+ a b) c))
+
+(defn clamp (value min max)
+  (if (< value min)
+      min
+      (if (> value max) max value)))
+
+(defn main ()
+  (let (result (add3 4 5 6))
+    ; 4+5+6 = 15, clamp to 0..10 -> 10
+    (clamp result 0 10)))

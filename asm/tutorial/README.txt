@@ -4,9 +4,9 @@ Tiny16 Assembly Tutorial
 Progressive course covering assembly fundamentals and tiny16 features.
 
 QUICK START:
-  cd tutorial/
-  ../bin/tiny16-asm 01.asm 01.tiny16
-  ../bin/tiny16-emu 01.tiny16 -m 100 -d
+  cd asm/tutorial/
+  ../../bin/tiny16-asm 01_load_and_halt.asm 01.tiny16
+  ../../bin/tiny16-emu 01.tiny16 -m 100 -d
 
 EMULATOR FLAGS:
   -m <n>  max instructions   -d  dump state
@@ -147,9 +147,9 @@ TIPS & DEBUGGING
   infinite loops (use -m), stack overflow
 
 RESOURCES:
-  ../specs/isa.txt (ISA)
-  ../specs/assembler.txt
-  ../examples/*.asm
+  ../../specs/tiny16-asm.txt
+  ../../specs/tiny16-vm.txt
+  ../../examples/*.asm
   Solutions are at the bottom of each tutorial file
 
 ADVANCED:

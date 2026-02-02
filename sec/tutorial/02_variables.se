@@ -1,0 +1,15 @@
+; Tutorial 02: Variables & Mutation
+;
+; Build:
+;   ./build/tiny16-sec sec/tutorial/02_variables.se build/02_variables.asm
+;   ./build/tiny16-asm build/02_variables.asm build/02_variables.tiny16
+;   ./build/tiny16-emu build/02_variables.tiny16 -m 100 -d
+
+(defn main ()
+  (let (a 3
+        b 4
+        total 0)
+    (set total (+ a b))
+    (set a (+ total 1))
+    ; Return a + total (should be 12).
+    (+ a total)))

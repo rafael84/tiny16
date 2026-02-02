@@ -160,7 +160,7 @@ EXAMPLES_SE_OUTPUTS := $(patsubst examples/se/%.se,$(BUILDDIR)/%_se.tiny16,$(EXA
 EXAMPLES_ASSETS := $(wildcard examples/assets/*.png)
 EXAMPLES_ASSETS_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS))
 
-EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard tutorial/includes/*.inc)
+EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard asm/tutorial/includes/*.inc)
 
 examples: examples-asm examples-se
 

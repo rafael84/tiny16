@@ -1,0 +1,14 @@
+; Tutorial 01: Expressions & Constants
+;
+; Build:
+;   ./build/tiny16-sec sec/tutorial/01_expressions.se build/01_expressions.asm
+;   ./build/tiny16-asm build/01_expressions.asm build/01_expressions.tiny16
+;   ./build/tiny16-emu build/01_expressions.tiny16 -m 50 -d
+
+(def BASE 7)
+(def OFFSET 5)
+(def RESULT (+ BASE OFFSET))
+
+(defn main ()
+  ; Evaluate a simple expression and return the result in R0.
+  (+ RESULT 3))
