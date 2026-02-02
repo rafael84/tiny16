@@ -38,8 +38,9 @@ typedef enum {
 } Tiny16PPError;
 
 typedef struct {
-    Tiny16Macro macros[TINY16_PP_MAX_MACROS];
+    Tiny16Macro* macros;
     int macro_count;
+    int macro_capacity;
     int macro_invocation_counter;
 
     char include_stack[TINY16_PP_MAX_INCLUDE_DEPTH][TINY16_PP_MAX_LINE_LEN];

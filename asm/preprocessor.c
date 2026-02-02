@@ -43,14 +43,27 @@ static void tiny16_pp_set_error(Tiny16Preprocessor* pp, Tiny16PPError error, ...
     va_end(args);
 }
 
-void tiny16_pp_init(Tiny16Preprocessor* pp) { memset(pp, 0, sizeof(Tiny16Preprocessor)); }
+void tiny16_pp_init(Tiny16Preprocessor* pp) {
+    memset(pp, 0, sizeof(Tiny16Preprocessor));
+    pp->macro_capacity = 16;
+    pp->macros = malloc(pp->macro_capacity * sizeof(Tiny16Macro));
+    if (!pp->macros) {
+        pp->macro_capacity = 0;
+    }
+}
 
 void tiny16_pp_free(Tiny16Preprocessor* pp) {
-    for (int i = 0; i < pp->macro_count; i++) {
-        for (int j = 0; j < pp->macros[i].line_count; j++) {
-            free(pp->macros[i].lines[j]);
+    if (pp->macros) {
+        for (int i = 0; i < pp->macro_count; i++) {
+            for (int j = 0; j < pp->macros[i].line_count; j++) {
+                free(pp->macros[i].lines[j]);
+            }
         }
+        free(pp->macros);
+        pp->macros = NULL;
     }
+    pp->macro_count = 0;
+    pp->macro_capacity = 0;
 }
 
 bool tiny16_pp_has_error(const Tiny16Preprocessor* pp) { return pp->error != TINY16_PP_OK; }
@@ -128,9 +141,22 @@ static void tiny16_pp_parse_macro_header(Tiny16Preprocessor* pp) {
         return;
     }
 
-    if (pp->macro_count >= TINY16_PP_MAX_MACROS) {
-        tiny16_pp_set_error(pp, TINY16_PP_ERROR_TOO_MANY_MACROS, TINY16_PP_MAX_MACROS);
-        return;
+    if (pp->macro_count >= pp->macro_capacity) {
+        int new_capacity = pp->macro_capacity * 2;
+        if (new_capacity > TINY16_PP_MAX_MACROS) {
+            new_capacity = TINY16_PP_MAX_MACROS;
+        }
+        if (pp->macro_count >= new_capacity) {
+            tiny16_pp_set_error(pp, TINY16_PP_ERROR_TOO_MANY_MACROS, TINY16_PP_MAX_MACROS);
+            return;
+        }
+        Tiny16Macro* new_macros = realloc(pp->macros, new_capacity * sizeof(Tiny16Macro));
+        if (!new_macros) {
+            tiny16_pp_set_error(pp, TINY16_PP_ERROR_TOO_MANY_MACROS, TINY16_PP_MAX_MACROS);
+            return;
+        }
+        pp->macros = new_macros;
+        pp->macro_capacity = new_capacity;
     }
 
     Tiny16Macro* macro = &pp->macros[pp->macro_count++];
