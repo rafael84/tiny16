@@ -2,7 +2,7 @@ tiny16se Language Specification
 ===============================
 
 VERSION
-    tiny16se v0.6 (NOT IMPLEMENTED YET)
+    tiny16se v0.7
 
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
@@ -114,16 +114,32 @@ Scope
 ------------------------------------------------------------
 
 (ns name)
+(ns name (require (module1 module2 ...)))
     Declare the current namespace for this file. Top-level
     definitions are prefixed with "name/". Unqualified references
     to constants, functions, and data labels are also prefixed
     unless they resolve to a local binding.
 
-(require name...)
-    Load additional .se files. Each entry may be a namespace symbol
-    (resolved by replacing '.' with '/' and appending ".se") or a
-    string path (relative to the current file). Required files are
-    parsed before the current file.
+    Optional require forms can be nested inside ns (Clojure-style).
+    Without ns declaration, all definitions remain unqualified.
+
+(require module1 module2 ...)
+(require (module1 module2 ...))
+    Load additional .se files. Both styles supported:
+    - Space-separated: (require math core)
+    - List syntax: (require (math core))
+
+    Each entry may be a namespace symbol (resolved by appending
+    ".se" and searching in -I path, default: stdlib/se) or a string
+    path (relative to current file or in search path).
+
+    Required modules are parsed first. Functions from required
+    modules are accessed with qualified names: module/function.
+
+(import "filename")
+    Include raw assembly or data files. Emits .include directive
+    in generated assembly. Files searched relative to current file
+    or in -I search path.
 
 (def name expr)
     Define a compile-time constant. The compiler emits
@@ -281,6 +297,7 @@ Sections & Data
 Includes
     - Use .include for shared macro libraries when assembling multiple
       translation units.
+    - SE import forms emit .include directives in assembly output.
 
 Concise Lowering Example
 
@@ -311,11 +328,27 @@ Concise Lowering Example
 Top-Level Forms
     - def, defn, data
 
-Typical Layout
-    (defn main (...) ...)
-    ...
+Typical Layout (no namespace)
+    (require (core sprite input))
+    (import "tileset.inc")
+
+    (defn main ()
+      (core/wait-frame)
+      (sprite/draw 0 64 64 1))
+
     (data my-bytes 0x4000
       (db 1 2 3 "OK"))
+
+Typical Layout (with namespace)
+    (ns mylib
+      (require (math core)))
+
+    (defn mylib/helper (x)
+      (math/mod-by x 10))
+
+    ; Entry point must be unqualified
+    (defn main ()
+      (mylib/helper 42))
 
 ------------------------------------------------------------
 12. ERROR CONDITIONS

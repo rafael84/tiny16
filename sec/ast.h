@@ -69,7 +69,7 @@ typedef enum {
     // Special directives
     AST_NS,      // (ns name)
     AST_REQUIRE, // (require name...)
-    AST_INCLUDE, // (include "filename")
+    AST_IMPORT,  // (import "filename")
     AST_ASM,     // (asm "raw assembly...")
 } AstKind;
 

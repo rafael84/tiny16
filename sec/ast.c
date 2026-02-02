@@ -47,7 +47,7 @@ const char* ast_kind_name(AstKind kind) {
     case AST_CALL: return "CALL";
     case AST_NS: return "NS";
     case AST_REQUIRE: return "REQUIRE";
-    case AST_INCLUDE: return "INCLUDE";
+    case AST_IMPORT: return "IMPORT";
     case AST_ASM: return "ASM";
     default: return "UNKNOWN";
     }

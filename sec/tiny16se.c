@@ -101,7 +101,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_NUMBER:
     case AST_STRING:
     case AST_ASM:
-    case AST_INCLUDE:
+    case AST_IMPORT:
     case AST_NS:
     case AST_REQUIRE: return;
 
@@ -276,6 +276,25 @@ static bool parse_file_into_program(const char* filename, AstPool* pool, AstProg
     return true;
 }
 
+static const char* g_search_path = NULL;
+
+static bool try_resolve_file(const char* path, char* out, size_t out_size) {
+    FILE* f = fopen(path, "r");
+    if (f) {
+        fclose(f);
+        char resolved[PATH_MAX];
+        if (realpath(path, resolved)) {
+            strncpy(out, resolved, out_size - 1);
+            out[out_size - 1] = '\0';
+            return true;
+        }
+        strncpy(out, path, out_size - 1);
+        out[out_size - 1] = '\0';
+        return true;
+    }
+    return false;
+}
+
 static bool parse_requires_recursive(const char* filename, AstPool* pool, AstProgram* out_program,
                                      SeModuleList* loaded) {
     char resolved[PATH_MAX];
@@ -345,15 +364,30 @@ static bool parse_requires_recursive(const char* filename, AstPool* pool, AstPro
             }
 
             char full_path[PATH_MAX];
+            bool found = false;
+
             if (is_absolute_path(req_path)) {
                 strncpy(full_path, req_path, sizeof(full_path) - 1);
                 full_path[sizeof(full_path) - 1] = '\0';
+                found = try_resolve_file(full_path, full_path, sizeof(full_path));
             } else {
-                if (!join_path(full_path, sizeof(full_path), base_dir, req_path)) {
-                    fprintf(stderr, "%s:%zu:%zu: error: invalid require path\n", filename,
-                            node->line, node->column);
-                    return false;
+                // Try relative to current file
+                if (join_path(full_path, sizeof(full_path), base_dir, req_path)) {
+                    found = try_resolve_file(full_path, full_path, sizeof(full_path));
                 }
+
+                // Try search path if not found
+                if (!found && g_search_path && *g_search_path) {
+                    if (join_path(full_path, sizeof(full_path), g_search_path, req_path)) {
+                        found = try_resolve_file(full_path, full_path, sizeof(full_path));
+                    }
+                }
+            }
+
+            if (!found) {
+                fprintf(stderr, "%s:%zu:%zu: error: cannot find required module '%s'\n", filename,
+                        node->line, node->column, req_path);
+                return false;
             }
 
             if (!parse_requires_recursive(full_path, pool, out_program, loaded)) return false;
@@ -383,6 +417,13 @@ static bool parse_with_requires(const char* filename, AstPool* pool, AstProgram*
 
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
+
+    // Set search path (default to stdlib/se)
+    if (args.search_path && *args.search_path) {
+        g_search_path = args.search_path;
+    } else {
+        g_search_path = "stdlib/se";
+    }
 
     static AstPool pool;
     ast_pool_reset(&pool);

@@ -61,6 +61,14 @@ void test_parser_addr(void);
 void test_parser_addr16(void);
 void test_parser_load_store(void);
 void test_parser_hi_lo(void);
+void test_parser_ns(void);
+void test_parser_ns_with_body(void);
+void test_parser_ns_error_no_symbol(void);
+void test_parser_require_single(void);
+void test_parser_require_multiple(void);
+void test_parser_require_list_syntax(void);
+void test_parser_require_with_strings(void);
+void test_parser_require_empty(void);
 void test_parser_error_expected_lparen(void);
 void test_parser_error_expected_rparen(void);
 void test_parser_error_unknown_form(void);
@@ -130,6 +138,14 @@ int main(void) {
     TEST(test_parser_addr16);
     TEST(test_parser_load_store);
     TEST(test_parser_hi_lo);
+    TEST(test_parser_ns);
+    TEST(test_parser_ns_with_body);
+    TEST(test_parser_ns_error_no_symbol);
+    TEST(test_parser_require_single);
+    TEST(test_parser_require_multiple);
+    TEST(test_parser_require_list_syntax);
+    TEST(test_parser_require_with_strings);
+    TEST(test_parser_require_empty);
     TEST(test_parser_error_expected_lparen);
     TEST(test_parser_error_expected_rparen);
     TEST(test_parser_error_unknown_form);
@@ -686,6 +702,136 @@ void test_parser_hi_lo(void) {
         TEST_ASSERT(node != NULL);
         TEST_ASSERT(node->kind == AST_LO);
     }
+}
+
+void test_parser_ns(void) {
+    const char* input = "(ns mylib)";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_NS);
+    TEST_ASSERT(strcmp(node->as.symbol.name, "mylib") == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_ns_with_body(void) {
+    const char* input = "(ns mylib (require (core)))";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstProgram program;
+    TEST_ASSERT(se_parser_parse_program(&parser, &program));
+    TEST_ASSERT(program.node_count == 2);
+    TEST_ASSERT(program.nodes[0]->kind == AST_NS);
+    TEST_ASSERT(strcmp(program.nodes[0]->as.symbol.name, "mylib") == 0);
+    TEST_ASSERT(program.nodes[1]->kind == AST_REQUIRE);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_ns_error_no_symbol(void) {
+    const char* input = "(ns 123)";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    (void)node;
+    TEST_ASSERT(se_parser_has_error(&parser));
+}
+
+void test_parser_require_single(void) {
+    const char* input = "(require math)";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REQUIRE);
+    TEST_ASSERT(node->as.block.expr_count == 1);
+    TEST_ASSERT(node->as.block.exprs[0]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[0]->as.symbol.name, "math") == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_require_multiple(void) {
+    const char* input = "(require math io graphics)";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REQUIRE);
+    TEST_ASSERT(node->as.block.expr_count == 3);
+    TEST_ASSERT(node->as.block.exprs[0]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[0]->as.symbol.name, "math") == 0);
+    TEST_ASSERT(node->as.block.exprs[1]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[1]->as.symbol.name, "io") == 0);
+    TEST_ASSERT(node->as.block.exprs[2]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[2]->as.symbol.name, "graphics") == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_require_list_syntax(void) {
+    const char* input = "(require (math io graphics))";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REQUIRE);
+    TEST_ASSERT(node->as.block.expr_count == 3);
+    TEST_ASSERT(node->as.block.exprs[0]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[0]->as.symbol.name, "math") == 0);
+    TEST_ASSERT(node->as.block.exprs[1]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[1]->as.symbol.name, "io") == 0);
+    TEST_ASSERT(node->as.block.exprs[2]->kind == AST_SYMBOL);
+    TEST_ASSERT(strcmp(node->as.block.exprs[2]->as.symbol.name, "graphics") == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_require_with_strings(void) {
+    const char* input = "(require \"math.se\" \"io.se\")";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REQUIRE);
+    TEST_ASSERT(node->as.block.expr_count == 2);
+    TEST_ASSERT(node->as.block.exprs[0]->kind == AST_STRING);
+    TEST_ASSERT(strcmp(node->as.block.exprs[0]->as.symbol.name, "math.se") == 0);
+    TEST_ASSERT(node->as.block.exprs[1]->kind == AST_STRING);
+    TEST_ASSERT(strcmp(node->as.block.exprs[1]->as.symbol.name, "io.se") == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_parser_require_empty(void) {
+    const char* input = "(require)";
+    static AstPool pool;
+    ast_pool_reset(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_REQUIRE);
+    TEST_ASSERT(node->as.block.expr_count == 0);
+    TEST_ASSERT(!se_parser_has_error(&parser));
 }
 
 void test_parser_error_expected_lparen(void) {

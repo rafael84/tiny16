@@ -31,6 +31,7 @@ typedef struct {
 void se_parser_init(SeParser* parser, const char* source, size_t source_len, AstPool* pool);
 
 bool se_parser_parse_program(SeParser* parser, AstProgram* program);
+bool se_parser_parse_ns_with_requires(SeParser* parser, AstProgram* program);
 AstNode* se_parser_parse_form(SeParser* parser);
 
 bool se_parser_has_error(SeParser* parser);

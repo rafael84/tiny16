@@ -512,7 +512,8 @@ static AstNode* parse_repeat(SeParser* parser) {
     return node;
 }
 
-// Parse (ns name)
+// Parse (ns name) or (ns name (require ...))
+// Returns just the ns node; any require forms need separate handling
 static AstNode* parse_ns(SeParser* parser) {
     advance(parser); // skip 'ns'
 
@@ -527,6 +528,24 @@ static AstNode* parse_ns(SeParser* parser) {
     copy_token_text(node->as.symbol.name, &parser->current, SE_MAX_SYMBOL_LEN);
     advance(parser);
 
+    // Skip body forms - parse_ns_with_requires will handle them
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        if (parser->current.kind == SE_TOKEN_LPAREN) {
+            // Skip nested form
+            int depth = 1;
+            advance(parser);
+            while (depth > 0 && parser->current.kind != SE_TOKEN_END) {
+                if (parser->current.kind == SE_TOKEN_LPAREN)
+                    depth++;
+                else if (parser->current.kind == SE_TOKEN_RPAREN)
+                    depth--;
+                advance(parser);
+            }
+        } else {
+            advance(parser);
+        }
+    }
+
     if (parser->current.kind != SE_TOKEN_RPAREN) {
         parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
         return NULL;
@@ -536,7 +555,7 @@ static AstNode* parse_ns(SeParser* parser) {
     return node;
 }
 
-// Parse (require name...)
+// Parse (require name...) or (require (name1 name2...))
 static AstNode* parse_require(SeParser* parser) {
     advance(parser); // skip 'require'
 
@@ -544,20 +563,52 @@ static AstNode* parse_require(SeParser* parser) {
     if (!node) return NULL;
 
     node->as.block.expr_count = 0;
-    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
-            return NULL;
-        }
-        if (parser->current.kind != SE_TOKEN_SYMBOL && parser->current.kind != SE_TOKEN_STRING) {
-            parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
-                             "require expects a symbol or string");
-            return NULL;
+
+    // Check if first element is a list (Clojure-style)
+    if (parser->current.kind == SE_TOKEN_LPAREN) {
+        advance(parser); // skip '('
+
+        // Parse symbols/strings inside the list
+        while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+            if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
+                parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
+                return NULL;
+            }
+            if (parser->current.kind != SE_TOKEN_SYMBOL &&
+                parser->current.kind != SE_TOKEN_STRING) {
+                parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
+                                 "require expects a symbol or string");
+                return NULL;
+            }
+
+            AstNode* entry = se_parser_parse_form(parser);
+            if (!entry) return NULL;
+            node->as.block.exprs[node->as.block.expr_count++] = entry;
         }
 
-        AstNode* entry = se_parser_parse_form(parser);
-        if (!entry) return NULL;
-        node->as.block.exprs[node->as.block.expr_count++] = entry;
+        if (parser->current.kind != SE_TOKEN_RPAREN) {
+            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+            return NULL;
+        }
+        advance(parser); // skip ')'
+    } else {
+        // Original style: (require name1 name2...)
+        while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+            if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
+                parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
+                return NULL;
+            }
+            if (parser->current.kind != SE_TOKEN_SYMBOL &&
+                parser->current.kind != SE_TOKEN_STRING) {
+                parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
+                                 "require expects a symbol or string");
+                return NULL;
+            }
+
+            AstNode* entry = se_parser_parse_form(parser);
+            if (!entry) return NULL;
+            node->as.block.exprs[node->as.block.expr_count++] = entry;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -896,7 +947,7 @@ static AstNode* parse_poke16(SeParser* parser) {
 }
 
 // Parse (include "filename")
-static AstNode* parse_include(SeParser* parser) {
+static AstNode* parse_import(SeParser* parser) {
     advance(parser); // skip 'include'
 
     if (parser->current.kind != SE_TOKEN_STRING) {
@@ -905,7 +956,7 @@ static AstNode* parse_include(SeParser* parser) {
         return NULL;
     }
 
-    AstNode* node = alloc_node(parser, AST_INCLUDE);
+    AstNode* node = alloc_node(parser, AST_IMPORT);
     if (!node) return NULL;
 
     // Copy filename without quotes
@@ -1086,11 +1137,55 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, "lo")) return parse_unary(parser, AST_LO);
 
     // Special directives
-    if (is_symbol(parser, "include")) return parse_include(parser);
+    if (is_symbol(parser, "import")) return parse_import(parser);
     if (is_symbol(parser, "asm")) return parse_asm(parser);
 
     // Otherwise, it's a function call
     return parse_call(parser);
+}
+
+// Parse (ns name (require (modules...))) and extract forms
+bool se_parser_parse_ns_with_requires(SeParser* parser, AstProgram* program) {
+    if (parser->current.kind != SE_TOKEN_LPAREN) return false;
+
+    SeToken peek = se_lexer_peek(&parser->lexer);
+    if (peek.kind != SE_TOKEN_SYMBOL || !se_token_is_symbol(&peek, "ns")) {
+        return false;
+    }
+
+    advance(parser); // skip '('
+    advance(parser); // skip 'ns'
+
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "ns requires a namespace symbol");
+        return true; // consumed ns form
+    }
+
+    AstNode* ns_node = alloc_node(parser, AST_NS);
+    if (!ns_node) return true;
+    copy_token_text(ns_node->as.symbol.name, &parser->current, SE_MAX_SYMBOL_LEN);
+    advance(parser);
+
+    program->nodes[program->node_count++] = ns_node;
+
+    // Parse body forms (mainly require)
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        if (program->node_count >= SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many forms");
+            return true;
+        }
+
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return true;
+        program->nodes[program->node_count++] = form;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+    }
+    advance(parser);
+
+    return true; // consumed ns form
 }
 
 bool se_parser_parse_program(SeParser* parser, AstProgram* program) {
@@ -1100,6 +1195,11 @@ bool se_parser_parse_program(SeParser* parser, AstProgram* program) {
         if (program->node_count >= SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS) {
             parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many top-level forms");
             return false;
+        }
+
+        // Try to parse (ns ...) with nested forms
+        if (se_parser_parse_ns_with_requires(parser, program)) {
+            continue;
         }
 
         AstNode* form = se_parser_parse_form(parser);

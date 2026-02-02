@@ -4,14 +4,15 @@
 #include <stdarg.h>
 #include <string.h>
 
-// Convert symbol to valid assembly identifier (replace - with _)
+// Convert symbol to valid assembly identifier (replace special chars with _)
 static void sanitize_name(char* dest, const char* src, size_t max_len) {
     size_t i;
     for (i = 0; i < max_len - 1 && src[i]; i++) {
         switch (src[i]) {
         case '-':
         case '/':
-        case '.': dest[i] = '_'; break;
+        case '.':
+        case '?': dest[i] = '_'; break;
         default: dest[i] = src[i]; break;
         }
     }
@@ -920,8 +921,8 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         emit(cg, "    %s\n", node->as.symbol.name);
         break;
 
-    case AST_INCLUDE:
-        // Include directives should be handled at top level, not in expressions
+    case AST_IMPORT:
+        // Import directives should be handled at top level, not in expressions
         set_error(cg, node->line, "include cannot be used inside expressions");
         break;
 
@@ -1093,7 +1094,7 @@ bool se_codegen_emit(SeCodegen* cg, AstProgram* program) {
 
     // Emit includes at the end (typically contain data like tilesets, fonts)
     for (size_t i = 0; i < program->node_count; i++) {
-        if (program->nodes[i]->kind == AST_INCLUDE) {
+        if (program->nodes[i]->kind == AST_IMPORT) {
             emit(cg, ".include \"%s\"\n", program->nodes[i]->as.symbol.name);
         }
     }
