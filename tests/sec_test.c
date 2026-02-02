@@ -311,7 +311,8 @@ void test_lexer_special_symbols(void) {
 
 void test_parser_number(void) {
     const char* input = "42";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -323,7 +324,8 @@ void test_parser_number(void) {
 
 void test_parser_string(void) {
     const char* input = "\"hello\"";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -335,7 +337,8 @@ void test_parser_string(void) {
 
 void test_parser_symbol(void) {
     const char* input = "foo";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -347,7 +350,8 @@ void test_parser_symbol(void) {
 
 void test_parser_def(void) {
     const char* input = "(def x 42)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -362,7 +366,8 @@ void test_parser_def(void) {
 
 void test_parser_defn_simple(void) {
     const char* input = "(defn foo () 42)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -377,7 +382,8 @@ void test_parser_defn_simple(void) {
 
 void test_parser_defn_with_params(void) {
     const char* input = "(defn add (x y) (+ x y))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -393,7 +399,8 @@ void test_parser_defn_with_params(void) {
 
 void test_parser_let(void) {
     const char* input = "(let (x 10 y 20) (+ x y))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -410,7 +417,8 @@ void test_parser_let(void) {
 
 void test_parser_set(void) {
     const char* input = "(set x 42)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -424,7 +432,8 @@ void test_parser_set(void) {
 
 void test_parser_if(void) {
     const char* input = "(if (< x 10) 1 0)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -438,7 +447,8 @@ void test_parser_if(void) {
 
 void test_parser_while(void) {
     const char* input = "(while (< i 10) (set i (+ i 1)))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -451,7 +461,8 @@ void test_parser_while(void) {
 
 void test_parser_do(void) {
     const char* input = "(do (set x 1) (set y 2) x)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -463,7 +474,8 @@ void test_parser_do(void) {
 
 void test_parser_add(void) {
     const char* input = "(+ 1 2)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -479,7 +491,8 @@ void test_parser_arithmetic_ops(void) {
     AstKind expected[] = {AST_ADD, AST_SUB, AST_INC, AST_DEC};
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
@@ -494,7 +507,8 @@ void test_parser_comparison_ops(void) {
     AstKind expected[] = {AST_EQ, AST_NE, AST_LT, AST_GT, AST_LE, AST_GE};
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
@@ -509,7 +523,8 @@ void test_parser_bitwise_ops(void) {
     AstKind expected[] = {AST_AND, AST_OR, AST_XOR, AST_NOT, AST_SHL, AST_SHR};
 
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); i++) {
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, tests[i], strlen(tests[i]), &pool);
 
@@ -521,7 +536,8 @@ void test_parser_bitwise_ops(void) {
 
 void test_parser_nested_expressions(void) {
     const char* input = "(+ (* 2 3) (- 10 4))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -534,7 +550,8 @@ void test_parser_nested_expressions(void) {
 
 void test_parser_function_call(void) {
     const char* input = "(foo 1 2 3)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -547,7 +564,8 @@ void test_parser_function_call(void) {
 
 void test_parser_data(void) {
     const char* input = "(data msg (db \"hello\"))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -560,7 +578,8 @@ void test_parser_data(void) {
 
 void test_parser_db(void) {
     const char* input = "(db 1 2 3)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -572,7 +591,8 @@ void test_parser_db(void) {
 
 void test_parser_repeat(void) {
     const char* input = "(repeat 10 (db 0))";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -585,7 +605,8 @@ void test_parser_repeat(void) {
 
 void test_parser_addr(void) {
     const char* input = "(addr 0xBF 0x00)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -598,7 +619,8 @@ void test_parser_addr(void) {
 
 void test_parser_addr16(void) {
     const char* input = "(addr16 0xBF00)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -611,7 +633,8 @@ void test_parser_load_store(void) {
     // Test load
     {
         const char* input = "(load (addr 0xBF 0x00))";
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -624,7 +647,8 @@ void test_parser_load_store(void) {
     // Test store
     {
         const char* input = "(store (addr 0xBF 0x00) 42)";
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -640,7 +664,8 @@ void test_parser_hi_lo(void) {
     // Test hi
     {
         const char* input = "(hi 0x1234)";
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -652,7 +677,8 @@ void test_parser_hi_lo(void) {
     // Test lo
     {
         const char* input = "(lo 0x1234)";
-        static AstPool pool; ast_pool_reset(&pool);
+        static AstPool pool;
+        ast_pool_reset(&pool);
         SeParser parser;
         se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -664,7 +690,8 @@ void test_parser_hi_lo(void) {
 
 void test_parser_error_expected_lparen(void) {
     const char* input = "defn foo () 42)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -676,7 +703,8 @@ void test_parser_error_expected_lparen(void) {
 
 void test_parser_error_expected_rparen(void) {
     const char* input = "(+ 1 2";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -687,7 +715,8 @@ void test_parser_error_expected_rparen(void) {
 
 void test_parser_error_unknown_form(void) {
     const char* input = "(unknown-form x y)";
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
@@ -702,7 +731,8 @@ void test_parser_error_unknown_form(void) {
 // =============================================================================
 
 static char* codegen_to_string(const char* input) {
-    static AstPool pool; ast_pool_reset(&pool);
+    static AstPool pool;
+    ast_pool_reset(&pool);
     SeParser parser;
     se_parser_init(&parser, input, strlen(input), &pool);
 
