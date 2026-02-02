@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#define realpath(N, R) _fullpath((R), (N), PATH_MAX)
+#endif
+
 // PATH_MAX may not be defined on all systems
 #ifndef PATH_MAX
 #define PATH_MAX 4096
