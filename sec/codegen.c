@@ -8,7 +8,16 @@
 static void sanitize_name(char* dest, const char* src, size_t max_len) {
     size_t i;
     for (i = 0; i < max_len - 1 && src[i]; i++) {
-        dest[i] = (src[i] == '-') ? '_' : src[i];
+        switch (src[i]) {
+        case '-':
+        case '/':
+        case '.':
+            dest[i] = '_';
+            break;
+        default:
+            dest[i] = src[i];
+            break;
+        }
     }
     dest[i] = '\0';
 }
@@ -251,6 +260,8 @@ bool se_codegen_collect(SeCodegen* cg, AstProgram* program) {
             }
             strncpy(cg->functions[cg->function_count], node->as.defn.name, SE_MAX_SYMBOL_LEN - 1);
             cg->function_count++;
+        } else if (node->kind == AST_NS || node->kind == AST_REQUIRE) {
+            continue;
         }
     }
 
@@ -916,6 +927,14 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     case AST_INCLUDE:
         // Include directives should be handled at top level, not in expressions
         set_error(cg, node->line, "include cannot be used inside expressions");
+        break;
+
+    case AST_NS:
+        set_error(cg, node->line, "ns cannot be used inside expressions");
+        break;
+
+    case AST_REQUIRE:
+        set_error(cg, node->line, "require cannot be used inside expressions");
         break;
 
     default: set_error(cg, node->line, "unsupported expression"); break;

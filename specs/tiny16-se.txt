@@ -113,6 +113,18 @@ Scope
 6. SPECIAL FORMS
 ------------------------------------------------------------
 
+(ns name)
+    Declare the current namespace for this file. Top-level
+    definitions are prefixed with "name/". Unqualified references
+    to constants, functions, and data labels are also prefixed
+    unless they resolve to a local binding.
+
+(require name...)
+    Load additional .se files. Each entry may be a namespace symbol
+    (resolved by replacing '.' with '/' and appending ".se") or a
+    string path (relative to the current file). Required files are
+    parsed before the current file.
+
 (def name expr)
     Define a compile-time constant. The compiler emits
     "name = expr" in the output assembly.

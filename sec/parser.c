@@ -512,6 +512,63 @@ static AstNode* parse_repeat(SeParser* parser) {
     return node;
 }
 
+// Parse (ns name)
+static AstNode* parse_ns(SeParser* parser) {
+    advance(parser); // skip 'ns'
+
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "ns requires a namespace symbol");
+        return NULL;
+    }
+
+    AstNode* node = alloc_node(parser, AST_NS);
+    if (!node) return NULL;
+
+    copy_token_text(node->as.symbol.name, &parser->current, SE_MAX_SYMBOL_LEN);
+    advance(parser);
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (require name...)
+static AstNode* parse_require(SeParser* parser) {
+    advance(parser); // skip 'require'
+
+    AstNode* node = alloc_node(parser, AST_REQUIRE);
+    if (!node) return NULL;
+
+    node->as.block.expr_count = 0;
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
+            return NULL;
+        }
+        if (parser->current.kind != SE_TOKEN_SYMBOL && parser->current.kind != SE_TOKEN_STRING) {
+            parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
+                             "require expects a symbol or string");
+            return NULL;
+        }
+
+        AstNode* entry = se_parser_parse_form(parser);
+        if (!entry) return NULL;
+        node->as.block.exprs[node->as.block.expr_count++] = entry;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
 // Parse binary operation
 static AstNode* parse_binary(SeParser* parser, AstKind kind) {
     advance(parser); // skip operator
@@ -955,6 +1012,8 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, "data")) return parse_data(parser);
     if (is_symbol(parser, "db")) return parse_db(parser);
     if (is_symbol(parser, "repeat")) return parse_repeat(parser);
+    if (is_symbol(parser, "ns")) return parse_ns(parser);
+    if (is_symbol(parser, "require")) return parse_require(parser);
 
     // Arithmetic
     if (is_symbol(parser, "+") || is_symbol(parser, "add")) return parse_binary(parser, AST_ADD);
