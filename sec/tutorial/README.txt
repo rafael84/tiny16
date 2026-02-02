@@ -8,6 +8,8 @@ QUICK START:
   ../../build/tiny16-sec 01_expressions.se 01_expressions.asm
   ../../build/tiny16-asm 01_expressions.asm 01_expressions.tiny16
   ../../build/tiny16-emu 01_expressions.tiny16 -m 200 -d
+  # or from repo root:
+  #   ./eval.sh sec/tutorial/01_expressions.se
 
 The compiler always calls (main) as the program entry point.
 

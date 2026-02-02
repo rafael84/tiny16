@@ -5,8 +5,10 @@ Progressive course covering assembly fundamentals and tiny16 features.
 
 QUICK START:
   cd asm/tutorial/
-  ../../bin/tiny16-asm 01_load_and_halt.asm 01.tiny16
-  ../../bin/tiny16-emu 01.tiny16 -m 100 -d
+  ../../build/tiny16-asm 01_load_and_halt.asm 01.tiny16
+  ../../build/tiny16-emu 01.tiny16 -m 100 -d
+  # or from repo root:
+  #   ./eval.sh asm/tutorial/01_load_and_halt.asm
 
 EMULATOR FLAGS:
   -m <n>  max instructions   -d  dump state
