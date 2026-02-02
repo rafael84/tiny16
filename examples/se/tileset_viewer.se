@@ -1,139 +1,67 @@
 ; Tileset Viewer - Auto-scrolling tileset display
 ;
-; Displays tiles from the tileset in a 16x8 grid, automatically scrolling
-; through all tiles.
+; Displays tiles from the tileset using sprites (only renders visible tiles).
 ;
 ; BUILD:
-;   cd examples/se
-;   make examples-se  (or from project root:)
-;   ./build/tiny16-sec examples/se/tileset_viewer.se build/tileset_viewer_se.asm
-;   ./build/tiny16-asm build/tileset_viewer_se.asm build/tileset_viewer_se.tiny16
+;   make examples-se
+;   ./build/tiny16-emu build/tileset_viewer_se.tiny16
 
-(include "../examples/includes/tileset.inc")
+(require (core sprite ppu))
+(import "../examples/includes/tileset.inc")
 
-; =============================================================================
-; Constants - Memory Map
-; =============================================================================
+(def TILES_PER_SCREEN 64)
+(def MAX_TILE_INDEX 80)
+(def SCROLL_SPEED 8)
+(def COLS 8)
+(def ROWS 8)
+(def TILE_SIZE 8)
+(def START_X 32)
+(def START_Y 32)
 
-; Data section memory addresses (user_data placed at 0x4000 - VM-defined)
-(def TILE_OFFSET_ADDR   0x4000)
-(def FRAME_COUNTER_ADDR 0x4001)
-(def LAST_FRAME_ADDR    0x4002)
-
-(def TILEMAP_ADDR       0x7000)
-
-; =============================================================================
-; Constants - MMIO
-; =============================================================================
-
-(def MMIO_BASE          0xBF00)
-(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
-(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
-
-; =============================================================================
-; Constants - Graphics
-; =============================================================================
-
-(def TILES_PER_SCREEN   128)       ; 16x8 = 128 tiles visible
-(def MAX_TILE_INDEX     80)        ; Total tiles in tileset
-(def SCROLL_SPEED       8)         ; Frames between scrolls
-(def PPU_CTRL_BG_ON     0x81)
-
-; Tilemap starts at row 4, col 0: address = 0x7000 + (4 * 32 + 0) * 2 = 0x7100
-(def DISPLAY_START      0x7100)
-
-; =============================================================================
-; Helper Functions
-; =============================================================================
-
-(defn read-frame-count ()
-  (peek16 FRAME_COUNT_ADDR))
-
-(defn wait-frame ()
-  (let (last (peek16 LAST_FRAME_ADDR)
-        current (read-frame-count))
-    (while (= current last)
-      (set current (read-frame-count)))
-    (poke16 LAST_FRAME_ADDR current)
-    0))
-
-(defn render-frame ()
-  (poke16 PPU_CTRL_ADDR PPU_CTRL_BG_ON)
-  0)
-
-; =============================================================================
-; Tilemap Drawing
-; =============================================================================
-
-; Draw 16x8 grid of tiles starting from tile_offset
-(defn draw-tilemap ()
-  (let (tile-idx (peek16 TILE_OFFSET_ADDR)
-        row 0)
-    (while (< row 8)
-      (let (col 0
-            ; Row address = DISPLAY_START + row * 64 (32 tiles * 2 bytes)
-            row-offset (* row 64)
-            row-hi (+ (hi DISPLAY_START) (>> row-offset 8))
-            row-lo (& row-offset 0xFF))
-        (while (< col 16)
-          ; Write tile index
-          (poke row-hi row-lo tile-idx)
-          ; Write attribute (0)
-          (poke row-hi (+ row-lo 1) 0)
-          ; Advance to next tile entry (2 bytes)
-          (set row-lo (+ row-lo 2))
-          ; Next tile
-          (set tile-idx (inc tile-idx))
-          (if (>= tile-idx MAX_TILE_INDEX)
-              (set tile-idx 0)
-              0)
+; Render sprites with tiles starting at offset
+; Only renders sprites that have non-transparent pixels
+(defn render-sprites (offset)
+  (let (row 0)
+    (while (< row ROWS)
+      (let (col 0)
+        (while (< col COLS)
+          (let (sprite-idx (+ (* row COLS) col)
+                tile-index (+ offset sprite-idx)
+                x (+ START_X (* col TILE_SIZE))
+                y (+ START_Y (* row TILE_SIZE)))
+            (if (< tile-index MAX_TILE_INDEX)
+                (sprite/draw-visible sprite-idx y x tile-index)
+                (sprite/hide sprite-idx)))
           (set col (inc col))))
-      (set row (inc row))))
-  0)
-
-; =============================================================================
-; Main
-; =============================================================================
+      (set row (inc row)))))
 
 (defn main ()
-  ; Initialize
-  (poke16 TILE_OFFSET_ADDR 0)
-  (poke16 FRAME_COUNTER_ADDR 0)
-  
-  ; Draw initial tilemap
-  (draw-tilemap)
-  
-  ; Enable background rendering
-  (poke16 PPU_CTRL_ADDR 0x01)
-  
-  ; Main loop
+  (sprite/hide-all)
+  (render-sprites 0)
+  (poke16 tile_offset 0)
+  (poke16 frame_counter 0)
+
   (while 1
-    (wait-frame)
-    
-    ; Increment frame counter
-    (let (fc (inc (peek16 FRAME_COUNTER_ADDR)))
-      (poke16 FRAME_COUNTER_ADDR fc)
-      
-      ; Check if time to scroll (every SCROLL_SPEED frames)
-      (if (= (% fc SCROLL_SPEED) 0)
+    (core/wait-frame)
+    (ppu/render-sprites-only)
+
+    ; Count frames for scrolling
+    (let (counter (peek16 frame_counter))
+      (set counter (inc counter))
+      (poke16 frame_counter counter)
+
+      ; Scroll every SCROLL_SPEED frames
+      (if (>= counter SCROLL_SPEED)
           (do
-            ; Scroll by one row (16 tiles)
-            (let (offset (+ (peek16 TILE_OFFSET_ADDR) 16))
+            (poke16 frame_counter 0)
+            (let (offset (peek16 tile_offset))
+              (set offset (inc offset))
               (if (>= offset MAX_TILE_INDEX)
                   (set offset 0)
                   0)
-              (poke16 TILE_OFFSET_ADDR offset))
-            (draw-tilemap))
-          0))
-    
-    (render-frame))
-  0)
+              (poke16 tile_offset offset)
+              (render-sprites offset)))
+          0))))
 
-; =============================================================================
-; Data Section
-; =============================================================================
-
-(data user_data 0x4000
-  (db 0)   ; tile_offset - at 0x4000
-  (db 0)   ; frame_counter - at 0x4001
-  (db 0))  ; last_frame - at 0x4002
+(data tile_offset (db 0))
+(data frame_counter (db 0))

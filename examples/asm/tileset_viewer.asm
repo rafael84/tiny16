@@ -1,4 +1,4 @@
-.include "../../stdlib/tiny16.inc"
+.include "tiny16.inc"
 
 ; Memory addresses
 USER_DATA_BASE     = 0x4000

@@ -265,13 +265,14 @@
 
 ; Draw a single character sprite
 ; x, y: position in pixels
-; char-code: ASCII character value (tile index)
+; char-code: ASCII character value
 ; sprite-idx: OAM sprite slot (0-63)
 (defn draw-char (x y char-code sprite-idx)
-  (let (lo (+ OAM_LO (<< sprite-idx 2)))
+  (let (tile (+ 96 char-code)
+        lo (+ OAM_LO (<< sprite-idx 2)))
     (poke OAM_HI lo y)
     (poke OAM_HI (+ lo 1) x)
-    (poke OAM_HI (+ lo 2) char-code)
+    (poke OAM_HI (+ lo 2) tile)
     (poke OAM_HI (+ lo 3) 0)))
 
 ; Draw null-terminated text string
@@ -507,4 +508,4 @@
 (data text_line7 (db "LT TRI" 0))
 (data text_line8 (db "RT NOISE" 0))
 
-(include "../examples/includes/tileset.inc")
+(import "../examples/includes/tileset.inc")

@@ -17,7 +17,7 @@
 ; PALETTE_ADDR:      Palette from tileset.inc
 ;
 
-.include "../../stdlib/tiny16.inc"
+.include "tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map

@@ -11,7 +11,7 @@
 ; - Boundary checking
 ; - Using macros for cleaner input code
 
-.include "../../stdlib/tiny16.inc"
+.include "tiny16.inc"
 
 ; =============================================================================
 ; Constants - Memory Map

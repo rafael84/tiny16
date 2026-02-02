@@ -1,293 +1,102 @@
 ; Bouncing Sprites Demo - 32 PPU Sprites
 ;
-; tiny16se rewrite of demo.asm demonstrating:
+; Demonstrates:
 ; - PPU tile-based rendering with tileset
 ; - Hardware sprites via OAM (32 bouncing sprites)
 ; - Frame-synced animation at 60 FPS
 ;
 ; BUILD:
-;   cd project_root
-;   make examples-se  (or from project root:)
-;   ./build/tiny16-sec examples/se/demo.se build/demo_se.asm
-;   ./build/tiny16-asm build/demo_se.asm build/demo_se.tiny16
+;   make examples-se
 ;   ./build/tiny16-emu build/demo_se.tiny16
 
-; Include tileset data
-(include "../examples/includes/tileset.inc")
+(require (core sprite tilemap math ppu))
+(import "../examples/includes/tileset.inc")
 
-; =============================================================================
-; Constants - Memory Map
-; =============================================================================
+(def SPRITE_COUNT 32)
+(def SPRITE_DATA_SIZE 128)
+(def BOUNDARY 120)
+(def MIN_POSITION 10)
+(def MODULO_RANGE 110)
+(def VELOCITY_BASE 1)
+(def INIT_FLAG 0xAA)
+(def TILE_SPRITE 99)
 
-(def TILE_DATA_ADDR     0x5000)
-(def TILEMAP_ADDR       0x7000)
-(def OAM_ADDR           0x9000)
-(def PALETTE_ADDR       0x9200)
+; Sprite data structure (4 bytes per sprite): x, y, vel-x, vel-y
+(defn sprite-data-addr (index offset)
+  (+ (lo sprite_data) (+ (* index 4) offset)))
 
-; NOTE: Data labels (initialized, last_frame, bounce_flag, sprite_data)
-; are auto-resolved by the compiler to their addresses
-(def OAM_HI             (hi OAM_ADDR))
-(def OAM_LO             (lo OAM_ADDR))
-(def TILEMAP_HI         (hi TILEMAP_ADDR))
-(def TILEMAP_LO         (lo TILEMAP_ADDR))
-
-; =============================================================================
-; Constants - MMIO/PPU
-; =============================================================================
-
-(def MMIO_BASE          0xBF00)
-(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
-(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
-
-; PPU_CTRL_BG_AND_SPRITES = 0x83 (Enable BG + Sprites + Render)
-(def PPU_CTRL_BG_AND_SPRITES 0x83)
-
-; =============================================================================
-; Constants - Game Parameters
-; =============================================================================
-
-(def SPRITE_COUNT       32)
-(def SPRITE_SIZE        4)
-(def SPRITE_DATA_SIZE   128)
-(def BOUNDARY           120)
-(def MIN_POSITION       10)
-(def MODULO_RANGE       110)
-(def VELOCITY_BASE      1)
-(def INITIALIZED_FLAG   0xAA)
-
-(def TILE_SPRITE        99)
-(def TILE_BACKGROUND    0)
-(def SPRITE_ATTR_NONE   0x00)
-
-; =============================================================================
-; Helper Functions
-; =============================================================================
-
-(defn read-frame-count ()
-  (peek16 FRAME_COUNT_ADDR))
-
-(defn wait-frame ()
-  (let (last (peek16 last_frame)
-        current (read-frame-count))
-    (while (= current last)
-      (set current (read-frame-count)))
-    (poke16 last_frame current)
-    0))
-
-(defn render-frame ()
-  (poke16 PPU_CTRL_ADDR PPU_CTRL_BG_AND_SPRITES)
-  0)
-
-(defn mod-by (value divisor)
-  (let (result value)
-    (while (>= result divisor)
-      (set result (- result divisor)))
-    result))
-
-; Calculate sprite data address low byte: (lo sprite_data) + (index * 4)
-(defn sprite-data-lo (index)
-  (+ (lo sprite_data) (<< index 2)))
-
-; Calculate OAM address low byte: OAM_LO + (index * 4)
-(defn oam-lo (index)
-  (+ OAM_LO (<< index 2)))
-
-; =============================================================================
-; HIDE_ALL_SPRITES - Set Y=0xFF for all 64 OAM entries
-; =============================================================================
-
-(defn hide-one-sprite (i)
-  (let (lo (+ OAM_LO (<< i 2)))
-    (poke OAM_HI lo 0xFF)
-    (poke OAM_HI (+ lo 1) 0)
-    (poke OAM_HI (+ lo 2) 0)
-    (poke OAM_HI (+ lo 3) 0)
-    0))
-
-(defn hide-all-sprites ()
-  (let (i 0)
-    (while (< i 64)
-      (hide-one-sprite i)
-      (set i (inc i)))
-    0))
-
-; =============================================================================
-; FILL_TILEMAP - Fill visible 16x16 tilemap area with background tile
-; =============================================================================
-
-(defn fill-tilemap ()
-  (let (row 0)
-    ; Fill 16 rows (screen height = 128 pixels / 8 = 16 tiles)
-    ; Tilemap is 128 tiles wide, each row = 256 bytes (one page)
-    ; addr = 0x7000 + row*256 + col*2
-    (while (< row 16)
-      (let (col 0
-            addr-hi (+ TILEMAP_HI row))
-        (while (< col 16)
-          ; Write tile index at col*2
-          (poke addr-hi (<< col 1) TILE_BACKGROUND)
-          ; Write attribute at col*2+1
-          (poke addr-hi (+ (<< col 1) 1) 0)
-          (set col (inc col))))
-      (set row (inc row)))
-    0))
-
-; =============================================================================
-; INIT_SPRITES - Initialize 32 sprites with varied positions and velocities
-; =============================================================================
-
-; Helper to compute i*7
-(defn mul7 (n)
-  (+ (<< n 2) (+ (<< n 1) n)))
-
-; Helper to compute i*11
-(defn mul11 (n)
-  (+ (<< n 3) (+ (<< n 1) n)))
-
-; Helper to compute i*3
-(defn mul3 (n)
-  (+ (<< n 1) n))
-
-; Store sprite at index with computed values
+; Initialize one sprite with varied position and velocity
 (defn init-one-sprite (i seed)
-  (let (i7 (mul7 i)
-        i11 (mul11 i)
-        i3 (mul3 i)
-        base-x (+ seed i7)
-        base-y (+ seed i11)
-        x (+ (mod-by (+ base-x (<< base-x 1)) MODULO_RANGE) MIN_POSITION)
-        y (+ (mod-by (<< base-y 1) MODULO_RANGE) MIN_POSITION)
+  (let (x (+ (math/mod-by (+ seed (* i 7)) MODULO_RANGE) MIN_POSITION)
+        y (+ (math/mod-by (+ seed (* i 11)) MODULO_RANGE) MIN_POSITION)
         vel-x (+ VELOCITY_BASE (& (+ seed i) 1))
-        vel-y (+ VELOCITY_BASE (& (+ seed i3) 1))
-        lo (sprite-data-lo i))
-    (poke (hi sprite_data) lo x)
-    (poke (hi sprite_data) (+ lo 1) y)
-    (poke (hi sprite_data) (+ lo 2) vel-x)
-    (poke (hi sprite_data) (+ lo 3) vel-y)
-    0))
+        vel-y (+ VELOCITY_BASE (& (+ seed (* i 3)) 1)))
+    (poke (hi sprite_data) (sprite-data-addr i 0) x)
+    (poke (hi sprite_data) (sprite-data-addr i 1) y)
+    (poke (hi sprite_data) (sprite-data-addr i 2) vel-x)
+    (poke (hi sprite_data) (sprite-data-addr i 3) vel-y)))
 
 (defn init-sprites ()
-  (hide-all-sprites)
-  (fill-tilemap)
-  (let (seed (read-frame-count)
+  (sprite/hide-all)
+  (tilemap/clear-all)
+  (let (seed (core/read-frame)
         i 0)
     (while (< i SPRITE_COUNT)
       (init-one-sprite i seed)
-      (set i (inc i)))
-    (poke16 initialized INITIALIZED_FLAG)
-    0))
+      (set i (inc i)))))
 
-; =============================================================================
-; UPDATE_ALL_OAM - Copy sprite positions to OAM
-; =============================================================================
+; Update one sprite position and handle bouncing
+(defn update-one-sprite (i)
+  (let (data-hi (hi sprite_data)
+        x (peek data-hi (sprite-data-addr i 0))
+        y (peek data-hi (sprite-data-addr i 1))
+        vx (peek data-hi (sprite-data-addr i 2))
+        vy (peek data-hi (sprite-data-addr i 3)))
 
-(defn update-one-oam (i)
-  (let (data-lo (sprite-data-lo i)
-        x (peek (hi sprite_data) data-lo)
-        y (peek (hi sprite_data) (+ data-lo 1))
-        oam (oam-lo i))
-    ; OAM format: Y, X, tile, attr
-    (poke OAM_HI oam y)
-    (poke OAM_HI (+ oam 1) x)
-    (poke OAM_HI (+ oam 2) TILE_SPRITE)
-    (poke OAM_HI (+ oam 3) SPRITE_ATTR_NONE)
-    0))
+    ; Update position
+    (set x (+ x vx))
+    (set y (+ y vy))
 
-(defn update-all-oam ()
+    ; Bounce on boundaries
+    (if (| (>= x BOUNDARY) (= x 0))
+        (set vx (- 0 vx))
+        0)
+    (if (| (>= y BOUNDARY) (= y 0))
+        (set vy (- 0 vy))
+        0)
+
+    ; Store updated values
+    (poke data-hi (sprite-data-addr i 0) x)
+    (poke data-hi (sprite-data-addr i 1) y)
+    (poke data-hi (sprite-data-addr i 2) vx)
+    (poke data-hi (sprite-data-addr i 3) vy)))
+
+; Copy sprite data to OAM for rendering
+(defn render-one-sprite (i)
+  (let (data-hi (hi sprite_data)
+        x (peek data-hi (sprite-data-addr i 0))
+        y (peek data-hi (sprite-data-addr i 1)))
+    (sprite/draw i y x TILE_SPRITE)))
+
+(defn update-sprites ()
   (let (i 0)
     (while (< i SPRITE_COUNT)
-      (update-one-oam i)
-      (set i (inc i)))
-    0))
+      (update-one-sprite i)
+      (set i (inc i)))))
 
-; =============================================================================
-; UPDATE_ALL_POSITIONS - Update positions with bouncing
-; =============================================================================
-
-(defn update-one-position (i)
-  (let (lo (sprite-data-lo i)
-        x (peek (hi sprite_data) lo)
-        y (peek (hi sprite_data) (+ lo 1))
-        vel-x (peek (hi sprite_data) (+ lo 2))
-        vel-y (peek (hi sprite_data) (+ lo 3)))
-    ; Update X: vel-x = 0 means moving left, > 0 means moving right
-    (if (= vel-x 0)
-        ; Moving left
-        (if (< x VELOCITY_BASE)
-            (do
-              (set x 0)
-              (set vel-x VELOCITY_BASE)
-              (poke16 bounce_flag 1))
-            (set x (- x VELOCITY_BASE)))
-        ; Moving right
-        (do
-          (set x (+ x vel-x))
-          (if (>= x BOUNDARY)
-              (do
-                (set x BOUNDARY)
-                (set vel-x 0)
-                (poke16 bounce_flag 1))
-              0)))
-    ; Update Y: vel-y = 0 means moving up, > 0 means moving down
-    (if (= vel-y 0)
-        ; Moving up
-        (if (< y VELOCITY_BASE)
-            (do
-              (set y 0)
-              (set vel-y VELOCITY_BASE)
-              (poke16 bounce_flag 1))
-            (set y (- y VELOCITY_BASE)))
-        ; Moving down
-        (do
-          (set y (+ y vel-y))
-          (if (>= y BOUNDARY)
-              (do
-                (set y BOUNDARY)
-                (set vel-y 0)
-                (poke16 bounce_flag 1))
-              0)))
-    ; Save updated values
-    (poke (hi sprite_data) lo x)
-    (poke (hi sprite_data) (+ lo 1) y)
-    (poke (hi sprite_data) (+ lo 2) vel-x)
-    (poke (hi sprite_data) (+ lo 3) vel-y)
-    0))
-
-(defn update-all-positions ()
-  ; Clear bounce flag
-  (poke16 bounce_flag 0)
+(defn render-sprites ()
   (let (i 0)
     (while (< i SPRITE_COUNT)
-      (update-one-position i)
-      (set i (inc i)))
-    0))
-
-; =============================================================================
-; Main Entry Point
-; =============================================================================
+      (render-one-sprite i)
+      (set i (inc i)))))
 
 (defn main ()
-  ; Check if already initialized
-  (if (!= (peek16 initialized) INITIALIZED_FLAG)
-      (do
-        (init-sprites)
-        (update-all-oam)
-        (render-frame))
-      0)
-  ; Main loop
+  (init-sprites)
+
   (while 1
-    (wait-frame)
-    (update-all-oam)
-    (update-all-positions)
-    (render-frame))
-  0)
+    (core/wait-frame)
+    (update-sprites)
+    (render-sprites)
+    (ppu/render-all)))
 
-; =============================================================================
-; DATA SECTION - Auto-placed at 0x4000 (VM-defined data section start)
-; =============================================================================
-
-(data initialized (db 0))
-(data last_frame (db 0))
-(data bounce_flag (db 0))
-(data padding (repeat 13 (db 0)))  ; Align sprite_data to offset 16
-(data sprite_data (repeat 128 (db 0)))
+(data sprite_data (repeat 32 (db 0 0 0 0)))

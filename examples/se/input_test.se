@@ -1,211 +1,84 @@
 ; Input Test - Move a Square with Keyboard
 ;
 ; Controls:
-; - Arrow keys or WASD: Move sprite
+; - Arrow keys: Move sprite
 ; - A button: Change color
 ;
 ; BUILD:
-;   cd examples/se
-;   make examples-se  (or from project root:)
-;   ./build/tiny16-sec examples/se/input_test.se build/input_test_se.asm
-;   ./build/tiny16-asm build/input_test_se.asm build/input_test_se.tiny16
+;   make examples-se
+;   ./build/tiny16-emu build/input_test_se.tiny16
 
-; =============================================================================
-; Constants - Memory Map
-; =============================================================================
+(require (core sprite input ppu palette))
 
-; Graphics memory
-(def TILES_BASE         0x5000)
-(def OAM_BASE           0x9000)
-(def PALETTE_BASE       0x9200)
-(def PALETTE_COLOR1     (+ PALETTE_BASE 1))
+(def BOUNDARY 120)
+(def CENTER_POS 60)
+(def COLOR_TOGGLE 0x1C)
+(def SOLID_PIXEL 0x11)
+(def TILE_OFFSET 1)
+(def TILE_SIZE_BYTES 32)
+(def BG_COLOR 0x03)
+(def DEFAULT_COLOR 0xFC)
 
-; =============================================================================
-; Constants - MMIO
-; =============================================================================
-
-(def MMIO_BASE          0xBF00)
-(def KEYS_STATE_ADDR    (+ MMIO_BASE 0x00))
-(def KEYS_PRESSED_ADDR  (+ MMIO_BASE 0x01))
-(def FRAME_COUNT_ADDR   (+ MMIO_BASE 0x22))
-(def PPU_CTRL_ADDR      (+ MMIO_BASE 0x30))
-
-; =============================================================================
-; Constants - Input & Graphics
-; =============================================================================
-
-; Key bit definitions
-(def KEY_A              0x04)
-(def KEY_RIGHT          0x10)
-(def KEY_LEFT           0x20)
-(def KEY_UP             0x40)
-(def KEY_DOWN           0x80)
-
-; Game parameters
-(def BOUNDARY           120)
-(def CENTER_POS         60)
-(def INITIALIZED_FLAG   0xAA)
-(def COLOR_TOGGLE_MASK  0x1C)
-(def TILE_SIZE_BYTES    32)
-(def OAM_SPRITE_COUNT   64)
-(def SOLID_PIXEL_PAIR   0x11)
-
-; Palette colors (RGB332 format)
-(def BG_COLOR           0x03)
-(def DEFAULT_COLOR      0xFC)
-
-; PPU control
-(def PPU_CTRL_SPRITES_ON 0x82)
-
-; =============================================================================
-; Helper Functions
-; =============================================================================
-
-(defn read-frame-count ()
-  (peek16 FRAME_COUNT_ADDR))
-
-(defn wait-frame ()
-  (let (last (peek16 last_frame)
-        current (read-frame-count))
-    (while (= current last)
-      (set current (read-frame-count)))
-    (poke16 last_frame current)
-    0))
-
-(defn read-keys ()
-  (peek16 KEYS_STATE_ADDR))
-
-(defn read-keys-pressed ()
-  (peek16 KEYS_PRESSED_ADDR))
-
-(defn render-frame ()
-  (poke16 PPU_CTRL_ADDR PPU_CTRL_SPRITES_ON)
-  0)
-
-; =============================================================================
-; Initialization
-; =============================================================================
-
-(defn init-palette ()
-  (poke16 PALETTE_BASE BG_COLOR)
-  (poke16 PALETTE_COLOR1 DEFAULT_COLOR)
-  0)
-
-(defn init-tile-byte (i)
-  (poke (hi TILES_BASE) (+ (lo TILES_BASE) i) SOLID_PIXEL_PAIR)
-  0)
-
-(defn init-tile ()
+; Generate solid square tile in tile memory at 0x5020
+(defn init-square-tile ()
   (let (i 0)
     (while (< i TILE_SIZE_BYTES)
-      (init-tile-byte i)
-      (set i (inc i))))
-  0)
+      (poke 0x50 (+ 0x20 i) SOLID_PIXEL)
+      (set i (inc i)))))
 
-(defn hide-one-oam (i)
-  (let (lo (+ (lo OAM_BASE) (<< i 2)))
-    (poke (hi OAM_BASE) lo 0xFF)
-    (poke (hi OAM_BASE) (+ lo 1) 0)
-    (poke (hi OAM_BASE) (+ lo 2) 0)
-    (poke (hi OAM_BASE) (+ lo 3) 0)
-    0))
+(defn update-position ()
+  (let (keys (input/keys-held)
+        x (peek16 sprite_x)
+        y (peek16 sprite_y))
 
-(defn init-oam ()
-  (let (i 0)
-    (while (< i OAM_SPRITE_COUNT)
-      (hide-one-oam i)
-      (set i (inc i))))
-  0)
-
-(defn init-sprite ()
-  (poke16 pos_x CENTER_POS)
-  (poke16 pos_y CENTER_POS)
-  (poke16 initialized INITIALIZED_FLAG)
-  0)
-
-; =============================================================================
-; Input Handling
-; =============================================================================
-
-(defn read-input ()
-  (let (x (peek16 pos_x)
-        y (peek16 pos_y)
-        keys (read-keys)
-        pressed (read-keys-pressed))
-    ; Check Up
-    (if (!= (& keys KEY_UP) 0)
-        (if (> y 0)
-            (set y (dec y))
-            0)
-        0)
-    ; Check Down
-    (if (!= (& keys KEY_DOWN) 0)
-        (if (< y BOUNDARY)
-            (set y (inc y))
-            0)
-        0)
-    ; Check Left
-    (if (!= (& keys KEY_LEFT) 0)
-        (if (> x 0)
-            (set x (dec x))
-            0)
-        0)
-    ; Check Right
-    (if (!= (& keys KEY_RIGHT) 0)
+    (if (input/right)
         (if (< x BOUNDARY)
-            (set x (inc x))
+            (set x (+ x 1))
             0)
         0)
-    ; Check A button for color toggle
-    (if (!= (& pressed KEY_A) 0)
-        (let (color (peek16 PALETTE_COLOR1))
-          (poke16 PALETTE_COLOR1 (^ color COLOR_TOGGLE_MASK)))
+    (if (input/left)
+        (if (> x 0)
+            (set x (- x 1))
+            0)
         0)
-    ; Save position
-    (poke16 pos_x x)
-    (poke16 pos_y y)
-    0))
+    (if (input/down)
+        (if (< y BOUNDARY)
+            (set y (+ y 1))
+            0)
+        0)
+    (if (input/up)
+        (if (> y 0)
+            (set y (- y 1))
+            0)
+        0)
 
-; =============================================================================
-; OAM Update
-; =============================================================================
+    (poke16 sprite_x x)
+    (poke16 sprite_y y)))
 
-(defn update-oam ()
-  (let (x (peek16 pos_x)
-        y (peek16 pos_y))
-    ; OAM format: Y, X, tile, attr
-    (poke16 OAM_BASE y)
-    (poke16 (+ OAM_BASE 1) x)
-    (poke16 (+ OAM_BASE 2) 0)
-    (poke16 (+ OAM_BASE 3) 0)
-    0))
-
-; =============================================================================
-; Main
-; =============================================================================
+(defn update-color ()
+  (if (input/key-pressed input/KEY_A)
+      (let (color (peek16 sprite_color)
+            new-color (+ color COLOR_TOGGLE))
+        (palette/set-color 1 new-color)
+        (poke16 sprite_color new-color))
+      0))
 
 (defn main ()
-  ; Check if already initialized
-  (if (!= (peek16 initialized) INITIALIZED_FLAG)
-      (do
-        (init-palette)
-        (init-tile)
-        (init-oam)
-        (init-sprite))
-      0)
-  ; Main loop
+  (init-square-tile)
+  (sprite/hide-all)
+  (palette/set-color 0 BG_COLOR)
+  (palette/set-color 1 DEFAULT_COLOR)
+  (poke16 sprite_x CENTER_POS)
+  (poke16 sprite_y CENTER_POS)
+  (poke16 sprite_color DEFAULT_COLOR)
+
   (while 1
-    (wait-frame)
-    (read-input)
-    (update-oam)
-    (render-frame))
-  0)
+    (core/wait-frame)
+    (update-position)
+    (update-color)
+    (sprite/draw 0 (peek16 sprite_y) (peek16 sprite_x) TILE_OFFSET)
+    (ppu/render-sprites-only)))
 
-; =============================================================================
-; Data Section (auto-placed at 0x4000 - VM-defined data section start)
-; =============================================================================
-
-(data initialized (db 0))
-(data pos_x (db 0))
-(data pos_y (db 0))
-(data last_frame (db 0))
+(data sprite_x (db 0))
+(data sprite_y (db 0))
+(data sprite_color (db 0))

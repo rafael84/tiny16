@@ -1,4 +1,4 @@
-.include "../../stdlib/tiny16.inc"
+.include "tiny16.inc"
 
 ; =============================================================================
 ; Boing Ball (Atari 2600-inspired) - Tiny16 framebuffer port
