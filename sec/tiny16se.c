@@ -7,6 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+// PATH_MAX may not be defined on all systems
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #include "args.c"
 #include "args.h"
 #include "ast.c"
