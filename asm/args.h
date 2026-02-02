@@ -6,6 +6,9 @@
 
 #define BOOLEAN_ARGS BOOLEAN_ARG(help, "-h", "Show help")
 
+#define OPTIONAL_ARGS                                                                              \
+    OPTIONAL_STRING_ARG(search_path, "stdlib/asm", "-I", "path", "Search path for includes")
+
 #include "easyargs.h"
 
 extern args_t args;

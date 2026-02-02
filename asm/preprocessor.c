@@ -329,6 +329,15 @@ static void tiny16_pp_expand_macro(Tiny16Preprocessor* pp, Tiny16Macro* macro) {
 
 static void tiny16_pp_process_line(Tiny16Preprocessor* pp);
 
+static bool tiny16_pp_try_open_file(const char* path) {
+    FILE* f = fopen(path, "r");
+    if (f) {
+        fclose(f);
+        return true;
+    }
+    return false;
+}
+
 static void tiny16_pp_process_include(Tiny16Preprocessor* pp) {
     const char* p = pp->current_line + 8;
     tiny16_pp_skip_whitespace(&p);
@@ -352,16 +361,38 @@ static void tiny16_pp_process_include(Tiny16Preprocessor* pp) {
     }
 
     char full_path[TINY16_PP_MAX_LINE_LEN];
-    const char* current_file = pp->error_file;
-    const char* last_slash = strrchr(current_file, '/');
+    bool found = false;
 
-    if (last_slash) {
-        size_t dir_len = last_slash - current_file + 1;
-        strncpy(full_path, current_file, dir_len);
-        full_path[dir_len] = '\0';
-        strcat(full_path, include_name);
-    } else {
+    // Try absolute path
+    if (include_name[0] == '/') {
         strcpy(full_path, include_name);
+        found = tiny16_pp_try_open_file(full_path);
+    } else {
+        // Try relative to current file
+        const char* current_file = pp->error_file;
+        const char* last_slash = strrchr(current_file, '/');
+
+        if (last_slash) {
+            size_t dir_len = last_slash - current_file + 1;
+            strncpy(full_path, current_file, dir_len);
+            full_path[dir_len] = '\0';
+            strcat(full_path, include_name);
+        } else {
+            strcpy(full_path, include_name);
+        }
+
+        found = tiny16_pp_try_open_file(full_path);
+
+        // Try search path if not found
+        if (!found && pp->search_path && *pp->search_path) {
+            snprintf(full_path, sizeof(full_path), "%s/%s", pp->search_path, include_name);
+            found = tiny16_pp_try_open_file(full_path);
+        }
+    }
+
+    if (!found) {
+        tiny16_pp_set_error(pp, TINY16_PP_ERROR_FILE_NOT_FOUND, include_name);
+        return;
     }
 
     for (int i = 0; i < pp->include_depth; i++) {

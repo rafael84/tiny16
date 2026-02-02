@@ -210,12 +210,12 @@ int main(int argc, char** argv) {
     if (parser.data_size > 0) tiny16_parser_emit_data(&parser);
 
     free(source_content);
-    fclose(parser.output_file);
-    tiny16_parser_free(&parser);
-    if (errno) {
+    if (fclose(parser.output_file) != 0) {
         perror("could not close output file");
+        tiny16_parser_free(&parser);
         return EXIT_FAILURE;
     }
+    tiny16_parser_free(&parser);
 
     return 0;
 }
@@ -223,6 +223,13 @@ int main(int argc, char** argv) {
 static char* preprocess_source(const char* filename) {
     static Tiny16Preprocessor pp;
     tiny16_pp_init(&pp);
+
+    // Set search path (default to stdlib/asm)
+    if (args.search_path && *args.search_path) {
+        pp.search_path = args.search_path;
+    } else {
+        pp.search_path = "stdlib/asm";
+    }
 
     char* preprocessed = tiny16_pp_process_file(&pp, filename);
     if (!preprocessed) {

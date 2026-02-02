@@ -65,6 +65,8 @@ typedef struct {
 
     bool in_macro_def;
     Tiny16Macro* current_macro;
+
+    const char* search_path;
 } Tiny16Preprocessor;
 
 void tiny16_pp_init(Tiny16Preprocessor* pp);
