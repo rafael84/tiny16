@@ -104,9 +104,9 @@
 ; =============================================================================
 
 ; Bird animation frames
-(def TILE_BIRD_UP       101)
-(def TILE_BIRD_MID      103)
-(def TILE_BIRD_DOWN     104)
+(def TILE_BIRD_UP       41)
+(def TILE_BIRD_MID      40)
+(def TILE_BIRD_DOWN     42)
 
 ; Pipe tiles
 (def TILE_PIPE_CAP_UP   39)
@@ -125,6 +125,9 @@
 ; Digit tiles (tile = 96 + ASCII)
 ; ASCII '0' = 48, so digit 0 is at tile 96 + 48 = 144
 (def TILE_DIGIT_0       144)
+
+; Button icon tile
+(def TILE_BUTTON_A      193)
 
 ; Score display position (top right)
 (def SCORE_X            112)
@@ -665,5 +668,5 @@
 (data anim_frame (db 0))
 
 ; Text strings (null-terminated)
-(data str_press_a (db "PRESS A" 0))
+(data str_press_a (db "PRESS " (- TILE_BUTTON_A 96) 0))
 (data str_game_over (db "GAME OVER" 0))
