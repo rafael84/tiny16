@@ -1,0 +1,155 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "tiny16 Assembly",
+  "scopeName": "source.tiny16asm",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#labels" },
+    { "include": "#constants" },
+    { "include": "#registers" },
+    { "include": "#instructions" },
+    { "include": "#directives" },
+    { "include": "#sections" },
+    { "include": "#macros" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.semicolon.tiny16asm",
+          "match": ";.*$",
+          "captures": {
+            "0": {
+              "patterns": [
+                {
+                  "name": "keyword.codetag.notation.tiny16asm",
+                  "match": "\\b(TODO|FIXME|XXX|NOTE|HACK|BUG)\\b"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.tiny16asm",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.tiny16asm",
+              "match": "\\\\[nrt\\\\\"0]"
+            }
+          ]
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.tiny16asm",
+          "match": "\\b0x[0-9a-fA-F]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.tiny16asm",
+          "match": "\\b0b[01]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.tiny16asm",
+          "match": "\\b\\d+\\b"
+        }
+      ]
+    },
+    "registers": {
+      "patterns": [
+        {
+          "name": "variable.other.register-pair.tiny16asm",
+          "match": "\\bR[0-7]:R[0-7]\\b"
+        },
+        {
+          "name": "variable.other.register.tiny16asm",
+          "match": "\\b(R[0-7]|SP|PC|FP)\\b"
+        }
+      ]
+    },
+    "labels": {
+      "patterns": [
+        {
+          "name": "entity.name.function.tiny16asm",
+          "match": "^\\s*(@?[a-zA-Z_][a-zA-Z0-9_]*):",
+          "captures": {
+            "1": { "name": "entity.name.function.tiny16asm" }
+          }
+        }
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {
+          "name": "constant.other.tiny16asm",
+          "match": "^\\s*([A-Z_][A-Z0-9_]*)\\s*=",
+          "captures": {
+            "1": { "name": "constant.other.tiny16asm" }
+          }
+        },
+        {
+          "name": "constant.other.predefined.tiny16asm",
+          "match": "\\b(PPU_CTRL_HI|PPU_CTRL_LO|FRAME_COUNT_HI|FRAME_COUNT_LO)\\b"
+        }
+      ]
+    },
+    "instructions": {
+      "patterns": [
+        {
+          "name": "keyword.control.tiny16asm",
+          "match": "(?i)\\b(LOADI|LOAD|STORE|MOV|ADD|SUB|ADC|SBC|INC|DEC|AND|OR|XOR|SHL|SHR|NOT|CMP|CMPI|JMP|JZ|JNZ|JC|JNC|CALL|RET|HALT|PUSH|POP|MOVSPR|MOVRSP)\\b"
+        }
+      ]
+    },
+    "directives": {
+      "patterns": [
+        {
+          "name": "keyword.control.directive.tiny16asm",
+          "match": "(?i)\\.(macro|endmacro|include)\\b"
+        },
+        {
+          "name": "keyword.control.directive.tiny16asm",
+          "match": "(?i)\\b(section|ORG|TIMES|DB)\\b"
+        }
+      ]
+    },
+    "sections": {
+      "patterns": [
+        {
+          "name": "storage.type.section.tiny16asm",
+          "match": "\\.(code|data)\\b"
+        }
+      ]
+    },
+    "macros": {
+      "patterns": [
+        {
+          "name": "support.function.macro.tiny16asm",
+          "match": "(?i)\\b(SETADDR|LOAD16|STORE16|STORE16I|PUSH2|POP2|PUSH4|POP4|MUL2|MUL4|DIV2|DIV4|CLEAR|SUBI|ADDI|APU_INIT|APU_CH0_NOTE|APU_CH0_OFF|OAM_WRITE_SPRITE|READ_FRAME_COUNT|WAIT_VSYNC)\\b"
+        },
+        {
+          "name": "variable.parameter.macro.tiny16asm",
+          "match": "@[a-zA-Z_][a-zA-Z0-9_]*"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.tiny16asm",
+          "match": "[+\\-*/%&|^~]|<<|>>"
+        }
+      ]
+    }
+  }
+}
