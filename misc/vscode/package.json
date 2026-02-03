@@ -1,0 +1,51 @@
+{
+  "name": "tiny16-syntax",
+  "displayName": "tiny16 Syntax Highlighting",
+  "description": "Syntax highlighting for tiny16 assembly (.asm) and tiny16 SE (.se) files",
+  "version": "1.0.0",
+  "publisher": "tiny16",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "tiny16asm",
+        "aliases": [
+          "tiny16 Assembly",
+          "tiny16asm"
+        ],
+        "extensions": [
+          ".asm"
+        ],
+        "configuration": "./language-configuration-asm.json"
+      },
+      {
+        "id": "tiny16se",
+        "aliases": [
+          "tiny16 SE",
+          "tiny16se"
+        ],
+        "extensions": [
+          ".se"
+        ],
+        "configuration": "./language-configuration-se.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tiny16asm",
+        "scopeName": "source.tiny16asm",
+        "path": "./syntaxes/tiny16asm.tmLanguage.json"
+      },
+      {
+        "language": "tiny16se",
+        "scopeName": "source.tiny16se",
+        "path": "./syntaxes/tiny16se.tmLanguage.json"
+      }
+    ]
+  }
+}

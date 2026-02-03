@@ -24,6 +24,13 @@ static const float env_rate_seconds[] = {
     0.15f, 0.20f,  0.30f, 0.40f, 0.60f, 0.80f, 1.00f, 1.50f,
 };
 
+static inline void apu_lock(Tiny16APU* apu) {
+    while (__sync_lock_test_and_set(&apu->lock, 1)) {
+    }
+}
+
+static inline void apu_unlock(Tiny16APU* apu) { __sync_lock_release(&apu->lock); }
+
 static inline uint32_t calc_phase_inc(uint16_t freq_value) {
     // freq_hz = 44100 / (2048 - freq_value)
     // phase_inc = freq_hz / sample_rate * 2^32
@@ -169,6 +176,7 @@ static inline void sweep_step(Tiny16APUPulseChannel* ch) {
 }
 
 void tiny16_apu_reset(Tiny16APU* apu) {
+    apu->lock = 0;
     apu->enabled = false;
     apu->master_volume = 0;
     apu->sample_accum = 0;
@@ -260,9 +268,371 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->wave.length_left = 0;
     for (int i = 0; i < 32; i++)
         apu->wave.wave[i] = 8;
+
+    // SFX system reset
+    apu->sfx.table_addr = 0;
+    apu->sfx.count = 0;
+    for (int i = 0; i < 4; i++) {
+        apu->sfx.ch[i].active = false;
+        apu->sfx.ch[i].duration_left = 0;
+        apu->sfx.ch[i].sfx_id = 0;
+    }
+
+    // Music system reset
+    apu->music.enabled = false;
+    apu->music.looping = false;
+    apu->music.song_addr = 0;
+    apu->music.song_length = 0;
+    apu->music.current_note = 0;
+    apu->music.frames_left = 0;
+    apu->music.channel = 1; // default to pulse2
+
+    apu->frame_samples = 0;
+    apu->memory = NULL;
+}
+
+// =============================================================================
+// SFX System Implementation
+// =============================================================================
+
+// SFX entry format (9 bytes):
+// [0] channel (0-3: pulse1/pulse2/tri/noise)
+// [1] freq_lo
+// [2] freq_hi
+// [3] period (noise only)
+// [4] volume
+// [5] duty (pulse only)
+// [6] env_ad (attack << 4 | decay)
+// [7] env_sr (sustain << 4 | release)
+// [8] duration (frames)
+
+static void tiny16_apu_play_sfx(Tiny16APU* apu, uint8_t sfx_id) {
+    if (!apu->memory || sfx_id >= apu->sfx.count) return;
+
+    Tiny16Memory* mem = (Tiny16Memory*)apu->memory;
+    uint16_t addr = apu->sfx.table_addr + (uint16_t)sfx_id * TINY16_APU_SFX_ENTRY_SIZE;
+
+    // Read SFX entry from memory
+    uint8_t channel = mem->bytes[addr + 0] & 0x03;
+    uint8_t freq_lo = mem->bytes[addr + 1];
+    uint8_t freq_hi = mem->bytes[addr + 2];
+    uint8_t period = mem->bytes[addr + 3];
+    uint8_t volume = mem->bytes[addr + 4] & 0x0F;
+    uint8_t duty = mem->bytes[addr + 5] & 0x03;
+    uint8_t env_ad = mem->bytes[addr + 6];
+    uint8_t env_sr = mem->bytes[addr + 7];
+    uint8_t duration = mem->bytes[addr + 8];
+
+    uint16_t freq = ((uint16_t)(freq_hi & 0x07) << 8) | freq_lo;
+
+    // Set up channel based on type
+    switch (channel) {
+    case 0: // Pulse 1
+        apu->pulse1.freq = freq;
+        apu->pulse1.phase_inc = calc_phase_inc(freq);
+        apu->pulse1.volume = volume;
+        apu->pulse1.duty = duty;
+        apu->pulse1.env.attack = (env_ad >> 4) & 0x0F;
+        apu->pulse1.env.decay = env_ad & 0x0F;
+        apu->pulse1.env.sustain = (env_sr >> 4) & 0x0F;
+        apu->pulse1.env.release = env_sr & 0x0F;
+        apu->pulse1.length = duration;
+        apu->pulse1.length_left = length_samples(duration);
+        apu->pulse1.phase = 0;
+        apu->pulse1.enabled = true;
+        env_start(&apu->pulse1.env);
+        sweep_init(&apu->pulse1);
+        break;
+
+    case 1: // Pulse 2
+        apu->pulse2.freq = freq;
+        apu->pulse2.phase_inc = calc_phase_inc(freq);
+        apu->pulse2.volume = volume;
+        apu->pulse2.duty = duty;
+        apu->pulse2.env.attack = (env_ad >> 4) & 0x0F;
+        apu->pulse2.env.decay = env_ad & 0x0F;
+        apu->pulse2.env.sustain = (env_sr >> 4) & 0x0F;
+        apu->pulse2.env.release = env_sr & 0x0F;
+        apu->pulse2.length = duration;
+        apu->pulse2.length_left = length_samples(duration);
+        apu->pulse2.phase = 0;
+        apu->pulse2.enabled = true;
+        env_start(&apu->pulse2.env);
+        sweep_init(&apu->pulse2);
+        break;
+
+    case 2: // Triangle
+        apu->triangle.freq = freq;
+        apu->triangle.phase_inc = calc_phase_inc(freq);
+        apu->triangle.volume = volume;
+        apu->triangle.env.attack = (env_ad >> 4) & 0x0F;
+        apu->triangle.env.decay = env_ad & 0x0F;
+        apu->triangle.env.sustain = (env_sr >> 4) & 0x0F;
+        apu->triangle.env.release = env_sr & 0x0F;
+        apu->triangle.length = duration;
+        apu->triangle.length_left = length_samples(duration);
+        apu->triangle.phase = 0;
+        apu->triangle.enabled = true;
+        env_start(&apu->triangle.env);
+        break;
+
+    case 3: // Noise
+        apu->noise.period = period & 0x0F;
+        apu->noise.volume = volume;
+        apu->noise.env.attack = (env_ad >> 4) & 0x0F;
+        apu->noise.env.decay = env_ad & 0x0F;
+        apu->noise.env.sustain = (env_sr >> 4) & 0x0F;
+        apu->noise.env.release = env_sr & 0x0F;
+        apu->noise.length = duration;
+        apu->noise.length_left = length_samples(duration);
+        apu->noise.lfsr = LFSR_SEED;
+        apu->noise.timer = 0;
+        apu->noise.enabled = true;
+        env_start(&apu->noise.env);
+        break;
+    }
+
+    // Update SFX state
+    apu->sfx.ch[channel].active = true;
+    apu->sfx.ch[channel].duration_left = duration;
+    apu->sfx.ch[channel].sfx_id = sfx_id;
+}
+
+static void tiny16_apu_stop_sfx(Tiny16APU* apu, uint8_t channel) {
+    if (channel > 3) return;
+
+    apu->sfx.ch[channel].active = false;
+    apu->sfx.ch[channel].duration_left = 0;
+
+    // Release the channel
+    switch (channel) {
+    case 0:
+        apu->pulse1.enabled = false;
+        env_release(&apu->pulse1.env);
+        break;
+    case 1:
+        apu->pulse2.enabled = false;
+        env_release(&apu->pulse2.env);
+        break;
+    case 2:
+        apu->triangle.enabled = false;
+        env_release(&apu->triangle.env);
+        break;
+    case 3:
+        apu->noise.enabled = false;
+        env_release(&apu->noise.env);
+        break;
+    }
+}
+
+static uint8_t tiny16_apu_get_sfx_status(Tiny16APU* apu) {
+    uint8_t status = 0;
+    for (int i = 0; i < 4; i++) {
+        if (apu->sfx.ch[i].active) status |= (1 << i);
+    }
+    return status;
+}
+
+// Called once per frame to update SFX durations
+static void tiny16_apu_update_sfx(Tiny16APU* apu) {
+    for (int i = 0; i < 4; i++) {
+        if (apu->sfx.ch[i].active && apu->sfx.ch[i].duration_left > 0) {
+            apu->sfx.ch[i].duration_left--;
+            if (apu->sfx.ch[i].duration_left == 0) {
+                apu->sfx.ch[i].active = false;
+            }
+        }
+    }
+}
+
+// =============================================================================
+// Music Sequencer Implementation
+// =============================================================================
+
+// Music note format (4 bytes):
+// [0] note (0=rest, 1-96=notes C1-B8, using MIDI-like indexing)
+// [1] volume (4-bit)
+// [2] duration (frames)
+// [3] reserved (for future use: instrument, effects, etc.)
+
+// Note frequency table (C3 to B5, 3 octaves = 36 notes)
+// Frequencies are pre-calculated for the APU's freq_value format
+static const uint16_t music_note_freq[] = {
+    // Octave 3: C3, C#3, D3, D#3, E3, F3, F#3, G3, G#3, A3, A#3, B3
+    1711,
+    1730,
+    1748,
+    1765,
+    1780,
+    1795,
+    1810,
+    1823,
+    1836,
+    1848,
+    1859,
+    1869,
+    // Octave 4: C4, C#4, D4, D#4, E4, F4, F#4, G4, G#4, A4, A#4, B4
+    1879,
+    1889,
+    1898,
+    1906,
+    1914,
+    1922,
+    1929,
+    1935,
+    1942,
+    1948,
+    1953,
+    1959,
+    // Octave 5: C5, C#5, D5, D#5, E5, F5, F#5, G5, G#5, A5, A#5, B5
+    1964,
+    1968,
+    1973,
+    1977,
+    1981,
+    1985,
+    1988,
+    1992,
+    1995,
+    1998,
+    2001,
+    2003,
+};
+#define MUSIC_NOTE_TABLE_SIZE (sizeof(music_note_freq) / sizeof(music_note_freq[0]))
+
+static void tiny16_apu_play_music_note(Tiny16APU* apu, uint8_t note, uint8_t volume) {
+    if (note == 0) {
+        // Rest - silence the music channel
+        if (apu->music.channel == 1) {
+            apu->pulse2.enabled = false;
+            env_release(&apu->pulse2.env);
+        }
+        return;
+    }
+
+    // Convert note index (1-based) to frequency table index (0-based)
+    uint8_t note_idx = note - 1;
+    if (note_idx >= MUSIC_NOTE_TABLE_SIZE) return;
+
+    uint16_t freq = music_note_freq[note_idx];
+
+    // Play on the music channel (default: pulse2)
+    // Envelope: instant attack, no decay, sustain at requested volume, quick release
+    uint8_t vol = volume & 0x0F;
+
+    switch (apu->music.channel) {
+    case 0: // Pulse 1
+        apu->pulse1.freq = freq;
+        apu->pulse1.phase_inc = calc_phase_inc(freq);
+        apu->pulse1.volume = vol;
+        apu->pulse1.duty = TINY16_APU_DUTY_25;
+        apu->pulse1.env.attack = 0;
+        apu->pulse1.env.decay = 0;
+        apu->pulse1.env.sustain = vol;
+        apu->pulse1.env.release = 1;
+        apu->pulse1.length = 0;
+        apu->pulse1.length_left = 0;
+        apu->pulse1.phase = 0;
+        apu->pulse1.enabled = true;
+        env_start(&apu->pulse1.env);
+        break;
+
+    case 1: // Pulse 2 (default)
+        apu->pulse2.freq = freq;
+        apu->pulse2.phase_inc = calc_phase_inc(freq);
+        apu->pulse2.volume = vol;
+        apu->pulse2.duty = TINY16_APU_DUTY_25;
+        apu->pulse2.env.attack = 0;
+        apu->pulse2.env.decay = 0;
+        apu->pulse2.env.sustain = vol;
+        apu->pulse2.env.release = 1;
+        apu->pulse2.length = 0;
+        apu->pulse2.length_left = 0;
+        apu->pulse2.phase = 0;
+        apu->pulse2.enabled = true;
+        env_start(&apu->pulse2.env);
+        break;
+
+    case 2: // Triangle
+        apu->triangle.freq = freq;
+        apu->triangle.phase_inc = calc_phase_inc(freq);
+        apu->triangle.volume = vol;
+        apu->triangle.env.attack = 0;
+        apu->triangle.env.decay = 0;
+        apu->triangle.env.sustain = vol;
+        apu->triangle.env.release = 1;
+        apu->triangle.length = 0;
+        apu->triangle.length_left = 0;
+        apu->triangle.phase = 0;
+        apu->triangle.enabled = true;
+        env_start(&apu->triangle.env);
+        break;
+    }
+}
+
+static void tiny16_apu_music_start(Tiny16APU* apu) {
+    apu->music.enabled = true;
+    apu->music.current_note = 0;
+    apu->music.frames_left = 0;
+}
+
+static void tiny16_apu_music_stop(Tiny16APU* apu) {
+    apu->music.enabled = false;
+
+    // Release the music channel
+    switch (apu->music.channel) {
+    case 0:
+        apu->pulse1.enabled = false;
+        env_release(&apu->pulse1.env);
+        break;
+    case 1:
+        apu->pulse2.enabled = false;
+        env_release(&apu->pulse2.env);
+        break;
+    case 2:
+        apu->triangle.enabled = false;
+        env_release(&apu->triangle.env);
+        break;
+    }
+}
+
+// Called once per frame to update music sequencer
+static void tiny16_apu_update_music(Tiny16APU* apu) {
+    if (!apu->music.enabled || !apu->memory) return;
+    if (apu->music.song_length == 0) return;
+
+    Tiny16Memory* mem = (Tiny16Memory*)apu->memory;
+
+    // Check if it's time for the next note
+    if (apu->music.frames_left > 0) {
+        apu->music.frames_left--;
+        return;
+    }
+
+    // Read current note from memory
+    uint16_t addr = apu->music.song_addr + (apu->music.current_note * TINY16_APU_MUSIC_NOTE_SIZE);
+    uint8_t note = mem->bytes[addr + 0];
+    uint8_t volume = mem->bytes[addr + 1];
+    uint8_t duration = mem->bytes[addr + 2];
+    // byte 3 is reserved
+
+    // Play the note
+    tiny16_apu_play_music_note(apu, note, volume);
+    apu->music.frames_left = duration;
+
+    // Advance to next note
+    apu->music.current_note++;
+    if (apu->music.current_note >= apu->music.song_length) {
+        if (apu->music.looping) {
+            apu->music.current_note = 0;
+        } else {
+            tiny16_apu_music_stop(apu);
+        }
+    }
 }
 
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
+    apu_lock(apu);
     switch (addr) {
     // Master control
     case TINY16_MMIO_APU_CTRL:
@@ -505,16 +875,55 @@ void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
         apu->wave.env.sustain = (value >> 4) & 0x0F;
         apu->wave.env.release = value & 0x0F;
         break;
+
+    // SFX System
+    case TINY16_MMIO_APU_SFX_PLAY: tiny16_apu_play_sfx(apu, value); break;
+    case TINY16_MMIO_APU_SFX_STOP: tiny16_apu_stop_sfx(apu, value); break;
+    case TINY16_MMIO_APU_SFX_TABLE_HI:
+        apu->sfx.table_addr = (apu->sfx.table_addr & 0x00FF) | ((uint16_t)value << 8);
+        break;
+    case TINY16_MMIO_APU_SFX_TABLE_LO:
+        apu->sfx.table_addr = (apu->sfx.table_addr & 0xFF00) | value;
+        break;
+    case TINY16_MMIO_APU_SFX_COUNT: apu->sfx.count = value; break;
+
+    // Music System
+    case TINY16_MMIO_APU_MUSIC_CTRL:
+        if (value & 0x01) {
+            apu->music.looping = (value & 0x04) != 0;
+            tiny16_apu_music_start(apu);
+        }
+        if (value & 0x02) {
+            tiny16_apu_music_stop(apu);
+        }
+        break;
+    case TINY16_MMIO_APU_MUSIC_ADDR_HI:
+        apu->music.song_addr = (apu->music.song_addr & 0x00FF) | ((uint16_t)value << 8);
+        break;
+    case TINY16_MMIO_APU_MUSIC_ADDR_LO:
+        apu->music.song_addr = (apu->music.song_addr & 0xFF00) | value;
+        break;
+    case TINY16_MMIO_APU_MUSIC_LEN_HI:
+        apu->music.song_length = (apu->music.song_length & 0x00FF) | ((uint16_t)value << 8);
+        break;
+    case TINY16_MMIO_APU_MUSIC_LEN_LO:
+        apu->music.song_length = (apu->music.song_length & 0xFF00) | value;
+        break;
     }
 
     if (addr >= TINY16_MMIO_APU_WAVE_RAM && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F)) {
         apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] = value & 0x0F;
     }
+    apu_unlock(apu);
 }
 
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
+    uint8_t value = 0;
+    apu_lock(apu);
     switch (addr) {
-    case TINY16_MMIO_APU_CTRL: return (apu->master_volume << 4) | (apu->enabled ? 0x01 : 0x00);
+    case TINY16_MMIO_APU_CTRL:
+        value = (apu->master_volume << 4) | (apu->enabled ? 0x01 : 0x00);
+        break;
 
     case TINY16_MMIO_APU_STATUS: {
         uint8_t status = 0;
@@ -523,74 +932,122 @@ uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
         if (apu->triangle.enabled) status |= 0x04;
         if (apu->noise.enabled) status |= 0x08;
         if (apu->wave.enabled) status |= 0x10;
-        return status;
+        value = status;
+        break;
     }
 
-    case TINY16_MMIO_APU_CH0_VOL: return (apu->pulse1.duty << 4) | apu->pulse1.volume;
-    case TINY16_MMIO_APU_CH0_CTRL: return apu->pulse1.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH0_VOL: value = (apu->pulse1.duty << 4) | apu->pulse1.volume; break;
+    case TINY16_MMIO_APU_CH0_CTRL: value = apu->pulse1.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH1_VOL: return (apu->pulse2.duty << 4) | apu->pulse2.volume;
-    case TINY16_MMIO_APU_CH1_CTRL: return apu->pulse2.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH1_VOL: value = (apu->pulse2.duty << 4) | apu->pulse2.volume; break;
+    case TINY16_MMIO_APU_CH1_CTRL: value = apu->pulse2.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH2_VOL: return apu->triangle.volume;
-    case TINY16_MMIO_APU_CH2_CTRL: return apu->triangle.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH2_VOL: value = apu->triangle.volume; break;
+    case TINY16_MMIO_APU_CH2_CTRL: value = apu->triangle.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH3_PERIOD: return apu->noise.period;
-    case TINY16_MMIO_APU_CH3_VOL: return apu->noise.volume;
+    case TINY16_MMIO_APU_CH3_PERIOD: value = apu->noise.period; break;
+    case TINY16_MMIO_APU_CH3_VOL: value = apu->noise.volume; break;
     case TINY16_MMIO_APU_CH3_CTRL:
-        return (apu->noise.short_mode ? 0x04 : 0x00) | (apu->noise.enabled ? 0x01 : 0x00);
+        value = (apu->noise.short_mode ? 0x04 : 0x00) | (apu->noise.enabled ? 0x01 : 0x00);
+        break;
 
-    case TINY16_MMIO_APU_CH0_ENV_AD: return (apu->pulse1.env.attack << 4) | apu->pulse1.env.decay;
+    case TINY16_MMIO_APU_CH0_ENV_AD:
+        value = (apu->pulse1.env.attack << 4) | apu->pulse1.env.decay;
+        break;
     case TINY16_MMIO_APU_CH0_ENV_SR:
-        return (apu->pulse1.env.sustain << 4) | apu->pulse1.env.release;
-    case TINY16_MMIO_APU_CH1_ENV_AD: return (apu->pulse2.env.attack << 4) | apu->pulse2.env.decay;
+        value = (apu->pulse1.env.sustain << 4) | apu->pulse1.env.release;
+        break;
+    case TINY16_MMIO_APU_CH1_ENV_AD:
+        value = (apu->pulse2.env.attack << 4) | apu->pulse2.env.decay;
+        break;
     case TINY16_MMIO_APU_CH1_ENV_SR:
-        return (apu->pulse2.env.sustain << 4) | apu->pulse2.env.release;
+        value = (apu->pulse2.env.sustain << 4) | apu->pulse2.env.release;
+        break;
     case TINY16_MMIO_APU_CH2_ENV_AD:
-        return (apu->triangle.env.attack << 4) | apu->triangle.env.decay;
+        value = (apu->triangle.env.attack << 4) | apu->triangle.env.decay;
+        break;
     case TINY16_MMIO_APU_CH2_ENV_SR:
-        return (apu->triangle.env.sustain << 4) | apu->triangle.env.release;
-    case TINY16_MMIO_APU_CH3_ENV_AD: return (apu->noise.env.attack << 4) | apu->noise.env.decay;
-    case TINY16_MMIO_APU_CH3_ENV_SR: return (apu->noise.env.sustain << 4) | apu->noise.env.release;
+        value = (apu->triangle.env.sustain << 4) | apu->triangle.env.release;
+        break;
+    case TINY16_MMIO_APU_CH3_ENV_AD:
+        value = (apu->noise.env.attack << 4) | apu->noise.env.decay;
+        break;
+    case TINY16_MMIO_APU_CH3_ENV_SR:
+        value = (apu->noise.env.sustain << 4) | apu->noise.env.release;
+        break;
 
     case TINY16_MMIO_APU_CH0_SWEEP:
-        return (apu->pulse1.sweep_rate << 4) | (apu->pulse1.sweep_down ? 0x08 : 0x00) |
-               (apu->pulse1.sweep_shift & 0x07);
+        value = (apu->pulse1.sweep_rate << 4) | (apu->pulse1.sweep_down ? 0x08 : 0x00) |
+                (apu->pulse1.sweep_shift & 0x07);
+        break;
     case TINY16_MMIO_APU_CH1_SWEEP:
-        return (apu->pulse2.sweep_rate << 4) | (apu->pulse2.sweep_down ? 0x08 : 0x00) |
-               (apu->pulse2.sweep_shift & 0x07);
-    case TINY16_MMIO_APU_CH0_LEN: return apu->pulse1.length;
-    case TINY16_MMIO_APU_CH1_LEN: return apu->pulse2.length;
-    case TINY16_MMIO_APU_CH2_LEN: return apu->triangle.length;
-    case TINY16_MMIO_APU_CH3_LEN: return apu->noise.length;
+        value = (apu->pulse2.sweep_rate << 4) | (apu->pulse2.sweep_down ? 0x08 : 0x00) |
+                (apu->pulse2.sweep_shift & 0x07);
+        break;
+    case TINY16_MMIO_APU_CH0_LEN: value = apu->pulse1.length; break;
+    case TINY16_MMIO_APU_CH1_LEN: value = apu->pulse2.length; break;
+    case TINY16_MMIO_APU_CH2_LEN: value = apu->triangle.length; break;
+    case TINY16_MMIO_APU_CH3_LEN: value = apu->noise.length; break;
 
-    case TINY16_MMIO_APU_WAVE_FREQ_LO: return apu->wave.freq & 0xFF;
-    case TINY16_MMIO_APU_WAVE_FREQ_HI: return (apu->wave.freq >> 8) & 0x07;
-    case TINY16_MMIO_APU_WAVE_VOL: return apu->wave.volume;
-    case TINY16_MMIO_APU_WAVE_CTRL: return apu->wave.enabled ? 0x01 : 0x00;
-    case TINY16_MMIO_APU_WAVE_LEN: return apu->wave.length;
-    case TINY16_MMIO_APU_WAVE_ENV_AD: return (apu->wave.env.attack << 4) | apu->wave.env.decay;
-    case TINY16_MMIO_APU_WAVE_ENV_SR: return (apu->wave.env.sustain << 4) | apu->wave.env.release;
+    case TINY16_MMIO_APU_WAVE_FREQ_LO: value = apu->wave.freq & 0xFF; break;
+    case TINY16_MMIO_APU_WAVE_FREQ_HI: value = (apu->wave.freq >> 8) & 0x07; break;
+    case TINY16_MMIO_APU_WAVE_VOL: value = apu->wave.volume; break;
+    case TINY16_MMIO_APU_WAVE_CTRL: value = apu->wave.enabled ? 0x01 : 0x00; break;
+    case TINY16_MMIO_APU_WAVE_LEN: value = apu->wave.length; break;
+    case TINY16_MMIO_APU_WAVE_ENV_AD:
+        value = (apu->wave.env.attack << 4) | apu->wave.env.decay;
+        break;
+    case TINY16_MMIO_APU_WAVE_ENV_SR:
+        value = (apu->wave.env.sustain << 4) | apu->wave.env.release;
+        break;
+
+    // SFX System
+    case TINY16_MMIO_APU_SFX_STATUS: value = tiny16_apu_get_sfx_status(apu); break;
+    case TINY16_MMIO_APU_SFX_TABLE_HI: value = (apu->sfx.table_addr >> 8) & 0xFF; break;
+    case TINY16_MMIO_APU_SFX_TABLE_LO: value = apu->sfx.table_addr & 0xFF; break;
+    case TINY16_MMIO_APU_SFX_COUNT: value = apu->sfx.count; break;
+
+    // Music System
+    case TINY16_MMIO_APU_MUSIC_STATUS: value = apu->music.enabled ? 0x01 : 0x00; break;
+    case TINY16_MMIO_APU_MUSIC_ADDR_HI: value = (apu->music.song_addr >> 8) & 0xFF; break;
+    case TINY16_MMIO_APU_MUSIC_ADDR_LO: value = apu->music.song_addr & 0xFF; break;
+    case TINY16_MMIO_APU_MUSIC_LEN_HI: value = (apu->music.song_length >> 8) & 0xFF; break;
+    case TINY16_MMIO_APU_MUSIC_LEN_LO: value = apu->music.song_length & 0xFF; break;
     }
     if (addr >= TINY16_MMIO_APU_WAVE_RAM && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F)) {
-        return apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] & 0x0F;
+        value = apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] & 0x0F;
     }
-    return 0;
+    apu_unlock(apu);
+    return value;
 }
 
 uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz) {
-    if (cpu_hz == 0) return 0;
+    apu_lock(apu);
+    if (cpu_hz == 0) {
+        apu_unlock(apu);
+        return 0;
+    }
     uint64_t add = (uint64_t)cpu_cycles * (uint64_t)TINY16_APU_SAMPLE_RATE;
     uint64_t accum = apu->sample_accum + add;
     uint32_t frames = (uint32_t)(accum / cpu_hz);
     apu->sample_accum = accum - (uint64_t)frames * cpu_hz;
+    apu_unlock(apu);
     return frames;
 }
 
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames) {
+    apu_lock(apu);
     for (unsigned int i = 0; i < frames; i++) {
         float mix = 0.0f;
         int active_channels = 0;
+
+        // Update SFX/music once per frame (every samples_per_frame samples)
+        apu->frame_samples++;
+        if (apu->frame_samples >= samples_per_frame) {
+            apu->frame_samples = 0;
+            tiny16_apu_update_sfx(apu);
+            tiny16_apu_update_music(apu);
+        }
 
         if (!apu->enabled) {
             buffer[i] = 0.0f;
@@ -714,4 +1171,5 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
 
         buffer[i] = mix;
     }
+    apu_unlock(apu);
 }

@@ -1,5 +1,6 @@
 #include "ast.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 const char* ast_kind_name(AstKind kind) {
@@ -53,13 +54,121 @@ const char* ast_kind_name(AstKind kind) {
     }
 }
 
-AstNode* ast_alloc(AstPool* pool) {
-    if (pool->count >= sizeof(pool->nodes) / sizeof(pool->nodes[0])) {
-        return NULL;
+// Pool management
+void ast_pool_init(AstPool* pool) {
+    pool->chunks = NULL;
+    pool->chunk_count = 0;
+    pool->chunk_capacity = 0;
+    pool->current_index = AST_CHUNK_SIZE; // Force allocation on first use
+}
+
+void ast_pool_free(AstPool* pool) {
+    for (size_t i = 0; i < pool->chunk_count; i++) {
+        free(pool->chunks[i]);
     }
-    AstNode* node = &pool->nodes[pool->count++];
+    free(pool->chunks);
+    pool->chunks = NULL;
+    pool->chunk_count = 0;
+    pool->chunk_capacity = 0;
+    pool->current_index = AST_CHUNK_SIZE;
+}
+
+void ast_pool_reset(AstPool* pool) {
+    // Reset to beginning of first chunk (keep allocated memory)
+    pool->current_index = 0;
+    if (pool->chunk_count > 0) {
+        // Clear first chunk
+        memset(pool->chunks[0], 0, AST_CHUNK_SIZE * sizeof(AstNode));
+    }
+    // Reset chunk count to 1 if we have any chunks
+    if (pool->chunk_count > 1) {
+        for (size_t i = 1; i < pool->chunk_count; i++) {
+            free(pool->chunks[i]);
+        }
+        pool->chunk_count = 1;
+    }
+}
+
+static bool ast_pool_grow(AstPool* pool) {
+    // Grow chunks array if needed
+    if (pool->chunk_count >= pool->chunk_capacity) {
+        size_t new_cap = pool->chunk_capacity == 0 ? 4 : pool->chunk_capacity * 2;
+        AstNode** new_chunks = realloc(pool->chunks, new_cap * sizeof(AstNode*));
+        if (!new_chunks) return false;
+        pool->chunks = new_chunks;
+        pool->chunk_capacity = new_cap;
+    }
+
+    // Allocate new chunk
+    AstNode* chunk = calloc(AST_CHUNK_SIZE, sizeof(AstNode));
+    if (!chunk) return false;
+
+    pool->chunks[pool->chunk_count++] = chunk;
+    pool->current_index = 0;
+    return true;
+}
+
+AstNode* ast_alloc(AstPool* pool) {
+    // Need new chunk?
+    if (pool->current_index >= AST_CHUNK_SIZE) {
+        if (!ast_pool_grow(pool)) {
+            return NULL;
+        }
+    }
+
+    AstNode* node = &pool->chunks[pool->chunk_count - 1][pool->current_index++];
     memset(node, 0, sizeof(*node));
     return node;
 }
 
-void ast_pool_reset(AstPool* pool) { pool->count = 0; }
+// Array management
+void ast_array_init(AstNodeArray* arr) {
+    arr->items = NULL;
+    arr->count = 0;
+    arr->capacity = 0;
+}
+
+bool ast_array_push(AstNodeArray* arr, AstNode* node) {
+    if (arr->count >= arr->capacity) {
+        size_t new_cap = arr->capacity == 0 ? 8 : arr->capacity * 2;
+        AstNode** new_items = realloc(arr->items, new_cap * sizeof(AstNode*));
+        if (!new_items) return false;
+        arr->items = new_items;
+        arr->capacity = new_cap;
+    }
+    arr->items[arr->count++] = node;
+    return true;
+}
+
+void ast_array_free(AstNodeArray* arr) {
+    free(arr->items);
+    arr->items = NULL;
+    arr->count = 0;
+    arr->capacity = 0;
+}
+
+// Program management
+void ast_program_init(AstProgram* prog) {
+    prog->nodes = NULL;
+    prog->node_count = 0;
+    prog->node_capacity = 0;
+}
+
+bool ast_program_add(AstProgram* prog, AstNode* node) {
+    if (prog->node_count >= prog->node_capacity) {
+        size_t new_cap = prog->node_capacity == 0 ? 64 : prog->node_capacity * 2;
+        AstNode** new_nodes = realloc(prog->nodes, new_cap * sizeof(AstNode*));
+        if (!new_nodes) return false;
+        prog->nodes = new_nodes;
+        prog->node_capacity = new_cap;
+    }
+    prog->nodes[prog->node_count++] = node;
+    return true;
+}
+
+void ast_program_free(AstProgram* prog) {
+    free(prog->nodes);
+    prog->nodes = NULL;
+    prog->node_count = 0;
+    prog->node_capacity = 0;
+}

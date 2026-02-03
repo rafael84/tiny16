@@ -185,16 +185,15 @@ static AstNode* parse_defn(SeParser* parser) {
     }
     advance(parser);
 
-    // Parse body forms
-    node->as.defn.body_count = 0;
+    // Parse body forms (dynamic array)
+    ast_array_init(&node->as.defn.body);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.defn.body_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many body expressions");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.defn.body[node->as.defn.body_count++] = form;
+        if (!ast_array_push(&node->as.defn.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add body form");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -251,16 +250,15 @@ static AstNode* parse_let(SeParser* parser) {
     }
     advance(parser);
 
-    // Parse body forms
-    node->as.let.body_count = 0;
+    // Parse body forms (dynamic array)
+    ast_array_init(&node->as.let.body);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.let.body_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many body expressions");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.let.body[node->as.let.body_count++] = form;
+        if (!ast_array_push(&node->as.let.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add body form");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -349,15 +347,15 @@ static AstNode* parse_while(SeParser* parser) {
         return NULL;
     }
 
-    node->as.while_expr.body_count = 0;
+    // Parse body forms (dynamic array)
+    ast_array_init(&node->as.while_expr.body);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.while_expr.body_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many body expressions");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.while_expr.body[node->as.while_expr.body_count++] = form;
+        if (!ast_array_push(&node->as.while_expr.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add body form");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -376,15 +374,15 @@ static AstNode* parse_do(SeParser* parser) {
     AstNode* node = alloc_node(parser, AST_DO);
     if (!node) return NULL;
 
-    node->as.block.expr_count = 0;
+    // Parse expressions (dynamic array)
+    ast_array_init(&node->as.block.exprs);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many expressions");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.block.exprs[node->as.block.expr_count++] = form;
+        if (!ast_array_push(&node->as.block.exprs, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add expression");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -435,16 +433,15 @@ static AstNode* parse_data(SeParser* parser) {
         // Otherwise, it's body content - don't consume it
     }
 
-    // Parse body
-    node->as.data.body_count = 0;
+    // Parse body (dynamic array)
+    ast_array_init(&node->as.data.body);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.data.body_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many data forms");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.data.body[node->as.data.body_count++] = form;
+        if (!ast_array_push(&node->as.data.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add data form");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -463,15 +460,15 @@ static AstNode* parse_db(SeParser* parser) {
     AstNode* node = alloc_node(parser, AST_DB);
     if (!node) return NULL;
 
-    node->as.block.expr_count = 0;
+    // Parse values (dynamic array)
+    ast_array_init(&node->as.block.exprs);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many values");
-            return NULL;
-        }
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return NULL;
-        node->as.block.exprs[node->as.block.expr_count++] = form;
+        if (!ast_array_push(&node->as.block.exprs, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add db value");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -562,7 +559,8 @@ static AstNode* parse_require(SeParser* parser) {
     AstNode* node = alloc_node(parser, AST_REQUIRE);
     if (!node) return NULL;
 
-    node->as.block.expr_count = 0;
+    // Initialize dynamic array
+    ast_array_init(&node->as.block.exprs);
 
     // Check if first element is a list (Clojure-style)
     if (parser->current.kind == SE_TOKEN_LPAREN) {
@@ -570,10 +568,6 @@ static AstNode* parse_require(SeParser* parser) {
 
         // Parse symbols/strings inside the list
         while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-            if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
-                parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
-                return NULL;
-            }
             if (parser->current.kind != SE_TOKEN_SYMBOL &&
                 parser->current.kind != SE_TOKEN_STRING) {
                 parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
@@ -583,7 +577,11 @@ static AstNode* parse_require(SeParser* parser) {
 
             AstNode* entry = se_parser_parse_form(parser);
             if (!entry) return NULL;
-            node->as.block.exprs[node->as.block.expr_count++] = entry;
+            if (!ast_array_push(&node->as.block.exprs, entry)) {
+                parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY,
+                                 "failed to add require entry");
+                return NULL;
+            }
         }
 
         if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -594,10 +592,6 @@ static AstNode* parse_require(SeParser* parser) {
     } else {
         // Original style: (require name1 name2...)
         while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-            if (node->as.block.expr_count >= SE_MAX_CHILDREN) {
-                parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many require entries");
-                return NULL;
-            }
             if (parser->current.kind != SE_TOKEN_SYMBOL &&
                 parser->current.kind != SE_TOKEN_STRING) {
                 parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
@@ -607,7 +601,11 @@ static AstNode* parse_require(SeParser* parser) {
 
             AstNode* entry = se_parser_parse_form(parser);
             if (!entry) return NULL;
-            node->as.block.exprs[node->as.block.expr_count++] = entry;
+            if (!ast_array_push(&node->as.block.exprs, entry)) {
+                parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY,
+                                 "failed to add require entry");
+                return NULL;
+            }
         }
     }
 
@@ -1166,18 +1164,19 @@ bool se_parser_parse_ns_with_requires(SeParser* parser, AstProgram* program) {
     copy_token_text(ns_node->as.symbol.name, &parser->current, SE_MAX_SYMBOL_LEN);
     advance(parser);
 
-    program->nodes[program->node_count++] = ns_node;
+    if (!ast_program_add(program, ns_node)) {
+        parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add ns node");
+        return true;
+    }
 
     // Parse body forms (mainly require)
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        if (program->node_count >= SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many forms");
-            return true;
-        }
-
         AstNode* form = se_parser_parse_form(parser);
         if (!form) return true;
-        program->nodes[program->node_count++] = form;
+        if (!ast_program_add(program, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add form");
+            return true;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -1189,14 +1188,9 @@ bool se_parser_parse_ns_with_requires(SeParser* parser, AstProgram* program) {
 }
 
 bool se_parser_parse_program(SeParser* parser, AstProgram* program) {
-    program->node_count = 0;
+    ast_program_init(program);
 
     while (parser->current.kind != SE_TOKEN_END && parser->error == SE_PARSE_OK) {
-        if (program->node_count >= SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many top-level forms");
-            return false;
-        }
-
         // Try to parse (ns ...) with nested forms
         if (se_parser_parse_ns_with_requires(parser, program)) {
             continue;
@@ -1205,7 +1199,10 @@ bool se_parser_parse_program(SeParser* parser, AstProgram* program) {
         AstNode* form = se_parser_parse_form(parser);
         if (!form) break;
 
-        program->nodes[program->node_count++] = form;
+        if (!ast_program_add(program, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add top-level form");
+            return false;
+        }
     }
 
     return parser->error == SE_PARSE_OK;

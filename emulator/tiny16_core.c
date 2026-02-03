@@ -8,60 +8,12 @@
 // Global pointer for audio callback (raylib doesn't support user data in callback)
 static Tiny16Emulator* g_emu = NULL;
 
-#define TINY16_AUDIO_RING_MASK (TINY16_AUDIO_RING_FRAMES - 1u)
-
-static void tiny16_audio_ring_write(Tiny16Emulator* emu, const float* samples, uint32_t frames) {
-    uint32_t write = emu->audio_write;
-    uint32_t read = emu->audio_read;
-    uint32_t free_frames = TINY16_AUDIO_RING_FRAMES - (write - read);
-    if (free_frames == 0) return;
-    if (frames > free_frames) frames = free_frames;
-    for (uint32_t i = 0; i < frames; i++) {
-        emu->audio_ring[write & TINY16_AUDIO_RING_MASK] = samples[i];
-        write++;
-    }
-    emu->audio_write = write;
-}
-
-static uint32_t tiny16_audio_ring_read(Tiny16Emulator* emu, float* buffer, uint32_t frames) {
-    uint32_t write = emu->audio_write;
-    uint32_t read = emu->audio_read;
-    uint32_t available = write - read;
-    if (available == 0) return 0;
-    if (frames > available) frames = available;
-    for (uint32_t i = 0; i < frames; i++) {
-        buffer[i] = emu->audio_ring[read & TINY16_AUDIO_RING_MASK];
-        read++;
-    }
-    emu->audio_read = read;
-    return frames;
-}
-
 static void tiny16_audio_callback(void* buffer, unsigned int frames) {
     if (g_emu) {
-        float* out = (float*)buffer;
-        uint32_t got = tiny16_audio_ring_read(g_emu, out, frames);
-        if (got < frames) {
-            memset(out + got, 0, (frames - got) * sizeof(float));
-        }
-    } else {
-        memset(buffer, 0, frames * sizeof(float));
+        tiny16_apu_generate_samples(&g_emu->vm->apu, (float*)buffer, frames);
+        return;
     }
-}
-
-static void tiny16_emu_audio_produce(Tiny16Emulator* emu, uint32_t cpu_cycles) {
-    if (cpu_cycles == 0) return;
-    uint32_t frames_needed =
-        tiny16_apu_samples_for_cycles(&emu->vm->apu, cpu_cycles, TINY16_CPU_HZ);
-    if (frames_needed == 0) return;
-
-    float temp[1024];
-    while (frames_needed > 0) {
-        uint32_t chunk = frames_needed > 1024 ? 1024 : frames_needed;
-        tiny16_apu_generate_samples(&emu->vm->apu, temp, chunk);
-        tiny16_audio_ring_write(emu, temp, chunk);
-        frames_needed -= chunk;
-    }
+    memset(buffer, 0, frames * sizeof(float));
 }
 
 Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
@@ -73,8 +25,6 @@ Tiny16Emulator* tiny16_emu_create(Tiny16VM* vm, bool program_loaded) {
     emu->program_loaded = program_loaded;
     emu->audio_enabled = false;
     memset(emu->back_buffer, 0, sizeof(emu->back_buffer));
-    emu->audio_read = 0;
-    emu->audio_write = 0;
 
     // Pre-compute RGB332 -> RGBA lookup table
     for (int i = 0; i < 256; i++) {
@@ -225,15 +175,12 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
 
         tiny16_emu_update_input(vm);
 
-        uint32_t instr_executed = 0;
         for (uint32_t step = 0; step < instr_this_frame; ++step) {
             if (!tiny16_vm_step(vm)) {
                 emu->paused = true;
                 break;
             }
-            instr_executed++;
         }
-        tiny16_emu_audio_produce(emu, instr_executed);
     }
 
     BeginDrawing();

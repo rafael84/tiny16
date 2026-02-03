@@ -108,8 +108,8 @@ static int32_t calc_data_size(AstNode* node) {
     case AST_STRING: return (int32_t)strlen(node->as.symbol.name);
     case AST_DB: {
         int32_t size = 0;
-        for (size_t i = 0; i < node->as.block.expr_count; i++) {
-            size += calc_data_size(node->as.block.exprs[i]);
+        for (size_t i = 0; i < node->as.block.exprs.count; i++) {
+            size += calc_data_size(node->as.block.exprs.items[i]);
         }
         return size;
     }
@@ -285,8 +285,8 @@ bool se_codegen_collect(SeCodegen* cg, AstProgram* program) {
 
             // Calculate size of this data block
             int32_t size = 0;
-            for (size_t j = 0; j < node->as.data.body_count; j++) {
-                size += calc_data_size(node->as.data.body[j]);
+            for (size_t j = 0; j < node->as.data.body.count; j++) {
+                size += calc_data_size(node->as.data.body.items[j]);
             }
 
             // Store data label info
@@ -816,8 +816,8 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         emit_line(cg, "OR R0, R0");
         emit_line(cg, "JZ __L%d", lbl_end);
 
-        for (size_t i = 0; i < node->as.while_expr.body_count; i++) {
-            emit_expr(cg, node->as.while_expr.body[i]);
+        for (size_t i = 0; i < node->as.while_expr.body.count; i++) {
+            emit_expr(cg, node->as.while_expr.body.items[i]);
         }
 
         emit_line(cg, "JMP __L%d", lbl_loop);
@@ -827,8 +827,8 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_DO:
-        for (size_t i = 0; i < node->as.block.expr_count; i++) {
-            emit_expr(cg, node->as.block.exprs[i]);
+        for (size_t i = 0; i < node->as.block.exprs.count; i++) {
+            emit_expr(cg, node->as.block.exprs.items[i]);
         }
         break;
 
@@ -864,8 +864,8 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         }
 
         // Evaluate body
-        for (size_t i = 0; i < node->as.let.body_count; i++) {
-            emit_expr(cg, node->as.let.body[i]);
+        for (size_t i = 0; i < node->as.let.body.count; i++) {
+            emit_expr(cg, node->as.let.body.items[i]);
         }
 
         // Deallocate locals
@@ -960,8 +960,8 @@ static void emit_data_value(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_DB:
-        for (size_t i = 0; i < node->as.block.expr_count; i++) {
-            emit_data_value(cg, node->as.block.exprs[i]);
+        for (size_t i = 0; i < node->as.block.exprs.count; i++) {
+            emit_data_value(cg, node->as.block.exprs.items[i]);
         }
         break;
 
@@ -970,9 +970,9 @@ static void emit_data_value(SeCodegen* cg, AstNode* node) {
         // For TIMES, we need inline DB
         if (node->as.repeat.form->kind == AST_DB) {
             emit(cg, "DB ");
-            for (size_t i = 0; i < node->as.repeat.form->as.block.expr_count; i++) {
+            for (size_t i = 0; i < node->as.repeat.form->as.block.exprs.count; i++) {
                 if (i > 0) emit(cg, ", ");
-                AstNode* val = node->as.repeat.form->as.block.exprs[i];
+                AstNode* val = node->as.repeat.form->as.block.exprs.items[i];
                 if (val->kind == AST_NUMBER) {
                     emit(cg, "0x%02X", val->as.number & 0xFF);
                 }
@@ -1025,8 +1025,8 @@ static void emit_function(SeCodegen* cg, AstNode* node) {
         add_local(cg, node->as.defn.params[i], offset); // positive offset = parameter
     }
 
-    for (size_t i = 0; i < node->as.defn.body_count; i++) {
-        emit_expr(cg, node->as.defn.body[i]);
+    for (size_t i = 0; i < node->as.defn.body.count; i++) {
+        emit_expr(cg, node->as.defn.body.items[i]);
     }
 
     emit_line(cg, "RET");
@@ -1048,8 +1048,8 @@ static void emit_data(SeCodegen* cg, AstNode* node) {
     }
     emit(cg, "%s:\n", name);
 
-    for (size_t i = 0; i < node->as.data.body_count; i++) {
-        emit_data_value(cg, node->as.data.body[i]);
+    for (size_t i = 0; i < node->as.data.body.count; i++) {
+        emit_data_value(cg, node->as.data.body.items[i]);
     }
     emit(cg, "\n");
 }

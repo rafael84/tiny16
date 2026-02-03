@@ -89,6 +89,7 @@ static void qualify_name(char* name, const char* ns) {
 static void apply_namespace(AstNode* node, const char* ns, SeScope* scope);
 
 static void apply_namespace_list(AstNode** nodes, size_t count, const char* ns, SeScope* scope) {
+    if (!nodes || count == 0) return;
     for (size_t i = 0; i < count; i++) {
         apply_namespace(nodes[i], ns, scope);
     }
@@ -122,7 +123,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         for (size_t i = 0; i < node->as.defn.param_count; i++) {
             scope_push(scope, node->as.defn.params[i]);
         }
-        apply_namespace_list(node->as.defn.body, node->as.defn.body_count, ns, scope);
+        apply_namespace_list(node->as.defn.body.items, node->as.defn.body.count, ns, scope);
         scope_pop_to(scope, saved);
         return;
     }
@@ -133,7 +134,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
             apply_namespace(node->as.let.vals[i], ns, scope);
             scope_push(scope, node->as.let.vars[i]);
         }
-        apply_namespace_list(node->as.let.body, node->as.let.body_count, ns, scope);
+        apply_namespace_list(node->as.let.body.items, node->as.let.body.count, ns, scope);
         scope_pop_to(scope, saved);
         return;
     }
@@ -148,12 +149,13 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
 
     case AST_WHILE:
         apply_namespace(node->as.while_expr.cond, ns, scope);
-        apply_namespace_list(node->as.while_expr.body, node->as.while_expr.body_count, ns, scope);
+        apply_namespace_list(node->as.while_expr.body.items, node->as.while_expr.body.count, ns,
+                             scope);
         return;
 
     case AST_DO:
     case AST_DB:
-        apply_namespace_list(node->as.block.exprs, node->as.block.expr_count, ns, scope);
+        apply_namespace_list(node->as.block.exprs.items, node->as.block.exprs.count, ns, scope);
         return;
 
     case AST_DATA:
@@ -161,7 +163,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         if (node->as.data.addr_expr) {
             apply_namespace(node->as.data.addr_expr, ns, scope);
         }
-        apply_namespace_list(node->as.data.body, node->as.data.body_count, ns, scope);
+        apply_namespace_list(node->as.data.body.items, node->as.data.body.count, ns, scope);
         return;
 
     case AST_REPEAT: apply_namespace(node->as.repeat.form, ns, scope); return;
@@ -252,10 +254,7 @@ static bool namespace_to_path(const char* ns, char* out, size_t out_size) {
 static bool is_absolute_path(const char* path) { return path[0] == '/'; }
 
 static bool append_program_node(AstProgram* program, AstNode* node) {
-    size_t max_nodes = SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS;
-    if (program->node_count >= max_nodes) return false;
-    program->nodes[program->node_count++] = node;
-    return true;
+    return ast_program_add(program, node);
 }
 
 static bool parse_file_into_program(const char* filename, AstPool* pool, AstProgram* program) {
@@ -335,8 +334,8 @@ static bool parse_requires_recursive(const char* filename, AstPool* pool, AstPro
         AstNode* node = program.nodes[i];
         if (node->kind != AST_REQUIRE) continue;
 
-        for (size_t j = 0; j < node->as.block.expr_count; j++) {
-            AstNode* req = node->as.block.exprs[j];
+        for (size_t j = 0; j < node->as.block.exprs.count; j++) {
+            AstNode* req = node->as.block.exprs.items[j];
             char req_path[PATH_MAX];
             const char* raw_name = NULL;
             bool is_symbol = false;
@@ -425,11 +424,12 @@ int main(int argc, char** argv) {
         g_search_path = "stdlib/se";
     }
 
-    static AstPool pool;
-    ast_pool_reset(&pool);
+    AstPool pool;
+    ast_pool_init(&pool);
 
     AstProgram program;
     if (!parse_with_requires(args.source_filename, &pool, &program)) {
+        ast_pool_free(&pool);
         return EXIT_FAILURE;
     }
 
@@ -437,6 +437,8 @@ int main(int argc, char** argv) {
     FILE* output = fopen(args.output_filename, "w");
     if (!output) {
         perror("could not open output file");
+        ast_program_free(&program);
+        ast_pool_free(&pool);
         return EXIT_FAILURE;
     }
 
@@ -447,16 +449,22 @@ int main(int argc, char** argv) {
     if (!se_codegen_collect(&codegen, &program)) {
         se_codegen_print_error(&codegen);
         fclose(output);
+        ast_program_free(&program);
+        ast_pool_free(&pool);
         return EXIT_FAILURE;
     }
 
     if (!se_codegen_emit(&codegen, &program)) {
         se_codegen_print_error(&codegen);
         fclose(output);
+        ast_program_free(&program);
+        ast_pool_free(&pool);
         return EXIT_FAILURE;
     }
 
     fclose(output);
+    ast_program_free(&program);
+    ast_pool_free(&pool);
 
     return EXIT_SUCCESS;
 }

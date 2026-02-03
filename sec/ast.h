@@ -4,11 +4,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define SE_MAX_CHILDREN   64
-#define SE_MAX_PARAMS     16
-#define SE_MAX_FUNCTIONS  128
-#define SE_MAX_CONSTANTS  256
-#define SE_MAX_SYMBOL_LEN 64
+// Compiler limits
+#define SE_MAX_PARAMS     32 // Max function parameters (fixed, small)
+#define SE_MAX_SYMBOL_LEN 64 // Max symbol name length
 
 typedef enum {
     // Atoms
@@ -78,6 +76,13 @@ const char* ast_kind_name(AstKind kind);
 // Forward declaration
 typedef struct AstNode AstNode;
 
+// Dynamic array of AstNode pointers
+typedef struct {
+    AstNode** items;
+    size_t count;
+    size_t capacity;
+} AstNodeArray;
+
 struct AstNode {
     AstKind kind;
     size_t line;
@@ -103,8 +108,7 @@ struct AstNode {
             char name[SE_MAX_SYMBOL_LEN];
             char params[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
             size_t param_count;
-            AstNode* body[SE_MAX_CHILDREN];
-            size_t body_count;
+            AstNodeArray body;
         } defn;
 
         // AST_LET: (let (bindings) body...)
@@ -112,8 +116,7 @@ struct AstNode {
             char vars[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
             AstNode* vals[SE_MAX_PARAMS];
             size_t binding_count;
-            AstNode* body[SE_MAX_CHILDREN];
-            size_t body_count;
+            AstNodeArray body;
         } let;
 
         // AST_SET: (set var value)
@@ -132,14 +135,12 @@ struct AstNode {
         // AST_WHILE: (while cond body...)
         struct {
             AstNode* cond;
-            AstNode* body[SE_MAX_CHILDREN];
-            size_t body_count;
+            AstNodeArray body;
         } while_expr;
 
         // AST_DO: (do expr...), AST_DB, AST_REQUIRE
         struct {
-            AstNode* exprs[SE_MAX_CHILDREN];
-            size_t expr_count;
+            AstNodeArray exprs;
         } block;
 
         // AST_DATA: (data name addr body...)
@@ -147,8 +148,7 @@ struct AstNode {
             char name[SE_MAX_SYMBOL_LEN];
             int32_t addr;       // -1 if not specified or needs evaluation
             AstNode* addr_expr; // expression for address (evaluated at codegen time)
-            AstNode* body[SE_MAX_CHILDREN];
-            size_t body_count;
+            AstNodeArray body;
         } data;
 
         // AST_REPEAT: (repeat count form)
@@ -194,15 +194,37 @@ struct AstNode {
     } as;
 };
 
+// Dynamic program structure
 typedef struct {
-    AstNode* nodes[SE_MAX_FUNCTIONS + SE_MAX_CONSTANTS];
+    AstNode** nodes;
     size_t node_count;
+    size_t node_capacity;
 } AstProgram;
 
+// Dynamic AST node pool
 typedef struct {
-    AstNode nodes[4096];
-    size_t count;
+    AstNode** chunks; // Array of chunk pointers
+    size_t chunk_count;
+    size_t chunk_capacity;
+    size_t current_index; // Index within current chunk
 } AstPool;
 
+#define AST_CHUNK_SIZE 1024 // Nodes per chunk
+
+// Pool management
+void ast_pool_init(AstPool* pool);
+void ast_pool_free(AstPool* pool);
 AstNode* ast_alloc(AstPool* pool);
+
+// Array management
+void ast_array_init(AstNodeArray* arr);
+bool ast_array_push(AstNodeArray* arr, AstNode* node);
+void ast_array_free(AstNodeArray* arr);
+
+// Program management
+void ast_program_init(AstProgram* prog);
+bool ast_program_add(AstProgram* prog, AstNode* node);
+void ast_program_free(AstProgram* prog);
+
+// Legacy compatibility
 void ast_pool_reset(AstPool* pool);

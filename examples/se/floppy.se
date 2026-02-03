@@ -17,7 +17,7 @@
 ;   make examples-se
 ;   ./build/tiny16-emu build/floppy_se.tiny16
 
-(require (core sprite tilemap input apu ppu math))
+(require (core sprite tilemap input apu ppu math vivaldi-winter))
 
 (import "../examples/includes/tileset.inc")
 
@@ -27,6 +27,12 @@
 
 (def KEY_A              0x04)
 (def SPRITE_BEHIND_BG   0x20)
+
+; SFX IDs (using new SFX bank system)
+(def SFX_FLAP  0)
+(def SFX_DIE   1)
+(def SFX_SCORE 2)
+(def SFX_COUNT 3)
 
 ; Game states
 (def STATE_WAITING      0)
@@ -147,20 +153,17 @@
   (tilemap/text (+ TEXT_COL 1) TEXT_ROW2 (hi str_press_a) (lo str_press_a)))
 
 ; =============================================================================
-; Sound Effects
+; Sound Effects (using SFX bank - play by ID)
 ; =============================================================================
 
 (defn sfx-flap ()
-  (apu/ch0-set-envelope 1 1 8 1)
-  (apu/ch0-play-note 0xC8 0x07 0x12 3))
+  (apu/sfx-play SFX_FLAP))
 
 (defn sfx-die ()
-  (apu/ch3-set-envelope 1 5 0 4)
-  (apu/ch3-play-noise 9 14 18))
+  (apu/sfx-play SFX_DIE))
 
 (defn sfx-score ()
-  (apu/ch0-set-envelope 1 1 6 1)
-  (apu/ch0-play-note 0xD0 0x07 0x2C 4))
+  (apu/sfx-play SFX_SCORE))
 
 ; =============================================================================
 ; Fixed-Point Physics
@@ -235,12 +238,14 @@
 (defn die ()
   (poke16 game_state STATE_DEAD)
   (poke16 dead_timer 0)
+  (apu/music-stop)
   (show-game-over)
   (sfx-die))
 
 (defn start-game ()
   (clear-text)
-  (poke16 game_state STATE_PLAYING))
+  (poke16 game_state STATE_PLAYING)
+  (apu/music-play (hi vivaldi-winter/data) (lo vivaldi-winter/data) vivaldi-winter/length-hi vivaldi-winter/length-lo 1))
 
 (defn update-bird (keys)
   (if (!= (& keys KEY_A) 0)
@@ -410,6 +415,7 @@
   (if (!= (peek16 initialized) INIT_FLAG)
       (do
         (apu/init)
+        (apu/sfx-init (hi sfx_table) (lo sfx_table) SFX_COUNT)
         (init-tilemap)
         (init-game)
         (poke16 initialized INIT_FLAG))
@@ -470,3 +476,16 @@
 
 (data str_press_a (db "PRESS " (- TILE_BUTTON_A 96) 0))
 (data str_game_over (db "GAME OVER" 0))
+
+; =============================================================================
+; SFX Bank Table
+; =============================================================================
+; Format: channel, freq_lo, freq_hi, period, volume, duty, env_ad, env_sr, duration
+
+(data sfx_table
+  ; ID 0: Flap (pulse 0, high pitch chirp)
+  (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
+  ; ID 1: Die (noise, harsh)
+  (db 3 0 0 9 14 0 0x15 0x04 18)
+  ; ID 2: Score (pulse 0, bright coin sound)
+  (db 0 0xD0 0x07 0 44 2 0x11 0x61 4))

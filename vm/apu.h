@@ -3,8 +3,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TINY16_APU_SAMPLE_RATE 44100
-#define TINY16_APU_CHANNELS    5
+#define TINY16_APU_SAMPLE_RATE     44100
+#define TINY16_APU_CHANNELS        5
+#define TINY16_APU_SFX_ENTRY_SIZE  9 // bytes per SFX entry
+#define TINY16_APU_MUSIC_NOTE_SIZE 4 // bytes per music note
+
+// Forward declaration for memory access
+struct Tiny16Memory;
 
 typedef enum {
     TINY16_APU_CH_PULSE1 = 0,
@@ -93,7 +98,33 @@ typedef struct {
     uint8_t wave[32];     // 4-bit samples
 } Tiny16APUWaveChannel;
 
+// SFX player state (per channel)
 typedef struct {
+    bool active;           // SFX currently playing on this channel
+    uint8_t duration_left; // frames remaining
+    uint8_t sfx_id;        // current SFX ID playing
+} Tiny16APUSfxState;
+
+// SFX system state
+typedef struct {
+    uint16_t table_addr;     // memory address of SFX table
+    uint8_t count;           // number of SFX entries
+    Tiny16APUSfxState ch[4]; // per-channel SFX state (pulse1/pulse2/tri/noise)
+} Tiny16APUSfxSystem;
+
+// Music player state
+typedef struct {
+    bool enabled;          // music is playing
+    bool looping;          // loop when song ends
+    uint16_t song_addr;    // memory address of song data
+    uint16_t song_length;  // number of notes in song
+    uint16_t current_note; // current note index
+    uint8_t frames_left;   // frames until next note
+    uint8_t channel;       // channel reserved for music (default: pulse2)
+} Tiny16MusicPlayer;
+
+typedef struct {
+    volatile int lock;
     bool enabled;          // APU master enable
     uint8_t master_volume; // 4-bit master volume (0-15)
     uint64_t sample_accum; // fractional samples in cpu_hz units
@@ -103,6 +134,14 @@ typedef struct {
     Tiny16APUTriangleChannel triangle; // CH2
     Tiny16APUNoiseChannel noise;       // CH3
     Tiny16APUWaveChannel wave;         // CH4
+
+    // SFX and Music systems
+    Tiny16APUSfxSystem sfx;  // SFX bank system
+    Tiny16MusicPlayer music; // Music sequencer
+    uint32_t frame_samples;  // samples per frame counter
+
+    // Memory pointer for reading SFX/music data
+    struct Tiny16Memory* memory;
 } Tiny16APU;
 
 void tiny16_apu_reset(Tiny16APU* apu);

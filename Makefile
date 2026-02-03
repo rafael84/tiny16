@@ -99,6 +99,7 @@ sec: $(BUILDDIR) sec/*.h sec/*.c | $(BUILDDIR)
 
 tools: $(BUILDDIR) $(TOOLSDIR)/*.c vm/*.h | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c -lm
+	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/midi2music$(EXE_EXT) $(TOOLSDIR)/midi2music.c -lm
 
 emulator: $(BUILDDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BUILDDIR)/tiny16-emu$(EXE_EXT) \
@@ -157,8 +158,11 @@ EXAMPLES_ASM_OUTPUTS := $(patsubst examples/asm/%.asm,$(BUILDDIR)/%.tiny16,$(EXA
 EXAMPLES_SE := $(wildcard examples/se/*.se)
 EXAMPLES_SE_OUTPUTS := $(patsubst examples/se/%.se,$(BUILDDIR)/%_se.tiny16,$(EXAMPLES_SE))
 
-EXAMPLES_ASSETS := $(wildcard examples/assets/*.png)
-EXAMPLES_ASSETS_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS))
+EXAMPLES_ASSETS_PNG := $(wildcard examples/assets/*.png)
+EXAMPLES_ASSETS_PNG_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS_PNG))
+
+EXAMPLES_ASSETS_MIDI := $(wildcard examples/assets/*.mid)
+EXAMPLES_ASSETS_MIDI_OUTPUTS := $(patsubst examples/assets/%.mid,stdlib/se/%.se,$(EXAMPLES_ASSETS_MIDI))
 
 EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard asm/tutorial/includes/*.inc)
 
@@ -178,10 +182,14 @@ $(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) | $(BUILDDIR)
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $(BUILDDIR)/$*_se.asm $@
 
 # PNG -> INC: convert PNG assets to assembly include files
-examples-assets: tools $(EXAMPLES_ASSETS_OUTPUTS)
+# MIDI -> SE: convert MIDI assets to S-expression music modules
+examples-assets: tools $(EXAMPLES_ASSETS_PNG_OUTPUTS) $(EXAMPLES_ASSETS_MIDI_OUTPUTS)
 
 examples/includes/%.inc: examples/assets/%.png | tools
 	$(BUILDDIR)/png2tiles$(EXE_EXT) $< $@
+
+stdlib/se/%.se: examples/assets/%.mid | tools
+	$(BUILDDIR)/midi2music$(EXE_EXT) $< -n $* -v 5 -s 0.5 -o $@
 
 $(RAYLIB_LIB_NATIVE):
 	@echo "Building raylib for native..."

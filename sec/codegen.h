@@ -6,9 +6,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+// Codegen limits (these are fixed-size for simplicity)
 #define SE_MAX_LOCALS      32
 #define SE_MAX_LABEL_ID    9999
 #define SE_MAX_DATA_LABELS 128
+#define SE_MAX_CONSTANTS   4096
+#define SE_MAX_FUNCTIONS   1024
 
 typedef struct {
     char name[SE_MAX_SYMBOL_LEN];
