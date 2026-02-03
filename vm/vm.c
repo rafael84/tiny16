@@ -14,6 +14,7 @@ Tiny16VM* tiny16_vm_create(void) {
     tiny16_cpu_reset(&vm->cpu);
     tiny16_ppu_reset(&vm->ppu);
     tiny16_apu_reset(&vm->apu);
+    vm->apu.memory = (struct Tiny16Memory*)&vm->memory;
     vm->ticks = 0;
     return vm;
 }
@@ -23,6 +24,7 @@ void tiny16_vm_reset(Tiny16VM* vm) {
     tiny16_memory_reset(&vm->memory);
     tiny16_ppu_reset(&vm->ppu);
     tiny16_apu_reset(&vm->apu);
+    vm->apu.memory = (struct Tiny16Memory*)&vm->memory;
     vm->ticks = 0;
 }
 
@@ -39,7 +41,8 @@ static inline bool tiny16_is_ppu_mmio(uint16_t addr) {
 }
 
 static inline bool tiny16_is_apu_mmio(uint16_t addr) {
-    return addr >= TINY16_MMIO_APU_CTRL && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F);
+    // APU range: 0xBF40-0xBF8F (base), 0xBF90-0xBF9F (SFX), 0xBFA0-0xBFA5 (music)
+    return addr >= TINY16_MMIO_APU_CTRL && addr <= TINY16_MMIO_APU_MUSIC_LEN_LO;
 }
 
 uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr) {

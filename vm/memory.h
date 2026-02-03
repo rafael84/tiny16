@@ -126,6 +126,22 @@ typedef struct {
 // Wave RAM (32 x 4-bit samples)
 #define TINY16_MMIO_APU_WAVE_RAM 0xBF70 // 0xBF70 - 0xBF8F
 
+// APU SFX System (0xBF90-0xBF9F)
+#define TINY16_MMIO_APU_SFX_PLAY     0xBF90 // W: trigger SFX by ID
+#define TINY16_MMIO_APU_SFX_STOP     0xBF91 // W: stop SFX on channel
+#define TINY16_MMIO_APU_SFX_STATUS   0xBF92 // R: active SFX channels (bits 0-3)
+#define TINY16_MMIO_APU_SFX_TABLE_HI 0xBF93 // W: SFX table address high byte
+#define TINY16_MMIO_APU_SFX_TABLE_LO 0xBF94 // W: SFX table address low byte
+#define TINY16_MMIO_APU_SFX_COUNT    0xBF95 // W: number of SFX entries
+
+// APU Music System (0xBFA0-0xBFAF)
+#define TINY16_MMIO_APU_MUSIC_CTRL    0xBFA0 // W: bit0=play, bit1=stop, bit2=loop
+#define TINY16_MMIO_APU_MUSIC_STATUS  0xBFA1 // R: bit0=playing
+#define TINY16_MMIO_APU_MUSIC_ADDR_HI 0xBFA2 // W: song data address high byte
+#define TINY16_MMIO_APU_MUSIC_ADDR_LO 0xBFA3 // W: song data address low byte
+#define TINY16_MMIO_APU_MUSIC_LEN_HI  0xBFA4 // W: song length high byte
+#define TINY16_MMIO_APU_MUSIC_LEN_LO  0xBFA5 // W: song length low byte
+
 // RESERVED (0xBFF0 - 0xBFFF)
 
 //
