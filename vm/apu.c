@@ -24,6 +24,15 @@ static const float env_rate_seconds[] = {
     0.15f, 0.20f,  0.30f, 0.40f, 0.60f, 0.80f, 1.00f, 1.50f,
 };
 
+static inline void apu_lock(Tiny16APU* apu) {
+    while (__sync_lock_test_and_set(&apu->lock, 1)) {
+    }
+}
+
+static inline void apu_unlock(Tiny16APU* apu) {
+    __sync_lock_release(&apu->lock);
+}
+
 static inline uint32_t calc_phase_inc(uint16_t freq_value) {
     // freq_hz = 44100 / (2048 - freq_value)
     // phase_inc = freq_hz / sample_rate * 2^32
@@ -169,6 +178,7 @@ static inline void sweep_step(Tiny16APUPulseChannel* ch) {
 }
 
 void tiny16_apu_reset(Tiny16APU* apu) {
+    apu->lock = 0;
     apu->enabled = false;
     apu->master_volume = 0;
     apu->sample_accum = 0;
@@ -263,6 +273,7 @@ void tiny16_apu_reset(Tiny16APU* apu) {
 }
 
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
+    apu_lock(apu);
     switch (addr) {
     // Master control
     case TINY16_MMIO_APU_CTRL:
@@ -510,11 +521,16 @@ void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value) {
     if (addr >= TINY16_MMIO_APU_WAVE_RAM && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F)) {
         apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] = value & 0x0F;
     }
+    apu_unlock(apu);
 }
 
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
+    uint8_t value = 0;
+    apu_lock(apu);
     switch (addr) {
-    case TINY16_MMIO_APU_CTRL: return (apu->master_volume << 4) | (apu->enabled ? 0x01 : 0x00);
+    case TINY16_MMIO_APU_CTRL:
+        value = (apu->master_volume << 4) | (apu->enabled ? 0x01 : 0x00);
+        break;
 
     case TINY16_MMIO_APU_STATUS: {
         uint8_t status = 0;
@@ -523,71 +539,96 @@ uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
         if (apu->triangle.enabled) status |= 0x04;
         if (apu->noise.enabled) status |= 0x08;
         if (apu->wave.enabled) status |= 0x10;
-        return status;
+        value = status;
+        break;
     }
 
-    case TINY16_MMIO_APU_CH0_VOL: return (apu->pulse1.duty << 4) | apu->pulse1.volume;
-    case TINY16_MMIO_APU_CH0_CTRL: return apu->pulse1.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH0_VOL: value = (apu->pulse1.duty << 4) | apu->pulse1.volume; break;
+    case TINY16_MMIO_APU_CH0_CTRL: value = apu->pulse1.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH1_VOL: return (apu->pulse2.duty << 4) | apu->pulse2.volume;
-    case TINY16_MMIO_APU_CH1_CTRL: return apu->pulse2.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH1_VOL: value = (apu->pulse2.duty << 4) | apu->pulse2.volume; break;
+    case TINY16_MMIO_APU_CH1_CTRL: value = apu->pulse2.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH2_VOL: return apu->triangle.volume;
-    case TINY16_MMIO_APU_CH2_CTRL: return apu->triangle.enabled ? 0x01 : 0x00;
+    case TINY16_MMIO_APU_CH2_VOL: value = apu->triangle.volume; break;
+    case TINY16_MMIO_APU_CH2_CTRL: value = apu->triangle.enabled ? 0x01 : 0x00; break;
 
-    case TINY16_MMIO_APU_CH3_PERIOD: return apu->noise.period;
-    case TINY16_MMIO_APU_CH3_VOL: return apu->noise.volume;
+    case TINY16_MMIO_APU_CH3_PERIOD: value = apu->noise.period; break;
+    case TINY16_MMIO_APU_CH3_VOL: value = apu->noise.volume; break;
     case TINY16_MMIO_APU_CH3_CTRL:
-        return (apu->noise.short_mode ? 0x04 : 0x00) | (apu->noise.enabled ? 0x01 : 0x00);
+        value = (apu->noise.short_mode ? 0x04 : 0x00) | (apu->noise.enabled ? 0x01 : 0x00);
+        break;
 
-    case TINY16_MMIO_APU_CH0_ENV_AD: return (apu->pulse1.env.attack << 4) | apu->pulse1.env.decay;
+    case TINY16_MMIO_APU_CH0_ENV_AD:
+        value = (apu->pulse1.env.attack << 4) | apu->pulse1.env.decay;
+        break;
     case TINY16_MMIO_APU_CH0_ENV_SR:
-        return (apu->pulse1.env.sustain << 4) | apu->pulse1.env.release;
-    case TINY16_MMIO_APU_CH1_ENV_AD: return (apu->pulse2.env.attack << 4) | apu->pulse2.env.decay;
+        value = (apu->pulse1.env.sustain << 4) | apu->pulse1.env.release;
+        break;
+    case TINY16_MMIO_APU_CH1_ENV_AD:
+        value = (apu->pulse2.env.attack << 4) | apu->pulse2.env.decay;
+        break;
     case TINY16_MMIO_APU_CH1_ENV_SR:
-        return (apu->pulse2.env.sustain << 4) | apu->pulse2.env.release;
+        value = (apu->pulse2.env.sustain << 4) | apu->pulse2.env.release;
+        break;
     case TINY16_MMIO_APU_CH2_ENV_AD:
-        return (apu->triangle.env.attack << 4) | apu->triangle.env.decay;
+        value = (apu->triangle.env.attack << 4) | apu->triangle.env.decay;
+        break;
     case TINY16_MMIO_APU_CH2_ENV_SR:
-        return (apu->triangle.env.sustain << 4) | apu->triangle.env.release;
-    case TINY16_MMIO_APU_CH3_ENV_AD: return (apu->noise.env.attack << 4) | apu->noise.env.decay;
-    case TINY16_MMIO_APU_CH3_ENV_SR: return (apu->noise.env.sustain << 4) | apu->noise.env.release;
+        value = (apu->triangle.env.sustain << 4) | apu->triangle.env.release;
+        break;
+    case TINY16_MMIO_APU_CH3_ENV_AD: value = (apu->noise.env.attack << 4) | apu->noise.env.decay; break;
+    case TINY16_MMIO_APU_CH3_ENV_SR:
+        value = (apu->noise.env.sustain << 4) | apu->noise.env.release;
+        break;
 
     case TINY16_MMIO_APU_CH0_SWEEP:
-        return (apu->pulse1.sweep_rate << 4) | (apu->pulse1.sweep_down ? 0x08 : 0x00) |
-               (apu->pulse1.sweep_shift & 0x07);
+        value = (apu->pulse1.sweep_rate << 4) | (apu->pulse1.sweep_down ? 0x08 : 0x00) |
+                (apu->pulse1.sweep_shift & 0x07);
+        break;
     case TINY16_MMIO_APU_CH1_SWEEP:
-        return (apu->pulse2.sweep_rate << 4) | (apu->pulse2.sweep_down ? 0x08 : 0x00) |
-               (apu->pulse2.sweep_shift & 0x07);
-    case TINY16_MMIO_APU_CH0_LEN: return apu->pulse1.length;
-    case TINY16_MMIO_APU_CH1_LEN: return apu->pulse2.length;
-    case TINY16_MMIO_APU_CH2_LEN: return apu->triangle.length;
-    case TINY16_MMIO_APU_CH3_LEN: return apu->noise.length;
+        value = (apu->pulse2.sweep_rate << 4) | (apu->pulse2.sweep_down ? 0x08 : 0x00) |
+                (apu->pulse2.sweep_shift & 0x07);
+        break;
+    case TINY16_MMIO_APU_CH0_LEN: value = apu->pulse1.length; break;
+    case TINY16_MMIO_APU_CH1_LEN: value = apu->pulse2.length; break;
+    case TINY16_MMIO_APU_CH2_LEN: value = apu->triangle.length; break;
+    case TINY16_MMIO_APU_CH3_LEN: value = apu->noise.length; break;
 
-    case TINY16_MMIO_APU_WAVE_FREQ_LO: return apu->wave.freq & 0xFF;
-    case TINY16_MMIO_APU_WAVE_FREQ_HI: return (apu->wave.freq >> 8) & 0x07;
-    case TINY16_MMIO_APU_WAVE_VOL: return apu->wave.volume;
-    case TINY16_MMIO_APU_WAVE_CTRL: return apu->wave.enabled ? 0x01 : 0x00;
-    case TINY16_MMIO_APU_WAVE_LEN: return apu->wave.length;
-    case TINY16_MMIO_APU_WAVE_ENV_AD: return (apu->wave.env.attack << 4) | apu->wave.env.decay;
-    case TINY16_MMIO_APU_WAVE_ENV_SR: return (apu->wave.env.sustain << 4) | apu->wave.env.release;
+    case TINY16_MMIO_APU_WAVE_FREQ_LO: value = apu->wave.freq & 0xFF; break;
+    case TINY16_MMIO_APU_WAVE_FREQ_HI: value = (apu->wave.freq >> 8) & 0x07; break;
+    case TINY16_MMIO_APU_WAVE_VOL: value = apu->wave.volume; break;
+    case TINY16_MMIO_APU_WAVE_CTRL: value = apu->wave.enabled ? 0x01 : 0x00; break;
+    case TINY16_MMIO_APU_WAVE_LEN: value = apu->wave.length; break;
+    case TINY16_MMIO_APU_WAVE_ENV_AD:
+        value = (apu->wave.env.attack << 4) | apu->wave.env.decay;
+        break;
+    case TINY16_MMIO_APU_WAVE_ENV_SR:
+        value = (apu->wave.env.sustain << 4) | apu->wave.env.release;
+        break;
     }
     if (addr >= TINY16_MMIO_APU_WAVE_RAM && addr <= (TINY16_MMIO_APU_WAVE_RAM + 0x1F)) {
-        return apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] & 0x0F;
+        value = apu->wave.wave[addr - TINY16_MMIO_APU_WAVE_RAM] & 0x0F;
     }
-    return 0;
+    apu_unlock(apu);
+    return value;
 }
 
 uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz) {
-    if (cpu_hz == 0) return 0;
+    apu_lock(apu);
+    if (cpu_hz == 0) {
+        apu_unlock(apu);
+        return 0;
+    }
     uint64_t add = (uint64_t)cpu_cycles * (uint64_t)TINY16_APU_SAMPLE_RATE;
     uint64_t accum = apu->sample_accum + add;
     uint32_t frames = (uint32_t)(accum / cpu_hz);
     apu->sample_accum = accum - (uint64_t)frames * cpu_hz;
+    apu_unlock(apu);
     return frames;
 }
 
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames) {
+    apu_lock(apu);
     for (unsigned int i = 0; i < frames; i++) {
         float mix = 0.0f;
         int active_channels = 0;
@@ -714,4 +755,5 @@ void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int fra
 
         buffer[i] = mix;
     }
+    apu_unlock(apu);
 }

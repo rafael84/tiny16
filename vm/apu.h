@@ -94,6 +94,7 @@ typedef struct {
 } Tiny16APUWaveChannel;
 
 typedef struct {
+    volatile int lock;
     bool enabled;          // APU master enable
     uint8_t master_volume; // 4-bit master volume (0-15)
     uint64_t sample_accum; // fractional samples in cpu_hz units
