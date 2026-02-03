@@ -1,0 +1,208 @@
+; APU SFX Bank & Music Demo
+;
+; Demonstrates the new data-driven audio system:
+; - SFX bank: define sounds once, play by ID
+; - Music sequencer: background music with automatic playback
+;
+; Controls:
+; - A: Play jump sound
+; - B: Play coin sound
+; - UP: Play explosion
+; - DOWN: Play hit sound
+; - START: Toggle background music
+;
+; BUILD:
+;   make examples-se
+;   ./build/tiny16-emu build/apu_sfx_demo_se.tiny16
+
+(require (core sprite tilemap input apu ppu))
+
+(import "../examples/includes/tileset.inc")
+
+; =============================================================================
+; Constants
+; =============================================================================
+
+(def KEY_A     0x04)
+(def KEY_B     0x08)
+(def KEY_UP    0x40)
+(def KEY_DOWN  0x80)
+(def KEY_START 0x02)
+
+; SFX IDs
+(def SFX_JUMP      0)
+(def SFX_COIN      1)
+(def SFX_HIT       2)
+(def SFX_EXPLOSION 3)
+(def SFX_COUNT     4)
+
+; Song length (number of notes)
+(def SONG_LENGTH 16)
+
+; Display
+(def MSG_ROW 5)
+(def MSG_COL 2)
+
+; =============================================================================
+; SFX Bank Definition
+; =============================================================================
+; Format: channel, freq_lo, freq_hi, period, volume, duty, env_ad, env_sr, duration
+
+(data sfx-table
+  ; ID 0: Jump (pulse 0, high pitch, short)
+  (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
+  ; ID 1: Coin (pulse 0, bright, medium)
+  (db 0 0xD0 0x07 0 44 2 0x11 0x61 4)
+  ; ID 2: Hit (noise, harsh, quick)
+  (db 3 0 0 9 14 0 0x15 0x04 18)
+  ; ID 3: Explosion (noise, long decay)
+  (db 3 0 0 12 15 0 0x28 0x26 30))
+
+; =============================================================================
+; Music Sequence Definition
+; =============================================================================
+; Format: note, volume, duration, reserved
+; A simple melody: C-E-G-C pattern
+
+(data demo-song
+  ; Bar 1
+  (db 13 4 8 0)   ; C4
+  (db 17 4 8 0)   ; E4
+  (db 20 4 8 0)   ; G4
+  (db 25 4 16 0)  ; C5 (longer)
+  ; Bar 2
+  (db 20 4 8 0)   ; G4
+  (db 17 4 8 0)   ; E4
+  (db 13 4 16 0)  ; C4 (longer)
+  (db 0 0 8 0)     ; rest
+  ; Bar 3 (variation)
+  (db 15 4 8 0)   ; D4
+  (db 18 4 8 0)   ; F4
+  (db 22 4 8 0)   ; A4
+  (db 27 4 16 0)  ; D5 (longer)
+  ; Bar 4
+  (db 22 2 8 0)   ; A4
+  (db 18 2 8 0)   ; F4
+  (db 15 2 16 0)  ; D4 (longer)
+  (db 0 0 8 0))    ; rest
+
+; =============================================================================
+; State
+; =============================================================================
+
+(data music-on (db 0))
+(data initialized (db 0))
+
+; =============================================================================
+; Display Functions
+; =============================================================================
+
+(defn clear-row (row)
+  (let (x 0)
+    (while (< x 16)
+      (tilemap/put x row 0)
+      (set x (inc x)))))
+
+(defn show-title ()
+  (tilemap/text 1 2 (hi str-title) (lo str-title))
+  (tilemap/text 1 3 (hi str-subtitle) (lo str-subtitle)))
+
+(defn show-controls ()
+  (tilemap/text 1 6 (hi str-a) (lo str-a))
+  (tilemap/text 1 7 (hi str-b) (lo str-b))
+  (tilemap/text 1 8 (hi str-up) (lo str-up))
+  (tilemap/text 1 9 (hi str-down) (lo str-down))
+  (tilemap/text 1 10 (hi str-start) (lo str-start)))
+
+(defn show-music-status ()
+  (clear-row 12)
+  (if (= (peek16 music-on) 1)
+      (tilemap/text 1 12 (hi str-music-on) (lo str-music-on))
+      (tilemap/text 1 12 (hi str-music-off) (lo str-music-off))))
+
+; =============================================================================
+; Initialization
+; =============================================================================
+
+(defn init-display ()
+  (tilemap/fill-row 0 2)
+  (tilemap/fill-row 1 1)
+  (tilemap/fill-row 14 81)
+  (tilemap/fill-row 15 97)
+  (show-title)
+  (show-controls)
+  (show-music-status))
+
+(defn init-audio ()
+  (apu/init)
+  ; Initialize SFX bank
+  (apu/sfx-init (hi sfx-table) (lo sfx-table) SFX_COUNT))
+
+; =============================================================================
+; Input Handling
+; =============================================================================
+
+(defn handle-input ()
+  (let (pressed (input/keys-pressed))
+    ; A button - jump sound
+    (if (!= (& pressed KEY_A) 0)
+        (apu/sfx-play SFX_JUMP)
+        0)
+    ; B button - coin sound
+    (if (!= (& pressed KEY_B) 0)
+        (apu/sfx-play SFX_COIN)
+        0)
+    ; UP - explosion
+    (if (!= (& pressed KEY_UP) 0)
+        (apu/sfx-play SFX_EXPLOSION)
+        0)
+    ; DOWN - hit
+    (if (!= (& pressed KEY_DOWN) 0)
+        (apu/sfx-play SFX_HIT)
+        0)
+    ; START - toggle music
+    (if (!= (& pressed KEY_START) 0)
+        (if (= (peek16 music-on) 0)
+            (do
+              (poke16 music-on 1)
+              (apu/music-play (hi demo-song) (lo demo-song) 0 SONG_LENGTH 1)
+              (show-music-status))
+            (do
+              (poke16 music-on 0)
+              (apu/music-stop)
+              (show-music-status)))
+        0)))
+
+; =============================================================================
+; Main
+; =============================================================================
+
+(defn main ()
+  ; One-time initialization
+  (if (!= (peek16 initialized) 0xAA)
+      (do
+        (sprite/hide-all)
+        (init-audio)
+        (init-display)
+        (poke16 initialized 0xAA))
+      0)
+
+  ; Main loop
+  (while 1
+    (core/wait-frame)
+    (handle-input)
+    (ppu/render-all)))
+
+; =============================================================================
+; Strings
+; =============================================================================
+
+(data str-title (db "SFX BANK DEMO" 0))
+(data str-subtitle (db "& MUSIC SEQ" 0))
+(data str-a (db "A: JUMP" 0))
+(data str-b (db "B: COIN" 0))
+(data str-up (db "UP: EXPLOSION" 0))
+(data str-down (db "DOWN: HIT" 0))
+(data str-start (db "START: MUSIC" 0))
+(data str-music-on (db "MUSIC: ON" 0))
+(data str-music-off (db "MUSIC: OFF" 0))

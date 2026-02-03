@@ -94,27 +94,144 @@
   (poke16 CH3_ENV_AD (| (* attack 16) decay))
   (poke16 CH3_ENV_SR (| (* sustain 16) release)))
 
-; Common sound effects
-(defn sfx-jump ()
-  (ch0-set-envelope 1 1 8 1)
-  (ch0-play-note 0xC8 0x07 0x12 3))
+; =============================================================================
+; SFX Bank System
+; =============================================================================
+;
+; SFX entry format (9 bytes per entry, indices 0-8):
+;   [0] channel (0-3: pulse1/pulse2/tri/noise)
+;   [1] freq_lo
+;   [2] freq_hi
+;   [3] period (noise only)
+;   [4] volume (0-15)
+;   [5] duty (0-3, pulse only)
+;   [6] env_ad (attack << 4 | decay)
+;   [7] env_sr (sustain << 4 | release)
+;   [8] duration (frames)
+;
+; Example SFX table definition:
+;   (data sfx-table
+;     ; ID 0: Jump sound (pulse 0)
+;     (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
+;     ; ID 1: Hit sound (noise)
+;     (db 3 0 0 9 14 0 0x15 0x04 18))
 
-(defn sfx-hit ()
-  (ch3-set-envelope 1 5 0 4)
-  (ch3-play-noise 9 14 18))
+(def SFX_PLAY     (+ MMIO_BASE 0x90))
+(def SFX_STOP     (+ MMIO_BASE 0x91))
+(def SFX_STATUS   (+ MMIO_BASE 0x92))
+(def SFX_TABLE_HI (+ MMIO_BASE 0x93))
+(def SFX_TABLE_LO (+ MMIO_BASE 0x94))
+(def SFX_COUNT    (+ MMIO_BASE 0x95))
 
-(defn sfx-coin ()
-  (ch0-set-envelope 1 1 6 1)
-  (ch0-play-note 0xD0 0x07 0x2C 4))
+; Initialize SFX system with table address and count
+; table-hi: high byte of SFX table address
+; table-lo: low byte of SFX table address
+; count: number of SFX entries in table
+(defn sfx-init (table-hi table-lo count)
+  (poke16 SFX_TABLE_HI table-hi)
+  (poke16 SFX_TABLE_LO table-lo)
+  (poke16 SFX_COUNT count))
 
-(defn sfx-explosion ()
-  (ch3-set-envelope 2 8 2 6)
-  (ch3-play-noise 12 15 30))
+; Play sound effect by ID (0 to count-1)
+(defn sfx-play (sfx-id)
+  (poke16 SFX_PLAY sfx-id))
 
-(defn sfx-select ()
-  (ch0-set-envelope 1 1 4 1)
-  (ch0-play-note 0xA0 0x06 0x18 2))
+; Stop sound effect on channel (0-3)
+(defn sfx-stop (channel)
+  (poke16 SFX_STOP channel))
 
-(defn sfx-move ()
-  (ch0-set-envelope 1 1 2 1)
-  (ch0-play-note 0x80 0x05 0x10 1))
+; Check if any SFX is playing (returns bitmask of active channels)
+(defn sfx-status ()
+  (peek16 SFX_STATUS))
+
+; =============================================================================
+; Music Sequencer System
+; =============================================================================
+;
+; Music note format (4 bytes per note):
+;   [0] note (0=rest, 1-36=notes C3-B5)
+;   [1] volume (0-15)
+;   [2] duration (frames)
+;   [3] reserved
+;
+; Note values:
+;   0  = rest (silence)
+;   1  = C3,  2 = C#3, 3 = D3,  4 = D#3, 5 = E3,  6 = F3
+;   7  = F#3, 8 = G3,  9 = G#3, 10 = A3, 11 = A#3, 12 = B3
+;   13 = C4,  14 = C#4, 15 = D4, 16 = D#4, 17 = E4, 18 = F4
+;   19 = F#4, 20 = G4, 21 = G#4, 22 = A4, 23 = A#4, 24 = B4
+;   25 = C5,  26 = C#5, 27 = D5, 28 = D#5, 29 = E5, 30 = F5
+;   31 = F#5, 32 = G5, 33 = G#5, 34 = A5, 35 = A#5, 36 = B5
+;
+; Example song definition:
+;   (data my-song
+;     (db 13 12 8 0)    ; C4, vol=12, dur=8
+;     (db 17 12 8 0)    ; E4
+;     (db 20 12 8 0)    ; G4
+;     (db 25 12 16 0))  ; C5
+
+; Music note constants
+(def NOTE_REST 0)
+(def NOTE_C3 1)
+(def NOTE_CS3 2)
+(def NOTE_D3 3)
+(def NOTE_DS3 4)
+(def NOTE_E3 5)
+(def NOTE_F3 6)
+(def NOTE_FS3 7)
+(def NOTE_G3 8)
+(def NOTE_GS3 9)
+(def NOTE_A3 10)
+(def NOTE_AS3 11)
+(def NOTE_B3 12)
+(def NOTE_C4 13)
+(def NOTE_CS4 14)
+(def NOTE_D4 15)
+(def NOTE_DS4 16)
+(def NOTE_E4 17)
+(def NOTE_F4 18)
+(def NOTE_FS4 19)
+(def NOTE_G4 20)
+(def NOTE_GS4 21)
+(def NOTE_A4 22)
+(def NOTE_AS4 23)
+(def NOTE_B4 24)
+(def NOTE_C5 25)
+(def NOTE_CS5 26)
+(def NOTE_D5 27)
+(def NOTE_DS5 28)
+(def NOTE_E5 29)
+(def NOTE_F5 30)
+(def NOTE_FS5 31)
+(def NOTE_G5 32)
+(def NOTE_GS5 33)
+(def NOTE_A5 34)
+(def NOTE_AS5 35)
+(def NOTE_B5 36)
+
+(def MUSIC_CTRL    (+ MMIO_BASE 0xA0))
+(def MUSIC_STATUS  (+ MMIO_BASE 0xA1))
+(def MUSIC_ADDR_HI (+ MMIO_BASE 0xA2))
+(def MUSIC_ADDR_LO (+ MMIO_BASE 0xA3))
+(def MUSIC_LEN_HI  (+ MMIO_BASE 0xA4))
+(def MUSIC_LEN_LO  (+ MMIO_BASE 0xA5))
+
+; Start playing music
+; song-hi: high byte of song data address
+; song-lo: low byte of song data address
+; len: number of notes in song
+; loop: 0=play once, 1=loop
+(defn music-play (song-hi song-lo len-hi len-lo loop)
+  (poke16 MUSIC_ADDR_HI song-hi)
+  (poke16 MUSIC_ADDR_LO song-lo)
+  (poke16 MUSIC_LEN_HI len-hi)
+  (poke16 MUSIC_LEN_LO len-lo)
+  (poke16 MUSIC_CTRL (| 0x01 (if loop 0x04 0x00))))
+
+; Stop music playback
+(defn music-stop ()
+  (poke16 MUSIC_CTRL 0x02))
+
+; Check if music is playing (returns 1 if playing, 0 if stopped)
+(defn music-playing ()
+  (peek16 MUSIC_STATUS))
