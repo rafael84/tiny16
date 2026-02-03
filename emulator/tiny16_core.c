@@ -175,13 +175,11 @@ void tiny16_emu_update_frame(Tiny16Emulator* emu) {
 
         tiny16_emu_update_input(vm);
 
-        uint32_t instr_executed = 0;
         for (uint32_t step = 0; step < instr_this_frame; ++step) {
             if (!tiny16_vm_step(vm)) {
                 emu->paused = true;
                 break;
             }
-            instr_executed++;
         }
     }
 
