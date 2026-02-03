@@ -14,8 +14,6 @@
 ;
 (def LAST_FRAME_ADDR    0x4000)
 (def SPRITE_INDEX_ADDR  0x4002)
-(def SFX_STATE_ADDR     0x4003)
-(def SFX_TIMER_ADDR     0x4004)
 
 (def GFX_TILES_BASE     0x5000)
 (def GFX_OAM_BASE       0x9000)
@@ -79,13 +77,6 @@
 (def KEY_DOWN           0x80)
 (def KEY_LEFT           0x01)
 (def KEY_RIGHT          0x02)
-
-; SFX state machine values
-(def SFX_NONE           0)
-(def SFX_EXPLOSION      1)
-(def SFX_COIN_STEP1     2)
-(def SFX_COIN_STEP2     3)
-(def SFX_JUMP           4)
 
 ; Duty cycles (for volume register bits 4-5)
 (def APU_DUTY_12_5      0x00)
@@ -463,48 +454,20 @@
 
 (defn play-explosion ()
   (ch3-env 1 6 0 6)
-  (ch3-noise 8 15 0)
-  (poke16 SFX_STATE_ADDR SFX_EXPLOSION)
-  (poke16 SFX_TIMER_ADDR 18))
+  (ch3-len 18)
+  (ch3-noise 8 15 0))
 
 (defn play-coin ()
   (ch0-env 1 2 8 3)
-  (ch0-len 4)
-  (ch0-note (lo NOTE_B4) (hi NOTE_B4) 12 APU_DUTY_25)
-  (poke16 SFX_STATE_ADDR SFX_COIN_STEP1)
-  (poke16 SFX_TIMER_ADDR 3))
+  (ch0-len 8)
+  (ch0-sweep 2 0 2)
+  (ch0-note (lo NOTE_B4) (hi NOTE_B4) 12 APU_DUTY_25))
 
 (defn play-jump ()
   (ch0-env 1 4 6 6)
   (ch0-sweep 4 1 2)
   (ch0-len 12)
-  (ch0-note (lo NOTE_C5) (hi NOTE_C5) 10 APU_DUTY_12_5)
-  (poke16 SFX_STATE_ADDR SFX_JUMP)
-  (poke16 SFX_TIMER_ADDR 12))
-
-(defn update-sfx ()
-  (let (state (peek16 SFX_STATE_ADDR)
-        timer (peek16 SFX_TIMER_ADDR))
-    (if (= state SFX_NONE)
-        0
-        (if (> timer 0)
-            (poke16 SFX_TIMER_ADDR (- timer 1))
-            (if (= state SFX_EXPLOSION)
-                (do (ch3-off)
-                    (poke16 SFX_STATE_ADDR SFX_NONE))
-                (if (= state SFX_COIN_STEP1)
-                    (do
-                      (ch0-len 6)
-                      (ch0-note (lo NOTE_E5) (hi NOTE_E5) 12 APU_DUTY_25)
-                      (poke16 SFX_STATE_ADDR SFX_COIN_STEP2)
-                      (poke16 SFX_TIMER_ADDR 6))
-                    (if (= state SFX_COIN_STEP2)
-                        (do (ch0-off)
-                            (poke16 SFX_STATE_ADDR SFX_NONE))
-                        (if (= state SFX_JUMP)
-                            (do (ch0-off)
-                                (poke16 SFX_STATE_ADDR SFX_NONE))
-                            0))))))))
+  (ch0-note (lo NOTE_C5) (hi NOTE_C5) 10 APU_DUTY_12_5))
 
 (defn handle-input ()
   (let (keys (read-keys-pressed))
@@ -522,15 +485,12 @@
   (init-text-display)
   (while 1
     (wait-frame)
-    (update-sfx)
     (handle-input)
     (render-frame)))
 
 (data user_data 0x4000
   (db 0 0)    ; last_frame (16-bit) - at 0x4000-0x4001
-  (db 0)      ; sprite_index (8-bit) - at 0x4002
-  (db 0)      ; sfx_state (8-bit) - at 0x4003
-  (db 0))     ; sfx_timer (8-bit) - at 0x4004
+  (db 0))     ; sprite_index (8-bit) - at 0x4002
 
 (data text_line1 (db "A TIMING P" 0))
 (data text_line2 (db "B BOOM" 0))
