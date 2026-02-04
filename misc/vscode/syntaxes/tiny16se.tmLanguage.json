@@ -7,12 +7,15 @@
     { "include": "#strings" },
     { "include": "#numbers" },
     { "include": "#special-forms" },
+    { "include": "#module-system" },
+    { "include": "#namespace-definitions" },
     { "include": "#function-definitions" },
     { "include": "#constant-definitions" },
     { "include": "#data-definitions" },
     { "include": "#operators" },
     { "include": "#builtins" },
     { "include": "#booleans" },
+    { "include": "#namespaced-symbols" },
     { "include": "#symbols" },
     { "include": "#parentheses" }
   ],
@@ -70,6 +73,25 @@
         }
       ]
     },
+    "module-system": {
+      "patterns": [
+        {
+          "name": "keyword.control.import.tiny16se",
+          "match": "\\b(ns|require|import)\\b"
+        }
+      ]
+    },
+    "namespace-definitions": {
+      "patterns": [
+        {
+          "match": "\\(\\s*(ns)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.import.tiny16se" },
+            "2": { "name": "entity.name.namespace.tiny16se" }
+          }
+        }
+      ]
+    },
     "function-definitions": {
       "patterns": [
         {
@@ -124,6 +146,19 @@
         {
           "name": "constant.language.boolean.tiny16se",
           "match": "\\b(true|false)\\b"
+        }
+      ]
+    },
+    "namespaced-symbols": {
+      "patterns": [
+        {
+          "comment": "Namespaced symbols like apu/init, sprite/draw, apu/NOTE_C4",
+          "match": "\\b([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)(/)([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)\\b",
+          "captures": {
+            "1": { "name": "entity.name.namespace.tiny16se" },
+            "2": { "name": "punctuation.accessor.tiny16se" },
+            "3": { "name": "variable.other.member.tiny16se" }
+          }
         }
       ]
     },

@@ -81,8 +81,17 @@ syntax match tiny16seConstant "(\s*def\s\+\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*"
 " Data labels - highlight the data name
 syntax match tiny16seDataLabel "(\s*data\s\+\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*"
 
-" Symbols (identifiers)
+" Symbols (identifiers) - generic catch-all for identifiers
 syntax match tiny16seSymbol "\<[a-zA-Z_\-][a-zA-Z0-9_\-]*\>"
+
+" Namespaced symbols (e.g., apu/init, sprite/draw, apu/NOTE_C4)
+" These must be defined AFTER generic symbol matching to take priority
+" Match namespace prefix (the part before /)
+syntax match tiny16seNsPrefix "\<[a-zA-Z_\-][a-zA-Z0-9_\-]*\ze/"
+" Match the / separator in namespaced symbols
+syntax match tiny16seNsSeparator "\<[a-zA-Z_\-][a-zA-Z0-9_\-]*\zs/\ze[a-zA-Z_\-]"
+" Match the symbol after / in namespaced calls
+syntax match tiny16seNsSymbol "/\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*\>"
 
 " Boolean-like values (by convention)
 syntax keyword tiny16seBoolean true false
@@ -107,3 +116,7 @@ highlight default link tiny16seConstant Constant
 highlight default link tiny16seDataLabel Type
 highlight default link tiny16seSymbol Identifier
 highlight default link tiny16seBoolean Boolean
+" Namespaced symbol highlighting
+highlight default link tiny16seNsPrefix Type
+highlight default link tiny16seNsSeparator Delimiter
+highlight default link tiny16seNsSymbol Identifier
