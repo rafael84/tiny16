@@ -50,6 +50,7 @@ const char* ast_kind_name(AstKind kind) {
     case AST_REQUIRE: return "REQUIRE";
     case AST_IMPORT: return "IMPORT";
     case AST_ASM: return "ASM";
+    case AST_DEFMACRO: return "DEFMACRO";
     default: return "UNKNOWN";
     }
 }

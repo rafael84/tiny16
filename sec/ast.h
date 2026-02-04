@@ -65,10 +65,11 @@ typedef enum {
     AST_CALL, // (func args...)
 
     // Special directives
-    AST_NS,      // (ns name)
-    AST_REQUIRE, // (require name...)
-    AST_IMPORT,  // (import "filename")
-    AST_ASM,     // (asm "raw assembly...")
+    AST_NS,       // (ns name)
+    AST_REQUIRE,  // (require name...)
+    AST_IMPORT,   // (import "filename")
+    AST_ASM,      // (asm "raw assembly...")
+    AST_DEFMACRO, // (defmacro name (params) body...)
 } AstKind;
 
 const char* ast_kind_name(AstKind kind);
@@ -104,6 +105,7 @@ struct AstNode {
         } def;
 
         // AST_DEFN: (defn name (params) body...)
+        // AST_DEFMACRO: (defmacro name (params) body...)
         struct {
             char name[SE_MAX_SYMBOL_LEN];
             char params[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];

@@ -63,7 +63,7 @@ static bool is_symbol_start(char c) {
     if (isalpha((unsigned char)c)) return true;
     if (c == '_' || c == '-' || c == '+' || c == '*' || c == '/' || c == '!' || c == '?' ||
         c == '<' || c == '>' || c == '=' || c == '&' || c == '|' || c == '^' || c == '~' ||
-        c == '@' || c == '#' || c == '$' || c == '%' || c == ':')
+        c == '@' || c == '#' || c == '$' || c == '%' || c == ':' || c == '{')
         return true;
     return false;
 }
@@ -71,7 +71,7 @@ static bool is_symbol_start(char c) {
 static bool is_symbol_char(char c) {
     if (is_symbol_start(c)) return true;
     if (isdigit((unsigned char)c)) return true;
-    if (c == '.') return true;
+    if (c == '.' || c == '{' || c == '}') return true;
     return false;
 }
 

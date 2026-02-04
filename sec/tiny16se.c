@@ -25,6 +25,8 @@
 #include "codegen.h"
 #include "lexer.c"
 #include "lexer.h"
+#include "macro.c"
+#include "macro.h"
 #include "parser.c"
 #include "parser.h"
 
@@ -127,6 +129,8 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         scope_pop_to(scope, saved);
         return;
     }
+
+    case AST_DEFMACRO: qualify_name(node->as.defn.name, ns); return;
 
     case AST_LET: {
         size_t saved = scope->count;
@@ -432,6 +436,12 @@ int main(int argc, char** argv) {
         ast_pool_free(&pool);
         return EXIT_FAILURE;
     }
+
+    // Expand macros
+    SeMacroTable macros;
+    se_macro_init(&macros);
+    se_macro_collect(&macros, &program);
+    se_macro_expand(&macros, &program, &pool);
 
     // Open output file
     FILE* output = fopen(args.output_filename, "w");

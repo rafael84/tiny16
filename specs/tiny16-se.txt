@@ -2,7 +2,7 @@ tiny16se Language Specification
 ===============================
 
 VERSION
-    tiny16se v0.7
+    tiny16se v0.8
 
 DESCRIPTION
     tiny16se is a compact S-expression language that compiles to tiny16
@@ -147,6 +147,29 @@ Scope
 
 (defn name (arg*) body...)
     Define function `name`. Returns the value of the last body form.
+
+(defmacro name (param*) body...)
+    Define a compile-time macro. When `name` is called, the body is
+    expanded with parameter substitution before codegen.
+
+    Parameter substitution syntax:
+        {param}         - replaced with argument symbol
+        {param}_suffix  - concatenates argument with suffix
+
+    Example:
+        (defmacro add16! (dest src)
+          (do
+            (poke16 {dest}_hi (+ (peek16 {dest}_hi) (peek16 {src}_hi)))
+            (poke16 {dest}_lo (+ (peek16 {dest}_lo) (peek16 {src}_lo)))))
+
+        (add16! bird_y bird_vel)
+        ; expands to:
+        (do
+          (poke16 bird_y_hi (+ (peek16 bird_y_hi) (peek16 bird_vel_hi)))
+          (poke16 bird_y_lo (+ (peek16 bird_y_lo) (peek16 bird_vel_lo))))
+
+    Macros are namespaced like functions. A macro defined in namespace
+    `word` as `add16!` becomes `word/add16!`.
 
 (let (var1 val1 var2 val2 ... varN valN) body...)
     Evaluate bindings left-to-right, then evaluate body.

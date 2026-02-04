@@ -205,6 +205,63 @@ static AstNode* parse_defn(SeParser* parser) {
     return node;
 }
 
+static AstNode* parse_defmacro(SeParser* parser) {
+    advance(parser);
+
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "defmacro requires a name");
+        return NULL;
+    }
+
+    AstNode* node = alloc_node(parser, AST_DEFMACRO);
+    if (!node) return NULL;
+
+    copy_token_text(node->as.defn.name, &parser->current, SE_MAX_SYMBOL_LEN);
+    advance(parser);
+
+    if (parser->current.kind != SE_TOKEN_LPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_LPAREN,
+                         "defmacro requires parameter list");
+        return NULL;
+    }
+    advance(parser);
+
+    node->as.defn.param_count = 0;
+    while (parser->current.kind == SE_TOKEN_SYMBOL) {
+        if (node->as.defn.param_count >= SE_MAX_PARAMS) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many parameters");
+            return NULL;
+        }
+        copy_token_text(node->as.defn.params[node->as.defn.param_count++], &parser->current,
+                        SE_MAX_SYMBOL_LEN);
+        advance(parser);
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "unclosed parameter list");
+        return NULL;
+    }
+    advance(parser);
+
+    ast_array_init(&node->as.defn.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.defn.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add body form");
+            return NULL;
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
 // Parse (let (var val var val ...) body...)
 static AstNode* parse_let(SeParser* parser) {
     advance(parser); // skip 'let'
@@ -1053,6 +1110,7 @@ static AstNode* parse_list(SeParser* parser) {
 
     if (is_symbol(parser, "def")) return parse_def(parser);
     if (is_symbol(parser, "defn")) return parse_defn(parser);
+    if (is_symbol(parser, "defmacro")) return parse_defmacro(parser);
     if (is_symbol(parser, "let")) return parse_let(parser);
     if (is_symbol(parser, "set")) return parse_set(parser);
     if (is_symbol(parser, "if")) return parse_if(parser);
