@@ -1,5 +1,8 @@
-.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se examples-assets examples-assets-force emulator emulator-web build-web serve-web
-.PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format ci
+.PHONY: all asm sec emulator emulator-web tools
+.PHONY: examples examples-asm examples-se examples-assets
+.PHONY: build-web serve-web raylib-build raylib-build-web
+.PHONY: clean clean-all clean-emsdk raylib-clean
+.PHONY: format ci tests tests-vm tests-asm tests-sec
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -161,7 +164,9 @@ EXAMPLES_ASSETS_PNG := $(wildcard examples/assets/*.png)
 EXAMPLES_ASSETS_PNG_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS_PNG))
 
 
-EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard asm/tutorial/includes/*.inc)
+EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) \
+					$(wildcard examples/includes/*.inc) \
+					$(wildcard asm/tutorial/includes/*.inc)
 STDLIB_SE := $(wildcard stdlib/se/*.se)
 
 examples: examples-asm examples-se
@@ -182,11 +187,6 @@ $(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) $(STDLIB_SE) | $(B
 
 # PNG -> INC: convert PNG assets to assembly include files
 examples-assets: tools $(EXAMPLES_ASSETS_PNG_OUTPUTS)
-
-# Force regeneration of all assets (useful after changing conversion parameters)
-examples-assets-force:
-	rm -f $(EXAMPLES_ASSETS_PNG_OUTPUTS)
-	$(MAKE) examples-assets
 
 # Depend on Makefile so changing conversion parameters triggers rebuild
 examples/includes/%.inc: examples/assets/%.png Makefile | tools
@@ -219,7 +219,14 @@ raylib-clean:
 	@rm -f $(RAYLIB_LIB_NATIVE) $(RAYLIB_LIB_WEB)
 
 clean:
-	rm -rf $(BUILDDIR)/*.tiny16 $(BUILDDIR)/*_se.asm $(BUILDDIR)/tiny16-asm* $(BUILDDIR)/tiny16-sec* $(BUILDDIR)/tiny16-emu* $(BUILDDIR)/tiny16-vm-tests* $(BUILDDIR)/tiny16-asm-tests* $(BUILDDIR)/tiny16-sec-tests*
+	rm -rf $(BUILDDIR)/*.tiny16 \
+		$(BUILDDIR)/*_se.asm \
+		$(BUILDDIR)/tiny16-asm* \
+		$(BUILDDIR)/tiny16-sec* \
+		$(BUILDDIR)/tiny16-emu* \
+		$(BUILDDIR)/tiny16-vm-tests* \
+		$(BUILDDIR)/tiny16-asm-tests* \
+		$(BUILDDIR)/tiny16-sec-tests*
 
 clean-all: clean raylib-clean
 
