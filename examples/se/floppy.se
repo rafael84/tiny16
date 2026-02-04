@@ -21,163 +21,141 @@
 
 (import "../examples/includes/tileset.inc")
 
-; =============================================================================
-; Game Constants
-; =============================================================================
-
-(def KEY_A              0x04)
-(def SPRITE_BEHIND_BG   0x20)
-
-; SFX IDs (using new SFX bank system)
-(def SFX_FLAP  0)
-(def SFX_DIE   1)
-(def SFX_SCORE 2)
-(def SFX_COUNT 3)
-
-; Music
-(def MUSIC_LENGTH 96)
-
-; Game states
-(def STATE_WAITING      0)
-(def STATE_PLAYING      1)
-(def STATE_DEAD         2)
-(def RESTART_DELAY      45)
-
-; Text display
-(def TEXT_ROW1          5)
-(def TEXT_ROW2          6)
-(def TEXT_COL           4)
-(def TEXT_MAX_LEN       9)
-
-; Playable area
-(def AREA_TOP           20)
-(def AREA_BOTTOM        108)
-
-; Bird
-(def BIRD_X             24)
-(def BIRD_START_Y       60)
-(def BIRD_SIZE          6)
-
-; Pipe
-(def PIPE_GAP           34)
-(def PIPE_WIDTH         8)
-(def PIPE_SPEED         1)
-(def PIPE_SPAWN_X       136)
-(def PIPE_SPACING       70)
-(def GAP_MIN            38)
-(def GAP_RANGE          50)
-(def PIPE_OFF_X         0)
-(def PIPE_OFF_GAP_Y     1)
-(def PIPE_OFF_PASSED    2)
-
-; Physics (8.8 fixed-point)
-(def GRAVITY_HI         0)
-(def GRAVITY_LO         70)
-(def FLAP_VEL_HI        (- 256 3))
-(def FLAP_VEL_LO        0)
-(def MAX_FALL_HI        4)
-(def MAX_FALL_LO        0)
-
-; Tiles
-(def TILE_BIRD_UP       41)
-(def TILE_BIRD_MID      40)
-(def TILE_BIRD_DOWN     42)
-(def TILE_PIPE_CAP_UP   39)
-(def TILE_PIPE_BODY     55)
-(def TILE_PIPE_CAP_DN   71)
-(def TILE_SKY_TOP       2)
-(def TILE_SKY_BOT       1)
-(def TILE_GROUND_TOP    81)
-(def TILE_GROUND_MID    97)
-(def TILE_GROUND_BOT    113)
-(def TILE_DIGIT_0       144)
-(def TILE_BUTTON_A      193)
-
-; Display
-(def SCORE_X            112)
-(def SCORE_Y            4)
-(def SPR_BIRD           0)
-(def SPR_PIPE1_BASE     1)
-(def SPR_PIPE2_BASE     15)
-(def SPR_SCORE_TENS     29)
-(def SPR_SCORE_ONES     30)
-(def PIPE_SPRITES       14)
-
-; Constants
-(def TILE_SIZE          8)
-(def SCREEN_WIDTH       128)
-(def SCREEN_TILES       16)
-(def SPRITE_HIDDEN_Y    255)
-(def NEGATIVE_THRESHOLD 128)
-(def PIPE_VISIBLE_MAX   138)
-(def ANIM_GOING_UP      2)
-(def ANIM_FALLING       0)
-(def ANIM_NEUTRAL       1)
-(def VEL_NEUTRAL_MAX    2)
-(def INIT_FLAG          0xAA)
-(def RANDOM_OFFSET      37)
-
-; Tilemap rows
-(def TILE_ROW_SKY1      0)
-(def TILE_ROW_SKY2      1)
-(def TILE_ROW_SKY3      2)
-(def TILE_ROW_GROUND1   13)
-(def TILE_ROW_GROUND2   14)
-(def TILE_ROW_GROUND3   15)
+(def KEY_A 0x04)
 
 ; =============================================================================
-; Tilemap Init
+; Background / Tilemap
 ; =============================================================================
+
+(def TILE_SKY_TOP    2)
+(def TILE_SKY_BOT    1)
+(def TILE_GROUND_TOP 81)
+(def TILE_GROUND_MID 97)
+(def TILE_GROUND_BOT 113)
 
 (defn init-tilemap ()
-  (tilemap/fill-row TILE_ROW_SKY1 TILE_SKY_TOP)
-  (tilemap/fill-row TILE_ROW_SKY2 TILE_SKY_TOP)
-  (tilemap/fill-row TILE_ROW_SKY3 TILE_SKY_BOT)
-  (tilemap/fill-row TILE_ROW_GROUND1 TILE_GROUND_TOP)
-  (tilemap/fill-row TILE_ROW_GROUND2 TILE_GROUND_MID)
-  (tilemap/fill-row TILE_ROW_GROUND3 TILE_GROUND_BOT))
+  (tilemap/fill-row 0 TILE_SKY_TOP)
+  (tilemap/fill-row 1 TILE_SKY_TOP)
+  (tilemap/fill-row 2 TILE_SKY_BOT)
+  (tilemap/fill-row 13 TILE_GROUND_TOP)
+  (tilemap/fill-row 14 TILE_GROUND_MID)
+  (tilemap/fill-row 15 TILE_GROUND_BOT))
 
 ; =============================================================================
-; Text Display
+; Game State
 ; =============================================================================
+
+(def STATE_WAITING 0)
+(def STATE_PLAYING 1)
+(def STATE_DEAD    2)
+(def RESTART_DELAY 45)
+
+(data initialized (db 0))
+(data game_state (db 0))
+(data score (db 0))
+(data dead_timer (db 0))
+
+(defn init-game ()
+  (sprite/hide-all)
+  (poke16 bird_y_hi 60)    ; BIRD_START_Y
+  (poke16 bird_y_lo 0)
+  (poke16 bird_vel_hi 0)
+  (poke16 bird_vel_lo 0)
+  (poke16 game_state STATE_WAITING)
+  (poke16 score 0)
+  (poke16 anim_frame 0)
+  (init-pipe)
+  (show-press-a))
+
+(defn start-game ()
+  (clear-text)
+  (poke16 game_state STATE_PLAYING)
+  (apu/music-ch0-play (hi game_music) (lo game_music) 0 96 1))  ; 96 = MUSIC_LENGTH
+
+(defn die ()
+  (poke16 game_state STATE_DEAD)
+  (poke16 dead_timer 0)
+  (apu/music-stop)
+  (show-game-over)
+  (sfx-die))
+
+; =============================================================================
+; Text / UI
+; =============================================================================
+
+(def TILE_BUTTON_A 193)
+
+(data str_press_a (db "PRESS " (- TILE_BUTTON_A 96) 0))
+(data str_game_over (db "GAME OVER" 0))
 
 (defn clear-text ()
   (let (x 0)
-    (while (< x TEXT_MAX_LEN)
-      (tilemap/put (+ TEXT_COL x) TEXT_ROW1 0)
-      (tilemap/put (+ TEXT_COL x) TEXT_ROW2 0)
+    (while (< x 9)  ; TEXT_MAX_LEN
+      (tilemap/put (+ 4 x) 5 0)  ; TEXT_COL, TEXT_ROW1
+      (tilemap/put (+ 4 x) 6 0)  ; TEXT_COL, TEXT_ROW2
       (set x (inc x)))))
 
 (defn show-press-a ()
-  (tilemap/text (+ TEXT_COL 1) TEXT_ROW1 (hi str_press_a) (lo str_press_a)))
+  (tilemap/text 5 5 (hi str_press_a) (lo str_press_a)))  ; TEXT_COL+1, TEXT_ROW1
 
 (defn show-game-over ()
-  (tilemap/text TEXT_COL TEXT_ROW1 (hi str_game_over) (lo str_game_over))
-  (tilemap/text (+ TEXT_COL 1) TEXT_ROW2 (hi str_press_a) (lo str_press_a)))
+  (tilemap/text 4 5 (hi str_game_over) (lo str_game_over))  ; TEXT_COL, TEXT_ROW1
+  (tilemap/text 5 6 (hi str_press_a) (lo str_press_a)))     ; TEXT_COL+1, TEXT_ROW2
 
 ; =============================================================================
-; Sound Effects (using SFX bank - play by ID)
+; Score Display
 ; =============================================================================
 
-(defn sfx-flap ()
-  (apu/sfx-play SFX_FLAP))
+(def TILE_DIGIT_0 144)
 
-(defn sfx-die ()
-  (apu/sfx-play SFX_DIE))
-
-(defn sfx-score ()
-  (apu/sfx-play SFX_SCORE))
+(defn render-score ()
+  (let (s (peek16 score)
+        tens 0
+        ones s)
+    (while (>= ones 10)
+      (set tens (inc tens))
+      (set ones (- ones 10)))
+    (if (> tens 0)
+        (sprite/draw 29 4 104 (+ TILE_DIGIT_0 tens))   ; SPR_SCORE_TENS, Y=4, X=112-8
+        (sprite/draw 29 255 0 0))                       ; Hide tens sprite
+    (sprite/draw 30 4 112 (+ TILE_DIGIT_0 ones))))     ; SPR_SCORE_ONES, Y=4, X=112
 
 ; =============================================================================
-; Fixed-Point Physics
+; Bird
 ; =============================================================================
+
+(def BIRD_X 24)
+(def BIRD_SIZE 6)
+(def AREA_TOP 20)
+(def AREA_BOTTOM 108)
+
+; Physics constants (8.8 fixed-point)
+(def GRAVITY_LO  70)
+(def FLAP_VEL_HI (- 256 3))
+(def MAX_FALL_HI 4)
+
+; Tiles
+(def TILE_BIRD_UP   41)
+(def TILE_BIRD_MID  40)
+(def TILE_BIRD_DOWN 42)
+
+; Animation states
+(def ANIM_FALLING  0)
+(def ANIM_NEUTRAL  1)
+(def ANIM_GOING_UP 2)
+
+(data bird_y_hi (db 0))
+(data bird_y_lo (db 0))
+(data bird_vel_hi (db 0))
+(data bird_vel_lo (db 0))
+(data anim_frame (db 0))
 
 (defn add-gravity ()
   (let (v-lo (peek16 bird_vel_lo)
         new-lo (+ v-lo GRAVITY_LO)
         carry (if (< new-lo v-lo) 1 0)
         v-hi (peek16 bird_vel_hi)
-        new-hi (+ v-hi (+ GRAVITY_HI carry)))
+        new-hi (+ v-hi carry))  ; GRAVITY_HI is 0
     (poke16 bird_vel_hi new-hi)
     (poke16 bird_vel_lo new-lo)))
 
@@ -194,61 +172,17 @@
 
 (defn set-flap-velocity ()
   (poke16 bird_vel_hi FLAP_VEL_HI)
-  (poke16 bird_vel_lo FLAP_VEL_LO))
+  (poke16 bird_vel_lo 0))
 
 (defn clamp-velocity ()
   (let (v-hi (peek16 bird_vel_hi))
-    (if (< v-hi NEGATIVE_THRESHOLD)
+    (if (< v-hi 128)  ; Check if positive (below sign bit)
         (if (> v-hi MAX_FALL_HI)
             (do
               (poke16 bird_vel_hi MAX_FALL_HI)
-              (poke16 bird_vel_lo MAX_FALL_LO))
+              (poke16 bird_vel_lo 0))
             0)
         0)))
-
-; =============================================================================
-; Game Init
-; =============================================================================
-
-(defn init-single-pipe (data-hi data-lo x gap-y)
-  (poke data-hi (+ data-lo PIPE_OFF_X) x)
-  (poke data-hi (+ data-lo PIPE_OFF_GAP_Y) gap-y)
-  (poke data-hi (+ data-lo PIPE_OFF_PASSED) 0))
-
-(defn init-pipe ()
-  (let (seed (core/read-frame)
-        gap1 (+ GAP_MIN (math/mod-by seed GAP_RANGE))
-        gap2 (+ GAP_MIN (math/mod-by (+ seed RANDOM_OFFSET) GAP_RANGE)))
-    (init-single-pipe (hi pipe1_data) (lo pipe1_data) PIPE_SPAWN_X gap1)
-    (init-single-pipe (hi pipe2_data) (lo pipe2_data) (+ PIPE_SPAWN_X PIPE_SPACING) gap2)))
-
-(defn init-game ()
-  (sprite/hide-all)
-  (poke16 bird_y_hi BIRD_START_Y)
-  (poke16 bird_y_lo 0)
-  (poke16 bird_vel_hi 0)
-  (poke16 bird_vel_lo 0)
-  (poke16 game_state STATE_WAITING)
-  (poke16 score 0)
-  (poke16 anim_frame 0)
-  (init-pipe)
-  (show-press-a))
-
-; =============================================================================
-; Bird Physics
-; =============================================================================
-
-(defn die ()
-  (poke16 game_state STATE_DEAD)
-  (poke16 dead_timer 0)
-  (apu/music-stop)
-  (show-game-over)
-  (sfx-die))
-
-(defn start-game ()
-  (clear-text)
-  (poke16 game_state STATE_PLAYING)
-  (apu/music-ch0-play (hi game_music) (lo game_music) 0 MUSIC_LENGTH 1))
 
 (defn update-bird (keys)
   (if (!= (& keys KEY_A) 0)
@@ -262,28 +196,75 @@
   (apply-velocity)
 
   (let (y-hi (peek16 bird_y_hi))
-    (if (>= y-hi NEGATIVE_THRESHOLD)
+    ; Check if bird hit ceiling (y wrapped to negative/large value)
+    (if (>= y-hi 128)
         (do
           (poke16 bird_y_hi AREA_TOP)
           (poke16 bird_y_lo 0)
           (die))
-        (if (> y-hi (- AREA_BOTTOM TILE_SIZE))
+        ; Check if bird hit ground
+        (if (> y-hi (- AREA_BOTTOM 8))  ; 8 = TILE_SIZE
             (do
-              (poke16 bird_y_hi (- AREA_BOTTOM TILE_SIZE))
+              (poke16 bird_y_hi (- AREA_BOTTOM 8))
               (poke16 bird_y_lo 0)
               (die))
             0)))
 
+  ; Update animation based on velocity
   (let (v-hi (peek16 bird_vel_hi))
-    (if (>= v-hi NEGATIVE_THRESHOLD)
+    (if (>= v-hi 128)  ; Moving up (negative velocity)
         (poke16 anim_frame ANIM_GOING_UP)
-        (if (> v-hi VEL_NEUTRAL_MAX)
+        (if (> v-hi 2)  ; Falling fast
             (poke16 anim_frame ANIM_FALLING)
             (poke16 anim_frame ANIM_NEUTRAL)))))
 
+(defn render-bird ()
+  (let (y (peek16 bird_y_hi)
+        anim (peek16 anim_frame)
+        tile TILE_BIRD_MID)
+    (if (= anim ANIM_FALLING)
+        (set tile TILE_BIRD_UP)
+        (if (= anim ANIM_GOING_UP)
+            (set tile TILE_BIRD_DOWN)
+            (set tile TILE_BIRD_MID)))
+    (sprite/draw 0 y BIRD_X tile)))  ; SPR_BIRD = 0
+
 ; =============================================================================
-; Pipe Logic
+; Pipes
 ; =============================================================================
+
+(def PIPE_GAP     34)
+(def PIPE_WIDTH   8)
+(def PIPE_SPEED   1)
+(def PIPE_SPACING 70)
+(def GAP_MIN      38)
+(def GAP_RANGE    50)
+
+; Pipe data array offsets
+(def PIPE_OFF_X      0)
+(def PIPE_OFF_GAP_Y  1)
+(def PIPE_OFF_PASSED 2)
+
+; Tiles
+(def TILE_PIPE_CAP_UP 39)
+(def TILE_PIPE_BODY   55)
+(def TILE_PIPE_CAP_DN 71)
+(def SPRITE_BEHIND_BG 0x20)
+
+(data pipe1_data (db 0 0 0))
+(data pipe2_data (db 0 0 0))
+
+(defn init-single-pipe (data-hi data-lo x gap-y)
+  (poke data-hi (+ data-lo PIPE_OFF_X) x)
+  (poke data-hi (+ data-lo PIPE_OFF_GAP_Y) gap-y)
+  (poke data-hi (+ data-lo PIPE_OFF_PASSED) 0))
+
+(defn init-pipe ()
+  (let (seed (core/read-frame)
+        gap1 (+ GAP_MIN (math/mod-by seed GAP_RANGE))
+        gap2 (+ GAP_MIN (math/mod-by (+ seed 37) GAP_RANGE)))  ; Random offset
+    (init-single-pipe (hi pipe1_data) (lo pipe1_data) 136 gap1)      ; PIPE_SPAWN_X
+    (init-single-pipe (hi pipe2_data) (lo pipe2_data) 206 gap2)))    ; SPAWN_X + SPACING
 
 (defn update-pipe (data-hi data-lo)
   (let (x (peek data-hi (+ data-lo PIPE_OFF_X))
@@ -292,12 +273,14 @@
 
     (if (>= x PIPE_SPEED)
         (set x (- x PIPE_SPEED))
+        ; Respawn pipe on the right
         (let (seed (core/read-frame)
               new-gap (+ GAP_MIN (math/mod-by seed GAP_RANGE)))
           (set x (+ x (+ PIPE_SPACING PIPE_SPACING)))
           (set gap-y new-gap)
           (set passed 0)))
 
+    ; Check if bird passed pipe
     (if (= passed 0)
         (if (< x BIRD_X)
             (do
@@ -315,16 +298,12 @@
   (update-pipe (hi pipe1_data) (lo pipe1_data))
   (update-pipe (hi pipe2_data) (lo pipe2_data)))
 
-; =============================================================================
-; Collision
-; =============================================================================
-
 (defn check-pipe-hit (data-hi data-lo by half)
   (let (px (peek data-hi (+ data-lo PIPE_OFF_X))
         gap-y (peek data-hi (+ data-lo PIPE_OFF_GAP_Y))
         gap-top (- gap-y half)
         gap-bot (+ gap-y half))
-    (if (< px SCREEN_WIDTH)
+    (if (< px 128)  ; SCREEN_WIDTH
         (if (< px (+ BIRD_X BIRD_SIZE))
             (if (> (+ px PIPE_WIDTH) BIRD_X)
                 (if (< by gap-top)
@@ -345,21 +324,6 @@
         (die)
         0)))
 
-; =============================================================================
-; Rendering
-; =============================================================================
-
-(defn render-bird ()
-  (let (y (peek16 bird_y_hi)
-        anim (peek16 anim_frame)
-        tile TILE_BIRD_MID)
-    (if (= anim ANIM_FALLING)
-        (set tile TILE_BIRD_UP)
-        (if (= anim ANIM_GOING_UP)
-            (set tile TILE_BIRD_DOWN)
-            (set tile TILE_BIRD_MID)))
-    (sprite/draw SPR_BIRD y BIRD_X tile)))
-
 (defn render-pipe (data-hi data-lo base)
   (let (px (peek data-hi (+ data-lo PIPE_OFF_X))
         gap-y (peek data-hi (+ data-lo PIPE_OFF_GAP_Y))
@@ -367,42 +331,64 @@
         gap-top (- gap-y half)
         gap-bot (+ gap-y half))
 
-    (if (< px PIPE_VISIBLE_MAX)
+    (if (< px 138)  ; PIPE_VISIBLE_MAX (just past screen)
         (do
-          (sprite/draw-attr base (- gap-top TILE_SIZE) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 1) (- gap-top (* TILE_SIZE 2)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 2) (- gap-top (* TILE_SIZE 3)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 3) (- gap-top (* TILE_SIZE 4)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 4) (- gap-top (* TILE_SIZE 5)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 5) (- gap-top (* TILE_SIZE 6)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 6) (- gap-top (* TILE_SIZE 7)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          ; Top pipe (cap + 6 body segments)
+          (sprite/draw-attr base (- gap-top 8) px TILE_PIPE_CAP_DN SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 1) (- gap-top 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 2) (- gap-top 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 3) (- gap-top 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 4) (- gap-top 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 5) (- gap-top 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 6) (- gap-top 56) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          ; Bottom pipe (cap + 6 body segments)
           (sprite/draw-attr (+ base 7) gap-bot px TILE_PIPE_CAP_UP SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 8) (+ gap-bot TILE_SIZE) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 9) (+ gap-bot (* TILE_SIZE 2)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 10) (+ gap-bot (* TILE_SIZE 3)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 11) (+ gap-bot (* TILE_SIZE 4)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 12) (+ gap-bot (* TILE_SIZE 5)) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
-          (sprite/draw-attr (+ base 13) (+ gap-bot (* TILE_SIZE 6)) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
+          (sprite/draw-attr (+ base 8) (+ gap-bot 8) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 9) (+ gap-bot 16) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 10) (+ gap-bot 24) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 11) (+ gap-bot 32) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 12) (+ gap-bot 40) px TILE_PIPE_BODY SPRITE_BEHIND_BG)
+          (sprite/draw-attr (+ base 13) (+ gap-bot 48) px TILE_PIPE_BODY SPRITE_BEHIND_BG))
+        ; Hide pipe sprites when off-screen
         (let (i 0)
-          (while (< i PIPE_SPRITES)
-            (sprite/draw (+ base i) SPRITE_HIDDEN_Y 0 0)
+          (while (< i 14)  ; 14 sprites per pipe
+            (sprite/draw (+ base i) 255 0 0)  ; 255 = off-screen Y
             (set i (inc i)))))))
 
 (defn render-pipes ()
-  (render-pipe (hi pipe1_data) (lo pipe1_data) SPR_PIPE1_BASE)
-  (render-pipe (hi pipe2_data) (lo pipe2_data) SPR_PIPE2_BASE))
+  (render-pipe (hi pipe1_data) (lo pipe1_data) 1)   ; SPR_PIPE1_BASE
+  (render-pipe (hi pipe2_data) (lo pipe2_data) 15)) ; SPR_PIPE2_BASE
 
-(defn render-score ()
-  (let (s (peek16 score)
-        tens 0
-        ones s)
-    (while (>= ones 10)
-      (set tens (inc tens))
-      (set ones (- ones 10)))
-    (if (> tens 0)
-        (sprite/draw SPR_SCORE_TENS SCORE_Y (- SCORE_X TILE_SIZE) (+ TILE_DIGIT_0 tens))
-        (sprite/draw SPR_SCORE_TENS SPRITE_HIDDEN_Y 0 0))
-    (sprite/draw SPR_SCORE_ONES SCORE_Y SCORE_X (+ TILE_DIGIT_0 ones))))
+; =============================================================================
+; Sound Effects
+; =============================================================================
+
+(def SFX_FLAP  0)
+(def SFX_DIE   1)
+(def SFX_SCORE 2)
+
+(defn sfx-flap ()
+  (apu/sfx-play SFX_FLAP))
+
+(defn sfx-die ()
+  (apu/sfx-play SFX_DIE))
+
+(defn sfx-score ()
+  (apu/sfx-play SFX_SCORE))
+
+; SFX Bank Table
+; Format: channel, freq_lo, freq_hi|waveform, volume, env_ad, duration (6 bytes)
+(data sfx_table
+  ; ID 0: Flap (pulse, high pitch chirp)
+  (db 0 0xC8 0x47 12 0x11 3)
+  ; ID 1: Die (noise, harsh)
+  (db 3 9 0x60 14 0x15 18)
+  ; ID 2: Score (pulse, bright coin sound)
+  (db 0 0xD0 0x47 10 0x11 4))
+
+; =============================================================================
+; Main Game Loop
+; =============================================================================
 
 (defn render-game ()
   (render-bird)
@@ -410,18 +396,14 @@
   (render-score)
   (ppu/render-all))
 
-; =============================================================================
-; Main
-; =============================================================================
-
 (defn main ()
-  (if (!= (peek16 initialized) INIT_FLAG)
+  (if (!= (peek16 initialized) 0xAA)  ; Init flag
       (do
         (apu/init)
-        (apu/sfx-init (hi sfx_table) (lo sfx_table) SFX_COUNT)
+        (apu/sfx-init (hi sfx_table) (lo sfx_table) 3)  ; 3 SFX
         (init-tilemap)
         (init-game)
-        (poke16 initialized INIT_FLAG))
+        (poke16 initialized 0xAA))
       0)
 
   (while 1
@@ -459,43 +441,7 @@
     (render-game)))
 
 ; =============================================================================
-; Data
-; =============================================================================
-
-(data initialized (db 0))
-(data game_state (db 0))
-(data score (db 0))
-(data dead_timer (db 0))
-
-(data bird_y_hi (db 0))
-(data bird_y_lo (db 0))
-(data bird_vel_hi (db 0))
-(data bird_vel_lo (db 0))
-
-(data pipe1_data (db 0 0 0))
-(data pipe2_data (db 0 0 0))
-
-(data anim_frame (db 0))
-
-(data str_press_a (db "PRESS " (- TILE_BUTTON_A 96) 0))
-(data str_game_over (db "GAME OVER" 0))
-
-; =============================================================================
-; SFX Bank Table
-; =============================================================================
-; Format: channel, freq_lo, freq_hi|waveform, volume, env_ad, duration (6 bytes)
-; freq_hi: bits 0-2 = freq high, bits 4-6 = waveform (0x40=pulse, 0x60=noise)
-
-(data sfx_table
-  ; ID 0: Flap (pulse, high pitch chirp)
-  (db 0 0xC8 0x47 12 0x11 3)
-  ; ID 1: Die (noise, harsh)
-  (db 3 9 0x60 14 0x15 18)
-  ; ID 2: Score (pulse, bright coin sound)
-  (db 0 0xD0 0x47 10 0x11 4))
-
-; =============================================================================
-; Background Music
+; Background Music Data
 ; =============================================================================
 ; Format: note, volume, duration, waveform (4 bytes per note)
 ; Upbeat arcade melody - 96 notes
