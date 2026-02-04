@@ -9,5 +9,4 @@
 (def RESULT (+ BASE OFFSET))
 
 (defn main ()
-  ; Evaluate a simple expression and return the result in R0.
   (+ RESULT 3))

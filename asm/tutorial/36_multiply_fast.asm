@@ -22,22 +22,22 @@
 
 section .code
 
-loadi   r1, 1       ; Multiplicand
-loadi   r2, 255     ; Multiplier
-loadi   r0, 0       ; Result accumulator
+loadi   r1, 1
+loadi   r2, 255
+loadi   r0, 0
 loop:
-    xor     r3, r3  ; Test if multiplier reached 0
+    xor     r3, r3
     cmp     r2, r3
     jz      done
 
-    loadi   r3, 1   ; Test if rightmost bit is 1
-    and     r3, r2  ; R3 = R2 & 1 (isolate bit)
-    jz      shift   ; If bit is 0, skip addition
+    loadi   r3, 1
+    and     r3, r2
+    jz      shift
 
-    add     r0, r1  ; If bit is 1, add multiplicand to result
+    add     r0, r1
 shift:
-    shl     r1      ; Double multiplicand (next power of 2)
-    shr     r2      ; Halve multiplier (move to next bit)
+    shl     r1
+    shr     r2
     jmp     loop
 done:
-    halt            ; Result in R0
+    halt

@@ -5,8 +5,8 @@
 ; Hint: You can define constants with NAME = expression
 ; Hint: Expressions support + - * / % << >> & ^ | and parentheses
 
-VALUE = (6 + 2) * 3       ; 24
-MASK  = (1 << 4) | 0x03   ; 0x13
+VALUE = (6 + 2) * 3
+MASK  = (1 << 4) | 0x03
 
 section .code
 

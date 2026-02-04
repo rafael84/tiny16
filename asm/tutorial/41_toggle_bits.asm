@@ -10,8 +10,8 @@
 
 section .code
 
-loadi   r0, 0b10101010  ; Load 0xAA into R0 (10101010)
-loadi   r1, 0b10000001  ; Load 0x81 into R1 (mask for bits 0 and 7: 10000001)
-xor     r0, r1          ; XOR R0 with R1 (toggle bits 0 and 7)
+loadi   r0, 0b10101010
+loadi   r1, 0b10000001
+xor     r0, r1
 ;           0b00101011
-halt                    ; Halt (R0 should be 0x2B = 00101011)
+halt

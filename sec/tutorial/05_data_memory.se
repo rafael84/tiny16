@@ -23,5 +23,4 @@
     (while (< i DATA_COUNT)
       (set sum (+ sum (copy-byte i)))
       (set i (inc i)))
-    ; Return sum of numbers while copying into buffer.
     sum))

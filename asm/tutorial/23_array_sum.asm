@@ -10,16 +10,16 @@
 
 section .code
 
-loadi   r0, 0               ; Load 0 into R0 (sum accumulator)
-loadi   r1, 5               ; Load 5 into R1 (array length / loop counter)
-loadi   r6, 0x40            ; Load 0x40 into R6 (array address high)
-loadi   r7, 0x00            ; Load 0x00 into R7 (array address low)
+loadi   r0, 0
+loadi   r1, 5
+loadi   r6, 0x40
+loadi   r7, 0x00
 loop:
-    load    r2, [r6:r7]+    ; Load from [R6:R7]+ into R2
-    add     r0, r2          ; Add R2 to R0
-    dec     r1              ; Decrement R1
-    jnz     loop            ; Jump to loop if R1 != 0
-halt                        ; Halt (R0 should be 150)
+    load    r2, [r6:r7]+
+    add     r0, r2
+    dec     r1
+    jnz     loop
+halt
 
 section .data
 

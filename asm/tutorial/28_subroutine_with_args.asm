@@ -10,11 +10,11 @@
 
 section .code
 
-loadi   r0, 5       ; Load 5 into R0 (first argument)
-loadi   r1, 7       ; Load 7 into R1 (second argument)
-call    add_fn      ; Call add_fn
-halt                ; Halt (R0 should be 12)
+loadi   r0, 5
+loadi   r1, 7
+call    add_fn
+halt
 
 add_fn:
-    add r0, r1      ; Add R1 to R0 (R0 = R0 + R1)
-    ret             ; Return
+    add r0, r1
+    ret

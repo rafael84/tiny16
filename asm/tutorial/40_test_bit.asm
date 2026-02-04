@@ -10,14 +10,14 @@
 
 section .code
 
-loadi   r0, 0b00101010  ; Load 0x2A into R0 (00101010)
-loadi   r1, 0b00100000  ; Load 0x20 into R1 (mask for bit 5: 00100000)
-and     r0, r1          ; AND R0 with R1 (isolate bit 5)
+loadi   r0, 0b00101010
+loadi   r1, 0b00100000
+and     r0, r1
 ;           0b00100000
-jz      bit_clear       ; If result is 0 (Z=1), jump to bit_clear
-loadi   r0, 1           ; Load 1 into R0 (bit was set)
-jmp     done            ; Jump to done
+jz      bit_clear
+loadi   r0, 1
+jmp     done
 bit_clear:
-    loadi   r0, 0       ; Load 0 into R0 (bit was clear)
+    loadi   r0, 0
 done:
-    halt                ; Halt (R0=1 since bit 5 is set in 0x2A)
+    halt

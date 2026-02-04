@@ -8,6 +8,6 @@
 
 section .code
 
-loadi r0, 25    ; Load 25 into R0
-mov r1, r0      ; Copy R0 to R1
-halt            ; Halt the program
+loadi r0, 25
+mov r1, r0
+halt

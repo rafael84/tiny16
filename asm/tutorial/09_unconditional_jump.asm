@@ -10,9 +10,9 @@
 
 section .code
 
-loadi r0, 0     ; Load 0 into R0
+loadi r0, 0
 
 loop:
-    inc r0      ; Increment R0
-    jmp loop    ; Jump back to loop
+    inc r0
+    jmp loop
 ; Note: This program never reaches HALT - that's the point!

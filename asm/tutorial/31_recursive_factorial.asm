@@ -13,22 +13,21 @@ section .code
 
 loadi   r0, 5
 call    factorial
-halt                    ; R0 = 120
+halt
 
 factorial:
     loadi   r1, 1
     cmp     r0, r1
-    jc      base_case   ; if r0 < 1
-    jz      base_case   ; if r0 == 1
+    jc      base_case
+    jz      base_case
 
-    push    r0          ; save n
-    dec     r0          ; n-1
-    call    factorial   ; factorial(n-1)
-    pop     r1          ; restore n
+    push    r0
+    dec     r0
+    call    factorial
+    pop     r1
 
-    ; multiply: r0 (result) by r1 (n)
-    mov     r2, r0      ; save result
-    loadi   r0, 0       ; accumulator
+    mov     r2, r0
+    loadi   r0, 0
     multiply:
         add     r0, r2
         dec     r1

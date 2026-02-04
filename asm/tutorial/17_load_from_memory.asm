@@ -10,11 +10,11 @@
 
 section .code
 
-loadi r6, 0x40      ; Load 0x40 into R6 (high byte of address)
-loadi r7, 0x00      ; Load 0x00 into R7 (low byte of address)
-load r0, [r6:r7]    ; Load from address [R6:R7] into R0
-halt                ; Halt (R0 should be 42)
+loadi r6, 0x40
+loadi r7, 0x00
+load r0, [r6:r7]
+halt
 
 section .data
 
-DB 42  ; Byte at address 0x4000
+DB 42

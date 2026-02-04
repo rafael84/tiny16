@@ -8,7 +8,7 @@
 
 section .code
 
-loadi r0, 7     ; Load 7 into R0
-loadi r1, 8     ; Load 8 into R1
-add r0, r1      ; Add R1 to R0 (R0 = R0 + R1)
-halt            ; Halt the program
+loadi r0, 7
+loadi r1, 8
+add r0, r1
+halt

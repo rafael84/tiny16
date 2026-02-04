@@ -8,6 +8,6 @@
 
 section .code
 
-loadi r0, 20    ; Load 20 into R0
-shr r0          ; Halve R0 using SHR (shift right)
-halt            ; Halt the program
+loadi r0, 20
+shr r0
+halt

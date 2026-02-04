@@ -10,12 +10,12 @@
 
 section .code
 
-loadi   r0, 17      ; Load 17 into R0 (dividend/remainder)
-loadi   r1, 5       ; Load 5 into R1 (divisor)
+loadi   r0, 17
+loadi   r1, 5
 loop:
-    cmp     r0, r1  ; Compare R0 with R1 (check if R0 < R1)
-    jc      done    ; If R0 < R1 (C=1), jump to done (R0 is the remainder)
-    sub     r0, r1  ; Subtract R1 from R0
-    jmp     loop    ; Jump back to loop
+    cmp     r0, r1
+    jc      done
+    sub     r0, r1
+    jmp     loop
 done:
-    halt            ; Halt (R0 should be 2)
+    halt

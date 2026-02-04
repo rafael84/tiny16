@@ -10,13 +10,13 @@
 
 section .code
 
-loadi   r6, 0x40    ; Load 0x40 into R6 (high byte)
-loadi   r7, 0x00    ; Load 0x00 into R7 (low byte)
-loadi   r0, 99      ; Load 99 into R0
-store   r0, [r6:r7] ; Store R0 to address [R6:R7]
-load    r1, [r6:r7] ; Load from [R6:R7] into R1 to verify
-halt                ; Halt (R1 should be 99)
+loadi   r6, 0x40
+loadi   r7, 0x00
+loadi   r0, 99
+store   r0, [r6:r7]
+load    r1, [r6:r7]
+halt
 
 section .data
 
-DB 0  ; Reserve space at 0x4000 (initially 0)
+DB 0

@@ -10,14 +10,14 @@
 
 section .code
 
-call outer          ; Call outer
-halt                ; Halt (R0 should be 11)
+call outer
+halt
 
 outer:
-    loadi   r0, 10  ; Load 10 into R0
-    call    inner   ; Call inner (nested call)
-    ret             ; Return to main
+    loadi   r0, 10
+    call    inner
+    ret
 
 inner:
-    inc     r0      ; Increment R0 (R0 = 11)
-    ret             ; Return to outer
+    inc     r0
+    ret

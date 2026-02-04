@@ -5,10 +5,10 @@
 // Tile (4bpp - 2 pixels per byte)
 #define TINY16_TILE_WIDTH     8
 #define TINY16_TILE_HEIGHT    8
-#define TINY16_TILE_BPP       4   // bits per pixel
-#define TINY16_TILE_ROW_BYTES 4   // 8 pixels * 4bpp / 8 = 4 bytes per row
-#define TINY16_TILE_SIZE      32  // 8 rows * 4 bytes = 32 bytes per tile
-#define TINY16_TILE_COUNT     255 // 255 tiles * 32 bytes = 8160 bytes (~8 KB)
+#define TINY16_TILE_BPP       4
+#define TINY16_TILE_ROW_BYTES 4
+#define TINY16_TILE_SIZE      32
+#define TINY16_TILE_COUNT     255
 
 typedef struct {
     uint8_t rows[TINY16_TILE_HEIGHT][TINY16_TILE_ROW_BYTES];
@@ -17,21 +17,21 @@ typedef struct {
 // Tilemap (combined tile + attributes)
 #define TINY16_TILEMAP_WIDTH        128
 #define TINY16_TILEMAP_HEIGHT       32
-#define TINY16_TILEMAP_PIXEL_WIDTH  (TINY16_TILEMAP_WIDTH * TINY16_TILE_WIDTH)   // 1024
-#define TINY16_TILEMAP_PIXEL_HEIGHT (TINY16_TILEMAP_HEIGHT * TINY16_TILE_HEIGHT) // 256
+#define TINY16_TILEMAP_PIXEL_WIDTH  (TINY16_TILEMAP_WIDTH * TINY16_TILE_WIDTH)
+#define TINY16_TILEMAP_PIXEL_HEIGHT (TINY16_TILEMAP_HEIGHT * TINY16_TILE_HEIGHT)
 
 // Tilemap entry attributes
 enum {
     TINY16_TILEMAP_ATTR_FLIP_H = 1 << 0,
     TINY16_TILEMAP_ATTR_FLIP_V = 1 << 1,
     TINY16_TILEMAP_ATTR_PALETTE_SHIFT = 2,
-    TINY16_TILEMAP_ATTR_PALETTE_MASK = 0x0C, // bits 2-3: palette index (0-3)
+    TINY16_TILEMAP_ATTR_PALETTE_MASK = 0x0C,
 };
 
 // Combined tilemap entry: 2 bytes per tile
 typedef struct {
-    uint8_t tile; // Tile index (0-255)
-    uint8_t attr; // Attributes: [------VH] V=vflip, H=hflip
+    uint8_t tile;
+    uint8_t attr;
 } Tiny16TilemapEntry;
 
 typedef struct {
@@ -43,7 +43,7 @@ typedef struct {
 #define TINY16_PALETTE_COUNT 4
 
 typedef struct {
-    uint8_t color; // RGB332: RRRGGGBB
+    uint8_t color;
 } Tiny16PaletteEntry;
 
 typedef struct {
@@ -52,8 +52,8 @@ typedef struct {
 
 // OAM
 enum {
-    TINY16_OAM_ATTR_PALETTE_MASK = 0x03, // bits 0-1: palette index (0-3)
-    TINY16_OAM_ATTR_BEHIND_BG = 1 << 5,  // Render behind opaque background pixels
+    TINY16_OAM_ATTR_PALETTE_MASK = 0x03,
+    TINY16_OAM_ATTR_BEHIND_BG = 1 << 5,
     TINY16_OAM_ATTR_FLIP_H = 1 << 6,
     TINY16_OAM_ATTR_FLIP_V = 1 << 7,
 };
@@ -62,10 +62,10 @@ enum {
 #define TINY16_OAM_SPRITE_HIDDEN 0xFF
 
 typedef struct {
-    uint8_t y;    // Y position (0xFF = hidden)
-    uint8_t x;    // X position
-    uint8_t tile; // Tile index (0-255)
-    uint8_t attr; // Attributes: [VHB__PPP] V=vflip, H=hflip, B=behind BG, P=palette (0-3)
+    uint8_t y;
+    uint8_t x;
+    uint8_t tile;
+    uint8_t attr;
 } Tiny16OAMEntry;
 
 // PPU

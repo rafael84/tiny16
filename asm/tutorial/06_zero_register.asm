@@ -9,6 +9,6 @@
 
 section .code
 
-loadi r0, 99    ; Load any non-zero value into R0 (e.g., 99)
-xor r0, r0      ; XOR R0 with itself to zero it
-halt            ; Halt the program
+loadi r0, 99
+xor r0, r0
+halt

@@ -11,13 +11,13 @@
 
 section .code
 
-loadi   r0, 5           ; Load 5 into R0
-call    countdown       ; Call countdown
-halt                    ; Halt (R0 should be 0)
+loadi   r0, 5
+call    countdown
+halt
 
 countdown:
-    or      r0, r0      ; Check if R0 == 0 (sets Z flag if R0 is zero)
-    jz      done        ; If R0 == 0, return (base case)
-    dec     r0          ; Decrement R0
-    jmp     countdown   ; Call countdown recursively
-    done:   ret         ; Return
+    or      r0, r0
+    jz      done
+    dec     r0
+    jmp     countdown
+    done:   ret

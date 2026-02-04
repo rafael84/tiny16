@@ -10,12 +10,12 @@
 
 section .code
 
-loadi   r6, 0x40        ; Load 0x40 into R6 (array base high)
-loadi   r7, 0x00        ; Load 0x00 into R7 (array base low)
-load    r0, [r6:r7]+    ; Load from [R6:R7]+ into R0 (reads 5, R6:R7 becomes 0x4001)
-load    r1, [r6:r7]+    ; Load from [R6:R7]+ into R1 (reads 10, R6:R7 becomes 0x4002)
-load    r2, [r6:r7]+    ; Load from [R6:R7]+ into R2 (reads 15, R6:R7 becomes 0x4003)
-halt                    ; Halt
+loadi   r6, 0x40
+loadi   r7, 0x00
+load    r0, [r6:r7]+
+load    r1, [r6:r7]+
+load    r2, [r6:r7]+
+halt
 
 section .data
 

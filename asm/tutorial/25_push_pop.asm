@@ -11,13 +11,13 @@
 
 section .code
 
-loadi   r0, 10      ; Load 10 into R0
-loadi   r1, 20      ; Load 20 into R1
-loadi   r2, 30      ; Load 30 into R2
-push    r0          ; Push R0 (10 goes on stack)
-push    r1          ; Push R1 (20 goes on stack)
-push    r2          ; Push R2 (30 goes on stack)
-pop     r3          ; Pop into R3 (gets 30 - last pushed)
-pop     r4          ; Pop into R4 (gets 20)
-pop     r5          ; Pop into R5 (gets 10 - first pushed)
-halt                ; Halt (R3=30, R4=20, R5=10)
+loadi   r0, 10
+loadi   r1, 20
+loadi   r2, 30
+push    r0
+push    r1
+push    r2
+pop     r3
+pop     r4
+pop     r5
+halt

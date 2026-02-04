@@ -10,20 +10,18 @@
 
 section .code
 
-loadi   r1, 0b01010111      ; Load 0x57 into R1 (value to count)
-loadi   r0, 0               ; Load 0 into R0 (bit counter)
+loadi   r1, 0b01010111
+loadi   r0, 0
 loop:
-    ; Check if R1 == 0 (done when no bits left)
     loadi   r2, 0
     cmp     r1, r2
-    jz      done            ; If R1 == 0, jump to done
-    ; Test lowest bit: AND R1 with 1, store in R2
+    jz      done
     loadi   r2, 1
     and     r2, r1
-    jz      next            ; If bit is 0 (Z=1), skip increment
-    inc     r0              ; If bit is 1, increment R0
+    jz      next
+    inc     r0
 next:
-    shr     r1              ; Shift R1 right (test next bit)
-    jmp     loop            ; Jump back to loop
+    shr     r1
+    jmp     loop
 done:
-    halt                    ; Halt (R0 should be 5)
+    halt

@@ -60,7 +60,7 @@ static void tiny16_ppu_render_tile(uint8_t* framebuffer, const Tiny16Tile* tile,
             // Even pixels (0,2,4,6) use high nibble, odd pixels (1,3,5,7) use low nibble
             uint8_t palette_idx = (src_x & 1) ? (byte_data & 0x0F) : (byte_data >> 4);
 
-            if (palette_idx == 0) continue; // transparent
+            if (palette_idx == 0) continue;
 
             framebuffer[py * TINY16_FRAMEBUFFER_SIZE_WIDTH + px] =
                 palette->entries[palette_idx].color;

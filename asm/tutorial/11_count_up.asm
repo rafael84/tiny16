@@ -10,12 +10,12 @@
 
 section .code
 
-loadi r0, 0     ; Load 0 into R0 (counter)
-loadi r1, 10    ; Load 10 into R1 (target)
+loadi r0, 0
+loadi r1, 10
 loop:
-    cmp r0, r1  ; Compare R0 with R1
-    jz  done    ; If equal (Z=1), jump to done
-    inc r0      ; Increment R0
-    jmp loop    ; Jump back to loop
+    cmp r0, r1
+    jz  done
+    inc r0
+    jmp loop
 done:
-    halt        ; Halt (R0 should be 10)
+    halt

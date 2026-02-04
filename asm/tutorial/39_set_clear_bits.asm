@@ -10,11 +10,11 @@
 
 section .code
 
-loadi   r0, 0b00000000      ; Load 0x00 into R0 (start with all bits clear)
-loadi   r1, 0b00010001      ; Load 0x11 into R1 (mask for bits 0 and 4: 00010001)
-or      r0, r1              ; OR R0 with R1 (set bits 0 and 4: R0 = 0x11)
+loadi   r0, 0b00000000
+loadi   r1, 0b00010001
+or      r0, r1
 ;           0b00010001
-loadi   r1, 0b11111110      ; Load 0xFE into R1 (mask to clear bit 0: 11111110)
-and     r0, r1              ; AND R0 with R1 (clear bit 0: R0 = 0x10)
+loadi   r1, 0b11111110
+and     r0, r1
 ;           0b00010000
-halt                        ; Halt (R0 should be 0x10)
+halt

@@ -10,14 +10,14 @@
 
 section .code
 
-loadi r0, 7         ; Load 7 into R0
-loadi r1, 10        ; Load 10 into R1 (threshold)
-cmp r0, r1          ; Compare R0 with R1
-jc else_block       ; If R0 < R1 (C=1), jump to else_block
+loadi r0, 7
+loadi r1, 10
+cmp r0, r1
+jc else_block
 then_block:
-    loadi r2, 100   ; Load 100 into R2
-    jmp done        ; Jump to done
+    loadi r2, 100
+    jmp done
 else_block:
-    loadi r2, 50    ; Load 50 into R2
+    loadi r2, 50
 done:
-    halt            ; Halt (R2 should be 50)
+    halt

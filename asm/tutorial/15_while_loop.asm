@@ -9,12 +9,12 @@
 
 section .code
 
-loadi r0, 3     ; Load 3 into R0
-loadi r1, 100   ; Load 100 into R1 (threshold)
+loadi r0, 3
+loadi r1, 100
 loop:
-    cmp r0, r1  ; Compare R0 with R1 (R0 - R1)
-    jnc done    ; If R0 >= R1 (no carry), jump to done
-    shl r0      ; Double R0 (use SHL or ADD R0, R0)
-    jmp loop    ; Jump back to loop
+    cmp r0, r1
+    jnc done
+    shl r0
+    jmp loop
 done:
-    halt        ; Halt (R0 should be >= 100, specifically 192)
+    halt

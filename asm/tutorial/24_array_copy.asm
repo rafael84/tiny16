@@ -10,20 +10,20 @@
 
 section .code
 
-loadi   r0, 5               ; Load 5 into R0 (counter)
-loadi   r6, 0x40            ; Load 0x40 into R6, 0x00 into R7 (source address 0x4000)
+loadi   r0, 5
+loadi   r6, 0x40
 loadi   r7, 0x00
-loadi   r4, 0x40            ; Load 0x40 into R4, 0x10 into R5 (dest address 0x4010)
+loadi   r4, 0x40
 loadi   r5, 0x10
 loop:
-    load    r1, [r6:r7]+    ; Load byte from [R6:R7]+ into R1
-    store   r1, [r4:r5]+    ; Store R1 to [R4:R5]+
-    dec     r0              ; Decrement R0
-    jnz     loop            ; Jump to loop if R0 != 0
-halt                        ; Halt
+    load    r1, [r6:r7]+
+    store   r1, [r4:r5]+
+    dec     r0
+    jnz     loop
+halt
 
 section .data
 
 source: DB 10, 20, 30, 40, 50
-        TIMES 11 DB 0      ; Padding to reach offset 0x10
-dest:   TIMES 5 DB 0       ; Destination buffer
+        TIMES 11 DB 0
+dest:   TIMES 5 DB 0

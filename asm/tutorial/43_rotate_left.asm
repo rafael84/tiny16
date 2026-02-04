@@ -14,17 +14,17 @@
 
 section .code
 
-loadi   r0, 0b10000001  ; Load 0x81 into R0 (10000001)
-mov     r1, r0          ; Copy R0 to R1 (save for bit 7 test)
+loadi   r0, 0b10000001
+mov     r1, r0
 
 loadi   r2, 0x80
-and     r1, r2          ; AND R1 with 0x80 (test bit 7)
+and     r1, r2
 
-shl     r0              ; SHL R0 (shift left: 10000001 → 00000010) (1 goes into C)
-jnc     done            ; If bit 7 was not set (C=0), skip wrapping bit 0
+shl     r0
+jnc     done
 
-loadi   r3, 0x01        ; Load bit-0 mask (0x01) into R3
-or      r0, r3          ; Set bit 0 (wrap): R0 |= 0x01
+loadi   r3, 0x01
+or      r0, r3
 
 done:
-    halt                ; Halt (R0 should be 0x03 = 00000011)
+    halt

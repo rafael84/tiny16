@@ -10,10 +10,10 @@
 
 section .code
 
-loadi   r6, 0x40        ; Load 0x40 into R6 (array base address high)
-loadi   r7, 0x00        ; Load 0x00 into R7 (array base address low)
-load    r0, [r6:r7+2]   ; Load from [R6:R7 + 2] into R0 (3rd element, offset 2)
-halt                    ; Halt (R0 should be 30)
+loadi   r6, 0x40
+loadi   r7, 0x00
+load    r0, [r6:r7+2]
+halt
 
 section .data
 

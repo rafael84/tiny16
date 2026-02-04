@@ -10,5 +10,4 @@
     (while (< i 5)
       (set sum (+ sum i))
       (set i (inc i)))
-    ; sum = 0+1+2+3+4 = 10, return 1 if true.
     (if (= sum 10) 1 0)))

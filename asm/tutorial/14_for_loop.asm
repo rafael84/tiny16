@@ -9,12 +9,12 @@
 
 section .code
 
-loadi r0, 0     ; Load 0 into R0 (sum accumulator)
-loadi r1, 1     ; Load 1 into R1 (counter, start at 1)
-loadi r2  6     ; Load 6 into R2 (limit, stop when counter reaches 6)
+loadi r0, 0
+loadi r1, 1
+loadi r2  6
 loop:
-    add r0, r1  ; Add R1 to R0 (accumulate sum)
-    inc r1      ; Increment R1 (next number)
-    cmp r1, r2  ; Compare R1 with R2
-    jnz loop    ; If not equal, jump back to loop
-halt            ; Halt (R0 should be 15)
+    add r0, r1
+    inc r1
+    cmp r1, r2
+    jnz loop
+halt

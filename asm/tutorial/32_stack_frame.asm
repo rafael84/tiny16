@@ -26,33 +26,28 @@ section .code
 
 ; Push arguments in order: arg1, arg2, arg3
 loadi   r0, 5
-push    r0          ; arg1
+push    r0
 loadi   r0, 10
-push    r0          ; arg2
+push    r0
 loadi   r0, 15
-push    r0          ; arg3
+push    r0
 call    sum_three
 halt
 
 sum_three:
-    movspr  r6:r7               ; R6:R7 = SP (frame pointer)
-    ; Allocate space for local variable
+    movspr  r6:r7
     loadi   r0, 0
-    push    r0                  ; local1 at [FP - 1]
+    push    r0
 
-    ; Load arguments using positive offsets
-    load    r0, [r6:r7 + 5]     ; arg1 (5) at FP+5 (first pushed)
-    load    r1, [r6:r7 + 4]     ; arg2 (10) at FP+4
-    add     r0, r1              ; R0 = 5 + 10 = 15
+    load    r0, [r6:r7 + 5]
+    load    r1, [r6:r7 + 4]
+    add     r0, r1
 
-    ; Store intermediate result in local variable using negative offset
-    store   r0, [r6:r7 - 1]     ; Store 15 in local1
+    store   r0, [r6:r7 - 1]
 
-    ; Load local and add final argument
-    load    r0, [r6:r7 - 1]     ; Load local1 (15)
-    load    r2, [r6:r7 + 3]     ; arg3 (15) at FP+3 (last pushed)
-    add     r0, r2              ; R0 = 15 + 15 = 30
+    load    r0, [r6:r7 - 1]
+    load    r2, [r6:r7 + 3]
+    add     r0, r2
 
-    ; Clean up local variable
     pop     r1
     ret

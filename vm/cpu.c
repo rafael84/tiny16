@@ -192,11 +192,11 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
         uint8_t pair = (arg1 >> 1) & 0x3;
 
         // PAIR: 0=R0:R1, 1=R2:R3, 2=R4:R5, 3=R6:R7
-        uint8_t* hi = &cpu->R[pair * 2];     // even (high byte)
-        uint8_t* lo = &cpu->R[pair * 2 + 1]; // odd (low byte)
+        uint8_t* hi = &cpu->R[pair * 2];
+        uint8_t* lo = &cpu->R[pair * 2 + 1];
 
         uint16_t addr = ((uint16_t)(*hi << 8)) | *lo;
-        uint16_t ea = addr; // effective address
+        uint16_t ea = addr;
 
         if (mode == TINY16_ADDR_MODE_OFFSET) ea = addr + (int8_t)arg2;
 

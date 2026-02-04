@@ -10,5 +10,4 @@
         total 0)
     (set total (+ a b))
     (set a (+ total 1))
-    ; Return a + total (should be 12).
     (+ a total)))

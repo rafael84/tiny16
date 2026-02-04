@@ -10,12 +10,12 @@
 
 section .code
 
-loadi r0, 5     ; Load 5 into R0
-loadi r1, 8     ; Load 8 into R1
-cmp r0, r1      ; Compare R0 with R1
-jc r1_larger    ; If R0 < R1 (C=1), jump to r1_larger
-jmp done        ; Jump to done (R0 >= R1, R0 is max)
+loadi r0, 5
+loadi r1, 8
+cmp r0, r1
+jc r1_larger
+jmp done
 r1_larger:
-    mov r0, r1  ; Move R1 to R0 (R1 is the max)
+    mov r0, r1
 done:
-    halt        ; Halt (R0 should be 8)
+    halt
