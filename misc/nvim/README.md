@@ -22,20 +22,28 @@ Syntax highlighting and go-to-definition for tiny16 assembly (`.asm`) and tiny16
 }
 ```
 
-### Manual Installation
+### Using Makefile (symlinks)
 
 ```bash
-# Copy files to your Neovim config directory
-mkdir -p ~/.config/nvim/{syntax,ftdetect,lua}
-cp misc/nvim/syntax/*.vim ~/.config/nvim/syntax/
-cp misc/nvim/ftdetect/tiny16.vim ~/.config/nvim/ftdetect/
-cp misc/nvim/lua/tiny16se-goto.lua ~/.config/nvim/lua/
+cd misc/nvim
+make install    # Creates symlinks to ~/.config/nvim
+make uninstall  # Removes symlinks
 ```
 
 Then add to your `init.lua`:
 
 ```lua
 require("tiny16se-goto").setup()
+```
+
+### Manual Installation (copy)
+
+```bash
+mkdir -p ~/.config/nvim/{syntax,ftdetect,ftplugin,lua}
+cp misc/nvim/syntax/*.vim ~/.config/nvim/syntax/
+cp misc/nvim/ftdetect/tiny16.vim ~/.config/nvim/ftdetect/
+cp misc/nvim/ftplugin/tiny16se.vim ~/.config/nvim/ftplugin/
+cp misc/nvim/lua/tiny16se-goto.lua ~/.config/nvim/lua/
 ```
 
 ## Filetype Detection
@@ -96,13 +104,37 @@ Available commands:
 #### SE Language (`tiny16se`)
 
 - Special forms: `def`, `defn`, `let`, `set`, `if`, `while`, `do`, `data`, `db`, `repeat`
+- Module system: `ns`, `require`, `import`
 - Primitives: arithmetic, bitwise, comparison, memory operations
 - Operator aliases: `+`, `-`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `!=`, `<`, `>`, `<=`, `>=`
 - Function and constant definitions
 - Numbers and strings
 - S-expression parentheses
+- Lisp-style indentation (2 spaces)
 
 ## Customization
+
+### Indentation
+
+The SE filetype plugin enables Lisp-style indentation by default with these settings:
+
+- 2-space indentation
+- `lisp` mode for S-expression aware indentation
+- Keywords like `def`, `defn`, `let`, `if`, `while`, `do`, `ns`, `require`, `import` use body indentation
+
+Override in your config if needed:
+
+```lua
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "tiny16se",
+  callback = function()
+    vim.opt_local.shiftwidth = 4  -- Use 4-space indentation
+    vim.opt_local.tabstop = 4
+  end
+})
+```
+
+### Syntax Highlighting
 
 The syntax files use standard Vim highlight groups. Customize colors in your Neovim config:
 

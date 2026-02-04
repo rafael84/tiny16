@@ -28,7 +28,10 @@ syntax match tiny16seEscape "\\[nrt\\\"0]" contained
 syntax match tiny16seParen "[()]"
 
 " Special Forms (language keywords)
-syntax keyword tiny16seSpecial def defn let set if while do data db repeat include
+syntax keyword tiny16seSpecial def defn let set if while do data db repeat
+
+" Module system
+syntax keyword tiny16seModule ns require import
 
 " Arithmetic primitives
 syntax keyword tiny16seBuiltin add sub neg inc dec
@@ -84,6 +87,9 @@ syntax match tiny16seSymbol "\<[a-zA-Z_\-][a-zA-Z0-9_\-]*\>"
 " Boolean-like values (by convention)
 syntax keyword tiny16seBoolean true false
 
+" Namespace name (after ns keyword)
+syntax match tiny16seNamespace "(\s*ns\s\+\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*"
+
 " Highlighting links
 highlight default link tiny16seComment Comment
 highlight default link tiny16seTodo Todo
@@ -92,6 +98,8 @@ highlight default link tiny16seString String
 highlight default link tiny16seEscape SpecialChar
 highlight default link tiny16seParen Delimiter
 highlight default link tiny16seSpecial Keyword
+highlight default link tiny16seModule Include
+highlight default link tiny16seNamespace Type
 highlight default link tiny16seBuiltin Function
 highlight default link tiny16seOperator Operator
 highlight default link tiny16seFunction Function
