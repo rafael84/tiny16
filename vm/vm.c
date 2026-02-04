@@ -41,8 +41,9 @@ static inline bool tiny16_is_ppu_mmio(uint16_t addr) {
 }
 
 static inline bool tiny16_is_apu_mmio(uint16_t addr) {
-    // APU range: 0xBF40-0xBF8F (base), 0xBF90-0xBF9F (SFX), 0xBFA0-0xBFA5 (music)
-    return addr >= TINY16_MMIO_APU_CTRL && addr <= TINY16_MMIO_APU_MUSIC_LEN_LO;
+    // APU range: 0xBF40-0xBF5D (channels), 0xBF60-0xBF74 (music), 0xBF90-0xBF95 (SFX)
+    return (addr >= TINY16_MMIO_APU_CTRL && addr <= TINY16_MMIO_APU_MUSIC_STATUS) ||
+           (addr >= TINY16_MMIO_APU_SFX_PLAY && addr <= TINY16_MMIO_APU_SFX_COUNT);
 }
 
 uint8_t tiny16_vm_mem_read(void* ctx, uint16_t addr) {

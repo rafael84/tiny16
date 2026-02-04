@@ -4,28 +4,26 @@
 #include <stdint.h>
 
 #define TINY16_APU_SAMPLE_RATE     44100
-#define TINY16_APU_CHANNELS        5
-#define TINY16_APU_SFX_ENTRY_SIZE  9 // bytes per SFX entry
-#define TINY16_APU_MUSIC_NOTE_SIZE 4 // bytes per music note
+#define TINY16_APU_NUM_CHANNELS    4
+#define TINY16_APU_SFX_ENTRY_SIZE  6
+#define TINY16_APU_MUSIC_NOTE_SIZE 4
 
-// Forward declaration for memory access
+// Forward declaration
 struct Tiny16Memory;
 
+// Waveform types
 typedef enum {
-    TINY16_APU_CH_PULSE1 = 0,
-    TINY16_APU_CH_PULSE2 = 1,
-    TINY16_APU_CH_TRIANGLE = 2,
-    TINY16_APU_CH_NOISE = 3,
-    TINY16_APU_CH_WAVE = 4,
-} Tiny16APUChannelType;
+    TINY16_APU_WAVE_TRIANGLE = 0,
+    TINY16_APU_WAVE_TSAW = 1,
+    TINY16_APU_WAVE_SAW = 2,
+    TINY16_APU_WAVE_SQUARE = 3,
+    TINY16_APU_WAVE_PULSE = 4,
+    TINY16_APU_WAVE_ORGAN = 5,
+    TINY16_APU_WAVE_NOISE = 6,
+    TINY16_APU_WAVE_PHASER = 7,
+} Tiny16APUWaveform;
 
-typedef enum {
-    TINY16_APU_DUTY_12_5 = 0, // 12.5%
-    TINY16_APU_DUTY_25 = 1,   // 25%
-    TINY16_APU_DUTY_50 = 2,   // 50%
-    TINY16_APU_DUTY_75 = 3,   // 75%
-} Tiny16APUDutyCycle;
-
+// Envelope phases
 typedef enum {
     TINY16_APU_ENV_OFF = 0,
     TINY16_APU_ENV_ATTACK,
@@ -34,120 +32,87 @@ typedef enum {
     TINY16_APU_ENV_RELEASE,
 } Tiny16APUEnvPhase;
 
+// ADSR envelope
 typedef struct {
-    uint8_t attack;  // 4-bit
-    uint8_t decay;   // 4-bit
-    uint8_t sustain; // 4-bit
-    uint8_t release; // 4-bit
+    uint8_t attack;
+    uint8_t decay;
+    uint8_t sustain;
+    uint8_t release;
     Tiny16APUEnvPhase phase;
-    float level; // 0.0 - 1.0
+    float level;
 } Tiny16APUEnvelope;
 
+// Unified audio channel - can produce any waveform
 typedef struct {
-    uint16_t freq;      // 11-bit frequency divisor (0-2047)
-    uint8_t volume;     // 4-bit volume (0-15)
-    uint8_t duty;       // 2-bit duty cycle
-    bool enabled;       // channel enable
-    bool trigger;       // trigger flag (resets phase)
-    uint32_t phase;     // 32-bit phase accumulator
-    uint32_t phase_inc; // phase increment per sample
+    bool enabled;
+    uint8_t waveform;
+    uint16_t freq;
+    uint8_t volume;
+    uint32_t phase;
+    uint32_t phase_inc;
+    uint16_t lfsr;
+    uint32_t noise_timer;
     Tiny16APUEnvelope env;
-    uint8_t sweep_rate;   // 4-bit
-    uint8_t sweep_shift;  // 3-bit
-    bool sweep_down;      // direction
-    uint32_t sweep_timer; // samples until next sweep
-    uint8_t length;       // length in frames
-    uint32_t length_left; // samples remaining
-} Tiny16APUPulseChannel;
+    uint8_t length;
+    uint32_t length_left;
+} Tiny16APUChannel;
 
+// SFX state per channel
 typedef struct {
-    uint16_t freq;      // 11-bit frequency divisor (0-2047)
-    uint8_t volume;     // 4-bit volume (0-15)
-    bool enabled;       // channel enable
-    bool trigger;       // trigger flag (resets phase)
-    uint32_t phase;     // 32-bit phase accumulator
-    uint32_t phase_inc; // phase increment per sample
-    Tiny16APUEnvelope env;
-    uint8_t length;       // length in frames
-    uint32_t length_left; // samples remaining
-} Tiny16APUTriangleChannel;
-
-typedef struct {
-    uint8_t period;  // 4-bit period (0-15)
-    uint8_t volume;  // 4-bit volume (0-15)
-    bool enabled;    // channel enable
-    bool trigger;    // trigger flag (reseeds LFSR)
-    bool short_mode; // noise mode: false=long, true=short
-    uint16_t lfsr;   // 16-bit Linear Feedback Shift Register
-    uint32_t timer;  // timer counter for period
-    Tiny16APUEnvelope env;
-    uint8_t length;       // length in frames
-    uint32_t length_left; // samples remaining
-} Tiny16APUNoiseChannel;
-
-typedef struct {
-    uint16_t freq;      // 11-bit frequency divisor (0-2047)
-    uint8_t volume;     // 4-bit volume (0-15)
-    bool enabled;       // channel enable
-    bool trigger;       // trigger flag (resets phase)
-    uint32_t phase;     // 32-bit phase accumulator
-    uint32_t phase_inc; // phase increment per sample
-    Tiny16APUEnvelope env;
-    uint8_t length;       // length in frames
-    uint32_t length_left; // samples remaining
-    uint8_t wave[32];     // 4-bit samples
-} Tiny16APUWaveChannel;
-
-// SFX player state (per channel)
-typedef struct {
-    bool active;           // SFX currently playing on this channel
-    uint8_t duration_left; // frames remaining
-    uint8_t sfx_id;        // current SFX ID playing
+    bool active;
+    uint8_t duration_left;
+    uint8_t sfx_id;
 } Tiny16APUSfxState;
 
-// SFX system state
+// SFX system
 typedef struct {
-    uint16_t table_addr;     // memory address of SFX table
-    uint8_t count;           // number of SFX entries
-    Tiny16APUSfxState ch[4]; // per-channel SFX state (pulse1/pulse2/tri/noise)
+    uint16_t table_addr;
+    uint8_t count;
+    Tiny16APUSfxState ch[TINY16_APU_NUM_CHANNELS];
 } Tiny16APUSfxSystem;
 
-// Music player state
+// Music channel (virtual, mixed separately)
 typedef struct {
-    bool enabled;          // music is playing
-    bool looping;          // loop when song ends
-    uint16_t song_addr;    // memory address of song data
-    uint16_t song_length;  // number of notes in song
-    uint16_t current_note; // current note index
-    uint8_t frames_left;   // frames until next note
-    uint8_t channel;       // channel reserved for music (default: pulse2)
+    bool enabled;
+    bool looping;
+    uint16_t track_addr;
+    uint16_t track_length;
+    uint16_t current_note;
+    uint8_t frames_left;
+    uint8_t waveform;
+    uint16_t freq;
+    uint8_t volume;
+    uint32_t phase;
+    uint32_t phase_inc;
+    uint16_t lfsr;
+    uint32_t noise_timer;
+} Tiny16MusicChannel;
+
+// Music system
+typedef struct {
+    bool enabled;
+    Tiny16MusicChannel ch[TINY16_APU_NUM_CHANNELS];
 } Tiny16MusicPlayer;
 
+// Main APU structure
 typedef struct {
     volatile int lock;
-    bool enabled;          // APU master enable
-    uint8_t master_volume; // 4-bit master volume (0-15)
-    uint64_t sample_accum; // fractional samples in cpu_hz units
+    bool enabled;
+    uint8_t master_volume;
+    uint64_t sample_accum;
 
-    Tiny16APUPulseChannel pulse1;      // CH0
-    Tiny16APUPulseChannel pulse2;      // CH1
-    Tiny16APUTriangleChannel triangle; // CH2
-    Tiny16APUNoiseChannel noise;       // CH3
-    Tiny16APUWaveChannel wave;         // CH4
+    Tiny16APUChannel ch[TINY16_APU_NUM_CHANNELS];
 
-    // SFX and Music systems
-    Tiny16APUSfxSystem sfx;  // SFX bank system
-    Tiny16MusicPlayer music; // Music sequencer
-    uint32_t frame_samples;  // samples per frame counter
+    Tiny16APUSfxSystem sfx;
+    Tiny16MusicPlayer music;
+    uint32_t frame_samples;
 
-    // Memory pointer for reading SFX/music data
     struct Tiny16Memory* memory;
 } Tiny16APU;
 
+// Public API
 void tiny16_apu_reset(Tiny16APU* apu);
-
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value);
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr);
-
 uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz);
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames);

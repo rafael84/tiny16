@@ -46,45 +46,46 @@
 ; =============================================================================
 ; SFX Bank Definition
 ; =============================================================================
-; Format: channel, freq_lo, freq_hi, period, volume, duty, env_ad, env_sr, duration
+; Format: channel, freq_lo, freq_hi|waveform, volume, env_ad, duration (6 bytes)
+; freq_hi: bits 0-2 = freq high, bits 4-6 = waveform (0x40=pulse, 0x60=noise)
 
 (data sfx-table
-  ; ID 0: Jump (pulse 0, high pitch, short)
-  (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
-  ; ID 1: Coin (pulse 0, bright, medium)
-  (db 0 0xD0 0x07 0 44 2 0x11 0x61 4)
-  ; ID 2: Hit (noise, harsh, quick)
-  (db 3 0 0 9 14 0 0x15 0x04 18)
-  ; ID 3: Explosion (noise, long decay)
-  (db 3 0 0 12 15 0 0x28 0x26 30))
+  ; ID 0: Jump - rising beep (triangle, mid pitch)
+  (db 0 0x57 0x07 12 0x02 10)
+  ; ID 1: Coin - high ding (square, high pitch)
+  (db 1 0xD8 0x37 14 0x01 6)
+  ; ID 2: Hit - short thud (noise, fast)
+  (db 2 0x04 0x60 10 0x02 8)
+  ; ID 3: Explosion - rumble (noise, slow, long)
+  (db 3 0x0C 0x60 15 0x08 45))
 
 ; =============================================================================
 ; Music Sequence Definition
 ; =============================================================================
-; Format: note, volume, duration, reserved
+; Format: note, volume, duration, waveform (4 bytes per note)
 ; A simple melody: C-E-G-C pattern
 
 (data demo-song
   ; Bar 1
-  (db 13 4 8 0)   ; C4
-  (db 17 4 8 0)   ; E4
-  (db 20 4 8 0)   ; G4
-  (db 25 4 16 0)  ; C5 (longer)
+  (db apu/NOTE_C3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_MP apu/DUR_HALF    apu/WAVE_PULSE)
   ; Bar 2
-  (db 20 4 8 0)   ; G4
-  (db 17 4 8 0)   ; E4
-  (db 13 4 16 0)  ; C4 (longer)
-  (db 0 0 8 0)     ; rest
+  (db apu/NOTE_G3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_MP apu/DUR_HALF    apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER apu/WAVE_PULSE)
   ; Bar 3 (variation)
-  (db 15 4 8 0)   ; D4
-  (db 18 4 8 0)   ; F4
-  (db 22 4 8 0)   ; A4
-  (db 27 4 16 0)  ; D5 (longer)
+  (db apu/NOTE_D3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_F3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_MP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_MP apu/DUR_HALF    apu/WAVE_PULSE)
   ; Bar 4
-  (db 22 2 8 0)   ; A4
-  (db 18 2 8 0)   ; F4
-  (db 15 2 16 0)  ; D4 (longer)
-  (db 0 0 8 0))    ; rest
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_F3  apu/DYN_PP apu/DUR_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_D3  apu/DYN_PP apu/DUR_HALF    apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER apu/WAVE_PULSE))
 
 ; =============================================================================
 ; State
@@ -165,7 +166,7 @@
         (if (= (peek16 music-on) 0)
             (do
               (poke16 music-on 1)
-              (apu/music-play (hi demo-song) (lo demo-song) 0 SONG_LENGTH 1)
+              (apu/music-ch1-play (hi demo-song) (lo demo-song) 0 SONG_LENGTH 1)
               (show-music-status))
             (do
               (poke16 music-on 0)

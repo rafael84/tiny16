@@ -17,7 +17,7 @@
 ;   make examples-se
 ;   ./build/tiny16-emu build/floppy_se.tiny16
 
-(require (core sprite tilemap input apu ppu math vivaldi-winter))
+(require (core sprite tilemap input apu ppu math))
 
 (import "../examples/includes/tileset.inc")
 
@@ -33,6 +33,9 @@
 (def SFX_DIE   1)
 (def SFX_SCORE 2)
 (def SFX_COUNT 3)
+
+; Music
+(def MUSIC_LENGTH 96)
 
 ; Game states
 (def STATE_WAITING      0)
@@ -245,7 +248,7 @@
 (defn start-game ()
   (clear-text)
   (poke16 game_state STATE_PLAYING)
-  (apu/music-play (hi vivaldi-winter/data) (lo vivaldi-winter/data) vivaldi-winter/length-hi vivaldi-winter/length-lo 1))
+  (apu/music-ch0-play (hi game_music) (lo game_music) 0 MUSIC_LENGTH 1))
 
 (defn update-bird (keys)
   (if (!= (& keys KEY_A) 0)
@@ -480,12 +483,128 @@
 ; =============================================================================
 ; SFX Bank Table
 ; =============================================================================
-; Format: channel, freq_lo, freq_hi, period, volume, duty, env_ad, env_sr, duration
+; Format: channel, freq_lo, freq_hi|waveform, volume, env_ad, duration (6 bytes)
+; freq_hi: bits 0-2 = freq high, bits 4-6 = waveform (0x40=pulse, 0x60=noise)
 
 (data sfx_table
-  ; ID 0: Flap (pulse 0, high pitch chirp)
-  (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
+  ; ID 0: Flap (pulse, high pitch chirp)
+  (db 0 0xC8 0x47 12 0x11 3)
   ; ID 1: Die (noise, harsh)
-  (db 3 0 0 9 14 0 0x15 0x04 18)
-  ; ID 2: Score (pulse 0, bright coin sound)
-  (db 0 0xD0 0x07 0 44 2 0x11 0x61 4))
+  (db 3 9 0x60 14 0x15 18)
+  ; ID 2: Score (pulse, bright coin sound)
+  (db 0 0xD0 0x47 10 0x11 4))
+
+; =============================================================================
+; Background Music
+; =============================================================================
+; Format: note, volume, duration, waveform (4 bytes per note)
+; Upbeat arcade melody - 96 notes
+
+(data game_music
+  ; === Section A: Main Theme (32 notes) ===
+  ; Bar 1-2: Opening hook
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 3-4
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 5-6: Rising phrase
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_F3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_B3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  ; Bar 7-8: Descending
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_HALF          apu/WAVE_PULSE)
+
+  ; === Section B: Variation (32 notes) ===
+  ; Bar 9-10: Higher energy
+  (db apu/NOTE_E4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E4  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_G4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 11-12
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 13-14: Syncopated
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_EIGHTH        apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_EIGHTH        apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_EIGHTH        apu/WAVE_PULSE)
+  ; Bar 15-16: Resolve to theme
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D4  apu/DYN_PP apu/DUR_DOTTED_QUARTER apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_HALF          apu/WAVE_PULSE)
+
+  ; === Section C: Bridge (32 notes) ===
+  ; Bar 17-18: Lower register
+  (db apu/NOTE_G2  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G2  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 19-20
+  (db apu/NOTE_A2  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A2  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_REST 0         apu/DUR_HALF          apu/WAVE_PULSE)
+  ; Bar 21-22: Build up
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_D3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_F3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_A3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_B3  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  ; Bar 23-24: Climax and resolve
+  (db apu/NOTE_E4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G4  apu/DYN_P  apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_E4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_C4  apu/DYN_PP apu/DUR_QUARTER       apu/WAVE_PULSE)
+  (db apu/NOTE_G3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE)
+  (db apu/NOTE_C3  apu/DYN_PP apu/DUR_HALF          apu/WAVE_PULSE))

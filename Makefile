@@ -1,4 +1,4 @@
-.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se examples-assets emulator emulator-web build-web serve-web
+.PHONY: all asm sec tests tests-vm tests-asm tests-sec examples examples-asm examples-se examples-assets examples-assets-force emulator emulator-web build-web serve-web
 .PHONY: tools clean clean-all clean-emsdk raylib-build raylib-clean raylib-build-web format ci
 
 UNAME_S := $(shell uname -s)
@@ -99,7 +99,6 @@ sec: $(BUILDDIR) sec/*.h sec/*.c | $(BUILDDIR)
 
 tools: $(BUILDDIR) $(TOOLSDIR)/*.c vm/*.h | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/png2tiles$(EXE_EXT) $(TOOLSDIR)/png2tiles.c -lm
-	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) -o $(BUILDDIR)/midi2music$(EXE_EXT) $(TOOLSDIR)/midi2music.c -lm
 
 emulator: $(BUILDDIR) vm/*.c vm/*.h emulator/*.c $(RAYLIB_LIB_NATIVE) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(TINY16_LDFLAGS) $(RAYLIB_INCLUDE) -o $(BUILDDIR)/tiny16-emu$(EXE_EXT) \
@@ -161,10 +160,9 @@ EXAMPLES_SE_OUTPUTS := $(patsubst examples/se/%.se,$(BUILDDIR)/%_se.tiny16,$(EXA
 EXAMPLES_ASSETS_PNG := $(wildcard examples/assets/*.png)
 EXAMPLES_ASSETS_PNG_OUTPUTS := $(patsubst examples/assets/%.png,examples/includes/%.inc,$(EXAMPLES_ASSETS_PNG))
 
-EXAMPLES_ASSETS_MIDI := $(wildcard examples/assets/*.mid)
-EXAMPLES_ASSETS_MIDI_OUTPUTS := $(patsubst examples/assets/%.mid,stdlib/se/%.se,$(EXAMPLES_ASSETS_MIDI))
 
 EXAMPLE_INCLUDES := $(wildcard stdlib/*.inc) $(wildcard examples/includes/*.inc) $(wildcard asm/tutorial/includes/*.inc)
+STDLIB_SE := $(wildcard stdlib/se/*.se)
 
 examples: examples-asm examples-se
 
@@ -177,19 +175,22 @@ $(BUILDDIR)/%.tiny16: examples/asm/%.asm $(EXAMPLE_INCLUDES) | $(BUILDDIR)
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $< $@
 
 # SE examples: .se -> .asm -> .tiny16
-$(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) | $(BUILDDIR)
+# Depends on includes AND stdlib SE modules (for require statements)
+$(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) $(STDLIB_SE) | $(BUILDDIR)
 	$(BUILDDIR)/tiny16-sec$(EXE_EXT) $< $(BUILDDIR)/$*_se.asm
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $(BUILDDIR)/$*_se.asm $@
 
 # PNG -> INC: convert PNG assets to assembly include files
-# MIDI -> SE: convert MIDI assets to S-expression music modules
-examples-assets: tools $(EXAMPLES_ASSETS_PNG_OUTPUTS) $(EXAMPLES_ASSETS_MIDI_OUTPUTS)
+examples-assets: tools $(EXAMPLES_ASSETS_PNG_OUTPUTS)
 
-examples/includes/%.inc: examples/assets/%.png | tools
+# Force regeneration of all assets (useful after changing conversion parameters)
+examples-assets-force:
+	rm -f $(EXAMPLES_ASSETS_PNG_OUTPUTS)
+	$(MAKE) examples-assets
+
+# Depend on Makefile so changing conversion parameters triggers rebuild
+examples/includes/%.inc: examples/assets/%.png Makefile | tools
 	$(BUILDDIR)/png2tiles$(EXE_EXT) $< $@
-
-stdlib/se/%.se: examples/assets/%.mid | tools
-	$(BUILDDIR)/midi2music$(EXE_EXT) $< -n $* -v 5 -s 0.5 -o $@
 
 $(RAYLIB_LIB_NATIVE):
 	@echo "Building raylib for native..."

@@ -3,8 +3,23 @@
 
 (def MMIO_BASE 0xBF00)
 
-; APU control
-(def APU_CTRL (+ MMIO_BASE 0x40))
+; =============================================================================
+; Waveform Types
+; =============================================================================
+(def WAVE_TRIANGLE 0)
+(def WAVE_TSAW     1)
+(def WAVE_SAW      2)
+(def WAVE_SQUARE   3)
+(def WAVE_PULSE    4)
+(def WAVE_ORGAN    5)
+(def WAVE_NOISE    6)
+(def WAVE_PHASER   7)
+
+; =============================================================================
+; Master Control
+; =============================================================================
+(def APU_CTRL   (+ MMIO_BASE 0x40))
+(def APU_STATUS (+ MMIO_BASE 0x41))
 
 (defn init ()
   (poke16 APU_CTRL 0x81))
@@ -12,11 +27,45 @@
 (defn disable ()
   (poke16 APU_CTRL 0x00))
 
-; Channel controls
-(def CH0_CTRL (+ MMIO_BASE 0x45))
-(def CH1_CTRL (+ MMIO_BASE 0x49))
-(def CH2_CTRL (+ MMIO_BASE 0x4D))
-(def CH3_CTRL (+ MMIO_BASE 0x50))
+; =============================================================================
+; Channel Registers
+; =============================================================================
+; 4 channels, 6 bytes each: FREQ_LO, FREQ_HI, VOL, CTRL, ENV_AD, ENV_SR
+; FREQ_HI: freq[2:0] | waveform[6:4]
+; CTRL: enable[0], trigger[1]
+
+(def CH0_FREQ_LO (+ MMIO_BASE 0x42))
+(def CH0_FREQ_HI (+ MMIO_BASE 0x43))
+(def CH0_VOL     (+ MMIO_BASE 0x44))
+(def CH0_CTRL    (+ MMIO_BASE 0x45))
+(def CH0_ENV_AD  (+ MMIO_BASE 0x46))
+(def CH0_ENV_SR  (+ MMIO_BASE 0x47))
+
+(def CH1_FREQ_LO (+ MMIO_BASE 0x48))
+(def CH1_FREQ_HI (+ MMIO_BASE 0x49))
+(def CH1_VOL     (+ MMIO_BASE 0x4A))
+(def CH1_CTRL    (+ MMIO_BASE 0x4B))
+(def CH1_ENV_AD  (+ MMIO_BASE 0x4C))
+(def CH1_ENV_SR  (+ MMIO_BASE 0x4D))
+
+(def CH2_FREQ_LO (+ MMIO_BASE 0x4E))
+(def CH2_FREQ_HI (+ MMIO_BASE 0x4F))
+(def CH2_VOL     (+ MMIO_BASE 0x50))
+(def CH2_CTRL    (+ MMIO_BASE 0x51))
+(def CH2_ENV_AD  (+ MMIO_BASE 0x52))
+(def CH2_ENV_SR  (+ MMIO_BASE 0x53))
+
+(def CH3_FREQ_LO (+ MMIO_BASE 0x54))
+(def CH3_FREQ_HI (+ MMIO_BASE 0x55))
+(def CH3_VOL     (+ MMIO_BASE 0x56))
+(def CH3_CTRL    (+ MMIO_BASE 0x57))
+(def CH3_ENV_AD  (+ MMIO_BASE 0x58))
+(def CH3_ENV_SR  (+ MMIO_BASE 0x59))
+
+(def CH0_LEN (+ MMIO_BASE 0x5A))
+(def CH1_LEN (+ MMIO_BASE 0x5B))
+(def CH2_LEN (+ MMIO_BASE 0x5C))
+(def CH3_LEN (+ MMIO_BASE 0x5D))
 
 (defn stop-all ()
   (poke16 CH0_CTRL 0x00)
@@ -24,97 +73,54 @@
   (poke16 CH2_CTRL 0x00)
   (poke16 CH3_CTRL 0x00))
 
-; Channel 0 (square wave)
-(def CH0_FREQ_LO (+ MMIO_BASE 0x42))
-(def CH0_FREQ_HI (+ MMIO_BASE 0x43))
-(def CH0_VOL     (+ MMIO_BASE 0x44))
-(def CH0_ENV_AD  (+ MMIO_BASE 0x51))
-(def CH0_ENV_SR  (+ MMIO_BASE 0x52))
-(def CH0_LEN     (+ MMIO_BASE 0x5B))
-
-(defn ch0-play-note (freq-lo freq-hi vol duration)
+(defn ch0-play (freq-lo freq-hi-wave vol duration)
   (poke16 CH0_FREQ_LO freq-lo)
-  (poke16 CH0_FREQ_HI freq-hi)
+  (poke16 CH0_FREQ_HI freq-hi-wave)
   (poke16 CH0_VOL vol)
   (poke16 CH0_LEN duration)
   (poke16 CH0_CTRL 0x03))
+
+(defn ch1-play (freq-lo freq-hi-wave vol duration)
+  (poke16 CH1_FREQ_LO freq-lo)
+  (poke16 CH1_FREQ_HI freq-hi-wave)
+  (poke16 CH1_VOL vol)
+  (poke16 CH1_LEN duration)
+  (poke16 CH1_CTRL 0x03))
+
+(defn ch2-play (freq-lo freq-hi-wave vol duration)
+  (poke16 CH2_FREQ_LO freq-lo)
+  (poke16 CH2_FREQ_HI freq-hi-wave)
+  (poke16 CH2_VOL vol)
+  (poke16 CH2_LEN duration)
+  (poke16 CH2_CTRL 0x03))
+
+(defn ch3-play (freq-lo freq-hi-wave vol duration)
+  (poke16 CH3_FREQ_LO freq-lo)
+  (poke16 CH3_FREQ_HI freq-hi-wave)
+  (poke16 CH3_VOL vol)
+  (poke16 CH3_LEN duration)
+  (poke16 CH3_CTRL 0x03))
 
 (defn ch0-set-envelope (attack decay sustain release)
   (poke16 CH0_ENV_AD (| (* attack 16) decay))
   (poke16 CH0_ENV_SR (| (* sustain 16) release)))
 
-; Channel 1 (square wave)
-(def CH1_FREQ_LO (+ MMIO_BASE 0x46))
-(def CH1_FREQ_HI (+ MMIO_BASE 0x47))
-(def CH1_VOL     (+ MMIO_BASE 0x48))
-(def CH1_ENV_AD  (+ MMIO_BASE 0x53))
-(def CH1_ENV_SR  (+ MMIO_BASE 0x54))
-(def CH1_LEN     (+ MMIO_BASE 0x5C))
-
-(defn ch1-play-note (freq-lo freq-hi vol duration)
-  (poke16 CH1_FREQ_LO freq-lo)
-  (poke16 CH1_FREQ_HI freq-hi)
-  (poke16 CH1_VOL vol)
-  (poke16 CH1_LEN duration)
-  (poke16 CH1_CTRL 0x03))
-
 (defn ch1-set-envelope (attack decay sustain release)
   (poke16 CH1_ENV_AD (| (* attack 16) decay))
   (poke16 CH1_ENV_SR (| (* sustain 16) release)))
 
-; Channel 2 (triangle wave - bass)
-(def CH2_FREQ_LO (+ MMIO_BASE 0x4A))
-(def CH2_FREQ_HI (+ MMIO_BASE 0x4B))
-(def CH2_VOL     (+ MMIO_BASE 0x4C))
-(def CH2_ENV_AD  (+ MMIO_BASE 0x55))
-(def CH2_ENV_SR  (+ MMIO_BASE 0x56))
-(def CH2_LEN     (+ MMIO_BASE 0x5D))
-
-(defn ch2-play-note (freq-lo freq-hi vol duration)
-  (poke16 CH2_FREQ_LO freq-lo)
-  (poke16 CH2_FREQ_HI freq-hi)
-  (poke16 CH2_VOL vol)
-  (poke16 CH2_LEN duration)
-  (poke16 CH2_CTRL 0x03))
-
-; Channel 3 (noise - percussion/SFX)
-(def CH3_PERIOD (+ MMIO_BASE 0x4E))
-(def CH3_VOL    (+ MMIO_BASE 0x4F))
-(def CH3_ENV_AD (+ MMIO_BASE 0x57))
-(def CH3_ENV_SR (+ MMIO_BASE 0x58))
-(def CH3_LEN    (+ MMIO_BASE 0x5E))
-
-(defn ch3-play-noise (period vol duration)
-  (poke16 CH3_PERIOD period)
-  (poke16 CH3_VOL vol)
-  (poke16 CH3_LEN duration)
-  (poke16 CH3_CTRL 0x03))
+(defn ch2-set-envelope (attack decay sustain release)
+  (poke16 CH2_ENV_AD (| (* attack 16) decay))
+  (poke16 CH2_ENV_SR (| (* sustain 16) release)))
 
 (defn ch3-set-envelope (attack decay sustain release)
   (poke16 CH3_ENV_AD (| (* attack 16) decay))
   (poke16 CH3_ENV_SR (| (* sustain 16) release)))
 
 ; =============================================================================
-; SFX Bank System
+; SFX System
 ; =============================================================================
-;
-; SFX entry format (9 bytes per entry, indices 0-8):
-;   [0] channel (0-3: pulse1/pulse2/tri/noise)
-;   [1] freq_lo
-;   [2] freq_hi
-;   [3] period (noise only)
-;   [4] volume (0-15)
-;   [5] duty (0-3, pulse only)
-;   [6] env_ad (attack << 4 | decay)
-;   [7] env_sr (sustain << 4 | release)
-;   [8] duration (frames)
-;
-; Example SFX table definition:
-;   (data sfx-table
-;     ; ID 0: Jump sound (pulse 0)
-;     (db 0 0xC8 0x07 0 18 2 0x11 0x81 3)
-;     ; ID 1: Hit sound (noise)
-;     (db 3 0 0 9 14 0 0x15 0x04 18))
+; Entry format (6 bytes): channel, freq_lo, freq_hi|wave, volume, env_ad, duration
 
 (def SFX_PLAY     (+ MMIO_BASE 0x90))
 (def SFX_STOP     (+ MMIO_BASE 0x91))
@@ -123,115 +129,151 @@
 (def SFX_TABLE_LO (+ MMIO_BASE 0x94))
 (def SFX_COUNT    (+ MMIO_BASE 0x95))
 
-; Initialize SFX system with table address and count
-; table-hi: high byte of SFX table address
-; table-lo: low byte of SFX table address
-; count: number of SFX entries in table
 (defn sfx-init (table-hi table-lo count)
   (poke16 SFX_TABLE_HI table-hi)
   (poke16 SFX_TABLE_LO table-lo)
   (poke16 SFX_COUNT count))
 
-; Play sound effect by ID (0 to count-1)
 (defn sfx-play (sfx-id)
   (poke16 SFX_PLAY sfx-id))
 
-; Stop sound effect on channel (0-3)
 (defn sfx-stop (channel)
   (poke16 SFX_STOP channel))
 
-; Check if any SFX is playing (returns bitmask of active channels)
 (defn sfx-status ()
   (peek16 SFX_STATUS))
 
 ; =============================================================================
-; Music Sequencer System
+; Music Notes (C2-B6)
 ; =============================================================================
-;
-; Music note format (4 bytes per note):
-;   [0] note (0=rest, 1-36=notes C3-B5)
-;   [1] volume (0-15)
-;   [2] duration (frames)
-;   [3] reserved
-;
-; Note values:
-;   0  = rest (silence)
-;   1  = C3,  2 = C#3, 3 = D3,  4 = D#3, 5 = E3,  6 = F3
-;   7  = F#3, 8 = G3,  9 = G#3, 10 = A3, 11 = A#3, 12 = B3
-;   13 = C4,  14 = C#4, 15 = D4, 16 = D#4, 17 = E4, 18 = F4
-;   19 = F#4, 20 = G4, 21 = G#4, 22 = A4, 23 = A#4, 24 = B4
-;   25 = C5,  26 = C#5, 27 = D5, 28 = D#5, 29 = E5, 30 = F5
-;   31 = F#5, 32 = G5, 33 = G#5, 34 = A5, 35 = A#5, 36 = B5
-;
-; Example song definition:
-;   (data my-song
-;     (db 13 12 8 0)    ; C4, vol=12, dur=8
-;     (db 17 12 8 0)    ; E4
-;     (db 20 12 8 0)    ; G4
-;     (db 25 12 16 0))  ; C5
-
-; Music note constants
 (def NOTE_REST 0)
-(def NOTE_C3 1)
-(def NOTE_CS3 2)
-(def NOTE_D3 3)
-(def NOTE_DS3 4)
-(def NOTE_E3 5)
-(def NOTE_F3 6)
-(def NOTE_FS3 7)
-(def NOTE_G3 8)
-(def NOTE_GS3 9)
-(def NOTE_A3 10)
-(def NOTE_AS3 11)
-(def NOTE_B3 12)
-(def NOTE_C4 13)
-(def NOTE_CS4 14)
-(def NOTE_D4 15)
-(def NOTE_DS4 16)
-(def NOTE_E4 17)
-(def NOTE_F4 18)
-(def NOTE_FS4 19)
-(def NOTE_G4 20)
-(def NOTE_GS4 21)
-(def NOTE_A4 22)
-(def NOTE_AS4 23)
-(def NOTE_B4 24)
-(def NOTE_C5 25)
-(def NOTE_CS5 26)
-(def NOTE_D5 27)
-(def NOTE_DS5 28)
-(def NOTE_E5 29)
-(def NOTE_F5 30)
-(def NOTE_FS5 31)
-(def NOTE_G5 32)
-(def NOTE_GS5 33)
-(def NOTE_A5 34)
-(def NOTE_AS5 35)
-(def NOTE_B5 36)
 
-(def MUSIC_CTRL    (+ MMIO_BASE 0xA0))
-(def MUSIC_STATUS  (+ MMIO_BASE 0xA1))
-(def MUSIC_ADDR_HI (+ MMIO_BASE 0xA2))
-(def MUSIC_ADDR_LO (+ MMIO_BASE 0xA3))
-(def MUSIC_LEN_HI  (+ MMIO_BASE 0xA4))
-(def MUSIC_LEN_LO  (+ MMIO_BASE 0xA5))
+(def NOTE_C2   1) (def NOTE_CS2  2) (def NOTE_D2   3) (def NOTE_DS2  4)
+(def NOTE_E2   5) (def NOTE_F2   6) (def NOTE_FS2  7) (def NOTE_G2   8)
+(def NOTE_GS2  9) (def NOTE_A2  10) (def NOTE_AS2 11) (def NOTE_B2  12)
 
-; Start playing music
-; song-hi: high byte of song data address
-; song-lo: low byte of song data address
-; len: number of notes in song
-; loop: 0=play once, 1=loop
-(defn music-play (song-hi song-lo len-hi len-lo loop)
-  (poke16 MUSIC_ADDR_HI song-hi)
-  (poke16 MUSIC_ADDR_LO song-lo)
-  (poke16 MUSIC_LEN_HI len-hi)
-  (poke16 MUSIC_LEN_LO len-lo)
-  (poke16 MUSIC_CTRL (| 0x01 (if loop 0x04 0x00))))
+(def NOTE_C3  13) (def NOTE_CS3 14) (def NOTE_D3  15) (def NOTE_DS3 16)
+(def NOTE_E3  17) (def NOTE_F3  18) (def NOTE_FS3 19) (def NOTE_G3  20)
+(def NOTE_GS3 21) (def NOTE_A3  22) (def NOTE_AS3 23) (def NOTE_B3  24)
 
-; Stop music playback
+(def NOTE_C4  25) (def NOTE_CS4 26) (def NOTE_D4  27) (def NOTE_DS4 28)
+(def NOTE_E4  29) (def NOTE_F4  30) (def NOTE_FS4 31) (def NOTE_G4  32)
+(def NOTE_GS4 33) (def NOTE_A4  34) (def NOTE_AS4 35) (def NOTE_B4  36)
+
+(def NOTE_C5  37) (def NOTE_CS5 38) (def NOTE_D5  39) (def NOTE_DS5 40)
+(def NOTE_E5  41) (def NOTE_F5  42) (def NOTE_FS5 43) (def NOTE_G5  44)
+(def NOTE_GS5 45) (def NOTE_A5  46) (def NOTE_AS5 47) (def NOTE_B5  48)
+
+(def NOTE_C6  49) (def NOTE_CS6 50) (def NOTE_D6  51) (def NOTE_DS6 52)
+(def NOTE_E6  53) (def NOTE_F6  54) (def NOTE_FS6 55) (def NOTE_G6  56)
+(def NOTE_GS6 57) (def NOTE_A6  58) (def NOTE_AS6 59) (def NOTE_B6  60)
+
+; =============================================================================
+; Dynamics
+; =============================================================================
+(def DYN_PPP  1)
+(def DYN_PP   2)
+(def DYN_P    3)
+(def DYN_MP   4)
+(def DYN_MF   5)
+(def DYN_F    6)
+(def DYN_FF   7)
+(def DYN_FFF  8)
+
+; =============================================================================
+; Durations (frames at 60fps)
+; =============================================================================
+(def DUR_WHOLE     32)
+(def DUR_HALF      16)
+(def DUR_QUARTER    8)
+(def DUR_EIGHTH     4)
+(def DUR_SIXTEENTH  2)
+(def DUR_THIRTYSEC  1)
+
+(def DUR_DOTTED_HALF    24)
+(def DUR_DOTTED_QUARTER 12)
+(def DUR_DOTTED_EIGHTH   6)
+
+(def DUR_TRIPLET_HALF    11)
+(def DUR_TRIPLET_QUARTER  5)
+(def DUR_TRIPLET_EIGHTH   3)
+
+; =============================================================================
+; Music System
+; =============================================================================
+; Track format (4 bytes per note): note, volume, duration, waveform
+
+(def MUSIC_CH0_ADDR_HI (+ MMIO_BASE 0x60))
+(def MUSIC_CH0_ADDR_LO (+ MMIO_BASE 0x61))
+(def MUSIC_CH0_LEN_HI  (+ MMIO_BASE 0x62))
+(def MUSIC_CH0_LEN_LO  (+ MMIO_BASE 0x63))
+(def MUSIC_CH0_CTRL    (+ MMIO_BASE 0x64))
+
+(def MUSIC_CH1_ADDR_HI (+ MMIO_BASE 0x65))
+(def MUSIC_CH1_ADDR_LO (+ MMIO_BASE 0x66))
+(def MUSIC_CH1_LEN_HI  (+ MMIO_BASE 0x67))
+(def MUSIC_CH1_LEN_LO  (+ MMIO_BASE 0x68))
+(def MUSIC_CH1_CTRL    (+ MMIO_BASE 0x69))
+
+(def MUSIC_CH2_ADDR_HI (+ MMIO_BASE 0x6A))
+(def MUSIC_CH2_ADDR_LO (+ MMIO_BASE 0x6B))
+(def MUSIC_CH2_LEN_HI  (+ MMIO_BASE 0x6C))
+(def MUSIC_CH2_LEN_LO  (+ MMIO_BASE 0x6D))
+(def MUSIC_CH2_CTRL    (+ MMIO_BASE 0x6E))
+
+(def MUSIC_CH3_ADDR_HI (+ MMIO_BASE 0x6F))
+(def MUSIC_CH3_ADDR_LO (+ MMIO_BASE 0x70))
+(def MUSIC_CH3_LEN_HI  (+ MMIO_BASE 0x71))
+(def MUSIC_CH3_LEN_LO  (+ MMIO_BASE 0x72))
+(def MUSIC_CH3_CTRL    (+ MMIO_BASE 0x73))
+
+(def MUSIC_STATUS (+ MMIO_BASE 0x74))
+
+(defn music-ch0-play (addr-hi addr-lo len-hi len-lo loop)
+  (poke16 MUSIC_CH0_ADDR_HI addr-hi)
+  (poke16 MUSIC_CH0_ADDR_LO addr-lo)
+  (poke16 MUSIC_CH0_LEN_HI len-hi)
+  (poke16 MUSIC_CH0_LEN_LO len-lo)
+  (poke16 MUSIC_CH0_CTRL (| 0x01 (if loop 0x04 0x00))))
+
+(defn music-ch1-play (addr-hi addr-lo len-hi len-lo loop)
+  (poke16 MUSIC_CH1_ADDR_HI addr-hi)
+  (poke16 MUSIC_CH1_ADDR_LO addr-lo)
+  (poke16 MUSIC_CH1_LEN_HI len-hi)
+  (poke16 MUSIC_CH1_LEN_LO len-lo)
+  (poke16 MUSIC_CH1_CTRL (| 0x01 (if loop 0x04 0x00))))
+
+(defn music-ch2-play (addr-hi addr-lo len-hi len-lo loop)
+  (poke16 MUSIC_CH2_ADDR_HI addr-hi)
+  (poke16 MUSIC_CH2_ADDR_LO addr-lo)
+  (poke16 MUSIC_CH2_LEN_HI len-hi)
+  (poke16 MUSIC_CH2_LEN_LO len-lo)
+  (poke16 MUSIC_CH2_CTRL (| 0x01 (if loop 0x04 0x00))))
+
+(defn music-ch3-play (addr-hi addr-lo len-hi len-lo loop)
+  (poke16 MUSIC_CH3_ADDR_HI addr-hi)
+  (poke16 MUSIC_CH3_ADDR_LO addr-lo)
+  (poke16 MUSIC_CH3_LEN_HI len-hi)
+  (poke16 MUSIC_CH3_LEN_LO len-lo)
+  (poke16 MUSIC_CH3_CTRL (| 0x01 (if loop 0x04 0x00))))
+
+(defn music-ch0-stop ()
+  (poke16 MUSIC_CH0_CTRL 0x02))
+
+(defn music-ch1-stop ()
+  (poke16 MUSIC_CH1_CTRL 0x02))
+
+(defn music-ch2-stop ()
+  (poke16 MUSIC_CH2_CTRL 0x02))
+
+(defn music-ch3-stop ()
+  (poke16 MUSIC_CH3_CTRL 0x02))
+
 (defn music-stop ()
-  (poke16 MUSIC_CTRL 0x02))
+  (music-ch0-stop)
+  (music-ch1-stop)
+  (music-ch2-stop)
+  (music-ch3-stop))
 
-; Check if music is playing (returns 1 if playing, 0 if stopped)
 (defn music-playing ()
   (peek16 MUSIC_STATUS))

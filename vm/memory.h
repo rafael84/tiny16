@@ -69,62 +69,53 @@ typedef struct {
 #define TINY16_MMIO_PPU_SCROLL_Y 0xBF32
 #define TINY16_MMIO_PPU_STATUS   0xBF33
 
-// APU (0xBF40 - 0xBF5F)
+// APU (0xBF40 - 0xBF8F)
+// 4 unified channels, each can produce any waveform
 #define TINY16_MMIO_APU_CTRL   0xBF40 // Master control: bit 0=enable, bits 4-7=volume
-#define TINY16_MMIO_APU_STATUS 0xBF41 // Status: bits 0-4=channel active flags
+#define TINY16_MMIO_APU_STATUS 0xBF41 // Status: bits 0-3=channel active flags
 
-// APU Channel 0 - Pulse 1
+// APU Channel registers (6 bytes per channel)
+// Layout: FREQ_LO, FREQ_HI, VOL, CTRL, ENV_AD, ENV_SR
+#define TINY16_MMIO_APU_CH_BASE   0xBF42
+#define TINY16_MMIO_APU_CH_STRIDE 6
+
+// Channel 0 (0xBF42-0xBF47)
 #define TINY16_MMIO_APU_CH0_FREQ_LO 0xBF42 // Frequency low byte
-#define TINY16_MMIO_APU_CH0_FREQ_HI 0xBF43 // Frequency high (bits 0-2)
-#define TINY16_MMIO_APU_CH0_VOL     0xBF44 // Volume (0-3) + duty (4-5)
-#define TINY16_MMIO_APU_CH0_CTRL    0xBF45 // Enable (0) + trigger (1)
+#define TINY16_MMIO_APU_CH0_FREQ_HI 0xBF43 // Frequency high (bits 0-2) + waveform (bits 4-6)
+#define TINY16_MMIO_APU_CH0_VOL     0xBF44 // Volume (bits 0-3)
+#define TINY16_MMIO_APU_CH0_CTRL    0xBF45 // Enable (0), trigger (1), length enable (2)
+#define TINY16_MMIO_APU_CH0_ENV_AD  0xBF46 // Attack (hi) / Decay (lo)
+#define TINY16_MMIO_APU_CH0_ENV_SR  0xBF47 // Sustain (hi) / Release (lo)
 
-// APU Channel 1 - Pulse 2
-#define TINY16_MMIO_APU_CH1_FREQ_LO 0xBF46
-#define TINY16_MMIO_APU_CH1_FREQ_HI 0xBF47
-#define TINY16_MMIO_APU_CH1_VOL     0xBF48
-#define TINY16_MMIO_APU_CH1_CTRL    0xBF49
+// Channel 1 (0xBF48-0xBF4D)
+#define TINY16_MMIO_APU_CH1_FREQ_LO 0xBF48
+#define TINY16_MMIO_APU_CH1_FREQ_HI 0xBF49
+#define TINY16_MMIO_APU_CH1_VOL     0xBF4A
+#define TINY16_MMIO_APU_CH1_CTRL    0xBF4B
+#define TINY16_MMIO_APU_CH1_ENV_AD  0xBF4C
+#define TINY16_MMIO_APU_CH1_ENV_SR  0xBF4D
 
-// APU Channel 2 - Triangle
-#define TINY16_MMIO_APU_CH2_FREQ_LO 0xBF4A
-#define TINY16_MMIO_APU_CH2_FREQ_HI 0xBF4B
-#define TINY16_MMIO_APU_CH2_VOL     0xBF4C
-#define TINY16_MMIO_APU_CH2_CTRL    0xBF4D
+// Channel 2 (0xBF4E-0xBF53)
+#define TINY16_MMIO_APU_CH2_FREQ_LO 0xBF4E
+#define TINY16_MMIO_APU_CH2_FREQ_HI 0xBF4F
+#define TINY16_MMIO_APU_CH2_VOL     0xBF50
+#define TINY16_MMIO_APU_CH2_CTRL    0xBF51
+#define TINY16_MMIO_APU_CH2_ENV_AD  0xBF52
+#define TINY16_MMIO_APU_CH2_ENV_SR  0xBF53
 
-// APU Channel 3 - Noise
-#define TINY16_MMIO_APU_CH3_PERIOD 0xBF4E // Period (0-15)
-#define TINY16_MMIO_APU_CH3_VOL    0xBF4F // Volume (0-15)
-#define TINY16_MMIO_APU_CH3_CTRL   0xBF50 // Enable (0) + trigger (1) + mode (2)
+// Channel 3 (0xBF54-0xBF59)
+#define TINY16_MMIO_APU_CH3_FREQ_LO 0xBF54
+#define TINY16_MMIO_APU_CH3_FREQ_HI 0xBF55
+#define TINY16_MMIO_APU_CH3_VOL     0xBF56
+#define TINY16_MMIO_APU_CH3_CTRL    0xBF57
+#define TINY16_MMIO_APU_CH3_ENV_AD  0xBF58
+#define TINY16_MMIO_APU_CH3_ENV_SR  0xBF59
 
-// APU Envelopes (AD = attack/decay, SR = sustain/release)
-#define TINY16_MMIO_APU_CH0_ENV_AD 0xBF51 // Attack (hi nibble) / Decay (lo nibble)
-#define TINY16_MMIO_APU_CH0_ENV_SR 0xBF52 // Sustain (hi nibble) / Release (lo nibble)
-#define TINY16_MMIO_APU_CH1_ENV_AD 0xBF53
-#define TINY16_MMIO_APU_CH1_ENV_SR 0xBF54
-#define TINY16_MMIO_APU_CH2_ENV_AD 0xBF55
-#define TINY16_MMIO_APU_CH2_ENV_SR 0xBF56
-#define TINY16_MMIO_APU_CH3_ENV_AD 0xBF57
-#define TINY16_MMIO_APU_CH3_ENV_SR 0xBF58
-
-// APU Sweep + Length
-#define TINY16_MMIO_APU_CH0_SWEEP 0xBF59 // Sweep rate (hi nibble), dir (bit3), shift (bits 0-2)
-#define TINY16_MMIO_APU_CH1_SWEEP 0xBF5A
-#define TINY16_MMIO_APU_CH0_LEN   0xBF5B // Length in frames (60 Hz)
-#define TINY16_MMIO_APU_CH1_LEN   0xBF5C
-#define TINY16_MMIO_APU_CH2_LEN   0xBF5D
-#define TINY16_MMIO_APU_CH3_LEN   0xBF5E
-
-// APU Wave Channel
-#define TINY16_MMIO_APU_WAVE_FREQ_LO 0xBF60
-#define TINY16_MMIO_APU_WAVE_FREQ_HI 0xBF61
-#define TINY16_MMIO_APU_WAVE_VOL     0xBF62
-#define TINY16_MMIO_APU_WAVE_CTRL    0xBF63 // Enable + trigger
-#define TINY16_MMIO_APU_WAVE_LEN     0xBF64
-#define TINY16_MMIO_APU_WAVE_ENV_AD  0xBF65
-#define TINY16_MMIO_APU_WAVE_ENV_SR  0xBF66
-
-// Wave RAM (32 x 4-bit samples)
-#define TINY16_MMIO_APU_WAVE_RAM 0xBF70 // 0xBF70 - 0xBF8F
+// Length registers (separate for backward compatibility)
+#define TINY16_MMIO_APU_CH0_LEN 0xBF5A // Length in frames (60 Hz)
+#define TINY16_MMIO_APU_CH1_LEN 0xBF5B
+#define TINY16_MMIO_APU_CH2_LEN 0xBF5C
+#define TINY16_MMIO_APU_CH3_LEN 0xBF5D
 
 // APU SFX System (0xBF90-0xBF9F)
 #define TINY16_MMIO_APU_SFX_PLAY     0xBF90 // W: trigger SFX by ID
@@ -134,13 +125,37 @@ typedef struct {
 #define TINY16_MMIO_APU_SFX_TABLE_LO 0xBF94 // W: SFX table address low byte
 #define TINY16_MMIO_APU_SFX_COUNT    0xBF95 // W: number of SFX entries
 
-// APU Music System (0xBFA0-0xBFAF)
-#define TINY16_MMIO_APU_MUSIC_CTRL    0xBFA0 // W: bit0=play, bit1=stop, bit2=loop
-#define TINY16_MMIO_APU_MUSIC_STATUS  0xBFA1 // R: bit0=playing
-#define TINY16_MMIO_APU_MUSIC_ADDR_HI 0xBFA2 // W: song data address high byte
-#define TINY16_MMIO_APU_MUSIC_ADDR_LO 0xBFA3 // W: song data address low byte
-#define TINY16_MMIO_APU_MUSIC_LEN_HI  0xBFA4 // W: song length high byte
-#define TINY16_MMIO_APU_MUSIC_LEN_LO  0xBFA5 // W: song length low byte
+// APU Music System (0xBF60-0xBF7F)
+// 4 virtual music channels (mixed separately from hardware channels)
+// Each channel has 5 registers: addr_hi, addr_lo, len_hi, len_lo, ctrl
+#define TINY16_MMIO_APU_MUSIC_BASE   0xBF60
+#define TINY16_MMIO_APU_MUSIC_STRIDE 5
+
+#define TINY16_MMIO_APU_MUSIC_CH0_ADDR_HI 0xBF60
+#define TINY16_MMIO_APU_MUSIC_CH0_ADDR_LO 0xBF61
+#define TINY16_MMIO_APU_MUSIC_CH0_LEN_HI  0xBF62
+#define TINY16_MMIO_APU_MUSIC_CH0_LEN_LO  0xBF63
+#define TINY16_MMIO_APU_MUSIC_CH0_CTRL    0xBF64 // bit0=play, bit1=stop, bit2=loop
+
+#define TINY16_MMIO_APU_MUSIC_CH1_ADDR_HI 0xBF65
+#define TINY16_MMIO_APU_MUSIC_CH1_ADDR_LO 0xBF66
+#define TINY16_MMIO_APU_MUSIC_CH1_LEN_HI  0xBF67
+#define TINY16_MMIO_APU_MUSIC_CH1_LEN_LO  0xBF68
+#define TINY16_MMIO_APU_MUSIC_CH1_CTRL    0xBF69
+
+#define TINY16_MMIO_APU_MUSIC_CH2_ADDR_HI 0xBF6A
+#define TINY16_MMIO_APU_MUSIC_CH2_ADDR_LO 0xBF6B
+#define TINY16_MMIO_APU_MUSIC_CH2_LEN_HI  0xBF6C
+#define TINY16_MMIO_APU_MUSIC_CH2_LEN_LO  0xBF6D
+#define TINY16_MMIO_APU_MUSIC_CH2_CTRL    0xBF6E
+
+#define TINY16_MMIO_APU_MUSIC_CH3_ADDR_HI 0xBF6F
+#define TINY16_MMIO_APU_MUSIC_CH3_ADDR_LO 0xBF70
+#define TINY16_MMIO_APU_MUSIC_CH3_LEN_HI  0xBF71
+#define TINY16_MMIO_APU_MUSIC_CH3_LEN_LO  0xBF72
+#define TINY16_MMIO_APU_MUSIC_CH3_CTRL    0xBF73
+
+#define TINY16_MMIO_APU_MUSIC_STATUS 0xBF74 // R: bits 0-3 = channel playing status
 
 // RESERVED (0xBFF0 - 0xBFFF)
 
