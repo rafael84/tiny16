@@ -1,0 +1,57 @@
+; word - 16-bit (word) operations using macros
+(ns word)
+
+; Add 16-bit: dest += src
+; Usage: (word/add16! bird_y bird_vel)
+; Requires: {dest}_hi, {dest}_lo, {src}_hi, {src}_lo defined as data
+(defmacro add16! (dest src)
+  (let (lo (peek16 {dest}_lo)
+        src-lo (peek16 {src}_lo)
+        new-lo (+ lo src-lo)
+        carry (if (< new-lo lo) 1 0)
+        hi (peek16 {dest}_hi)
+        src-hi (peek16 {src}_hi)
+        new-hi (+ hi (+ src-hi carry)))
+    (poke16 {dest}_hi new-hi)
+    (poke16 {dest}_lo new-lo)))
+
+; Add 16-bit immediate: dest += constant
+; Usage: (word/add16i! bird_vel 70)
+(defmacro add16i! (dest val)
+  (let (lo (peek16 {dest}_lo)
+        new-lo (+ lo (lo {val}))
+        carry (if (< new-lo lo) 1 0)
+        hi (peek16 {dest}_hi)
+        new-hi (+ hi (+ (hi {val}) carry)))
+    (poke16 {dest}_hi new-hi)
+    (poke16 {dest}_lo new-lo)))
+
+; Subtract 16-bit: dest -= src
+; Usage: (word/sub16! bird_y bird_vel)
+(defmacro sub16! (dest src)
+  (let (lo (peek16 {dest}_lo)
+        src-lo (peek16 {src}_lo)
+        new-lo (- lo src-lo)
+        borrow (if (> new-lo lo) 1 0)
+        hi (peek16 {dest}_hi)
+        src-hi (peek16 {src}_hi)
+        new-hi (- hi (+ src-hi borrow)))
+    (poke16 {dest}_hi new-hi)
+    (poke16 {dest}_lo new-lo)))
+
+; Set 16-bit value: dest = val
+; Usage: (word/set16! bird_y 60)
+(defmacro set16! (dest val)
+  (do
+    (poke16 {dest}_hi (hi {val}))
+    (poke16 {dest}_lo (lo {val}))))
+
+; Increment 16-bit value: dest++
+; Usage: (word/inc16! score)
+(defmacro inc16! (dest)
+  (poke16 {dest} (inc (peek16 {dest}))))
+
+; Decrement 16-bit value: dest--
+; Usage: (word/dec16! counter)
+(defmacro dec16! (dest)
+  (poke16 {dest} (dec (peek16 {dest}))))

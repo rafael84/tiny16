@@ -42,3 +42,15 @@
   (if (< x 0)
       (- 0 1)
       (if (> x 0) 1 0)))
+
+(defmacro when (cond body)
+  (if {cond} (do {body}) 0))
+
+(defmacro when-not (cond body)
+  (if {cond} 0 (do {body})))
+
+(defmacro inc! (var)
+  (set {var} (inc {var})))
+
+(defmacro dec! (var)
+  (set {var} (dec {var})))
