@@ -83,10 +83,17 @@ When editing a `.se` file:
 2. Press `gd` to jump to its definition
 3. Press `<C-o>` to jump back
 
+**Namespace Support**: The plugin fully supports namespaced symbols:
+
+- Jump to `apu/NOTE_C3` will find `NOTE_C3` in the file declaring `(ns apu)`
+- Jump to a namespace name (e.g., `apu` in a `require` statement) opens the namespace file
+- Both qualified (`apu/init`) and unqualified (`init`) lookups are supported
+
 Available commands:
 
 - `:Tiny16SeIndex` - Re-index all definitions in project
 - `:Tiny16SeGoto` - Jump to definition under cursor
+- `:Tiny16SeNamespaces` - List all indexed namespaces and their files
 
 ### Syntax Highlighting
 

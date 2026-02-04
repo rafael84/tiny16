@@ -1,5 +1,6 @@
 -- tiny16se goto definition plugin
 -- Simple implementation for jumping to function/constant definitions
+-- Supports namespaced symbols (ns/symbol) from required modules
 -- No external dependencies required
 
 local M = {}
@@ -8,6 +9,13 @@ local M = {}
 -- Structure: { symbol_name = { file = path, line = num, col = num } }
 local definitions = {}
 
+-- Cache for namespace mappings
+-- Structure: { namespace_name = filepath }
+local namespaces = {}
+
+-- Track if full project has been indexed
+local project_indexed = false
+
 -- Parse a single file for definitions
 local function parse_file(filepath)
 	local file = io.open(filepath, "r")
@@ -15,29 +23,50 @@ local function parse_file(filepath)
 		return
 	end
 
+	local current_ns = nil
 	local line_num = 0
+
 	for line in file:lines() do
 		line_num = line_num + 1
+
+		-- Match (ns namespace-name) - namespace declaration
+		local ns_name = line:match("^%s*%(%s*ns%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
+		if ns_name then
+			current_ns = ns_name
+			namespaces[ns_name] = filepath
+		end
 
 		-- Match (defn name ...)
 		local defn_name = line:match("^%s*%(%s*defn%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
 		if defn_name then
 			local col = line:find(defn_name, 1, true) or 1
+			-- Store both unqualified and qualified (ns/name) versions
 			definitions[defn_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. defn_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
 		end
 
 		-- Match (def NAME ...)
 		local def_name = line:match("^%s*%(%s*def%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
 		if def_name then
 			local col = line:find(def_name, 1, true) or 1
+			-- Store both unqualified and qualified (ns/name) versions
 			definitions[def_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. def_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
 		end
 
 		-- Match (data name ...)
 		local data_name = line:match("^%s*%(%s*data%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
 		if data_name then
 			local col = line:find(data_name, 1, true) or 1
+			-- Store both unqualified and qualified (ns/name) versions
 			definitions[data_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. data_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
 		end
 	end
 
@@ -71,28 +100,30 @@ end
 -- Index all .se files in the project
 function M.index_project()
 	definitions = {}
+	namespaces = {}
 	local files = find_se_files()
 
 	for _, file in ipairs(files) do
 		parse_file(file)
 	end
 
-	print(string.format("Indexed %d definitions from %d files", vim.tbl_count(definitions), #files))
+	project_indexed = true
+	print(string.format("Indexed %d definitions (%d namespaces) from %d files", vim.tbl_count(definitions), vim.tbl_count(namespaces), #files))
 end
 
--- Get the symbol under the cursor
+-- Get the symbol under the cursor (supports namespaced symbols like ns/symbol)
 local function get_symbol_under_cursor()
 	local line = vim.api.nvim_get_current_line()
 	local col = vim.api.nvim_win_get_cursor(0)[2] + 1
 
-	-- Find word boundaries (tiny16se identifiers)
+	-- Find word boundaries (tiny16se identifiers, including / for namespaced symbols)
 	local start_col = col
-	while start_col > 1 and line:sub(start_col - 1, start_col - 1):match("[a-zA-Z0-9_%-]") do
+	while start_col > 1 and line:sub(start_col - 1, start_col - 1):match("[a-zA-Z0-9_%-/]") do
 		start_col = start_col - 1
 	end
 
 	local end_col = col
-	while end_col <= #line and line:sub(end_col, end_col):match("[a-zA-Z0-9_%-]") do
+	while end_col <= #line and line:sub(end_col, end_col):match("[a-zA-Z0-9_%-/]") do
 		end_col = end_col + 1
 	end
 
@@ -102,8 +133,9 @@ local function get_symbol_under_cursor()
 
 	local symbol = line:sub(start_col, end_col - 1)
 
-	-- Verify it's a valid identifier
-	if symbol:match("^[a-zA-Z_%-][a-zA-Z0-9_%-]*$") then
+	-- Verify it's a valid identifier (with optional namespace prefix)
+	-- Matches: identifier OR namespace/identifier
+	if symbol:match("^[a-zA-Z_%-][a-zA-Z0-9_%-]*$") or symbol:match("^[a-zA-Z_%-][a-zA-Z0-9_%-]*/[a-zA-Z_%-][a-zA-Z0-9_%-]*$") then
 		return symbol
 	end
 
@@ -112,9 +144,10 @@ end
 
 -- Jump to definition
 function M.goto_definition()
-	-- Index the project if definitions are empty
-	if vim.tbl_count(definitions) == 0 then
+	-- Index the project if not yet done
+	if not project_indexed then
 		M.index_project()
+		project_indexed = true
 	end
 
 	local symbol = get_symbol_under_cursor()
@@ -123,16 +156,36 @@ function M.goto_definition()
 		return
 	end
 
+	-- First, check if it's a direct definition match
 	local def = definitions[symbol]
-	if not def then
-		print(string.format("Definition not found: %s", symbol))
+	if def then
+		vim.cmd(string.format("edit +%d %s", def.line, def.file))
+		vim.api.nvim_win_set_cursor(0, { def.line, def.col })
+		print(string.format("Jumped to definition of %s", symbol))
 		return
 	end
 
-	-- Jump to the definition
-	vim.cmd(string.format("edit +%d %s", def.line, def.file))
-	vim.api.nvim_win_set_cursor(0, { def.line, def.col })
-	print(string.format("Jumped to definition of %s", symbol))
+	-- If not found, check if it's a namespace name (e.g., from require statement)
+	local ns_file = namespaces[symbol]
+	if ns_file then
+		vim.cmd(string.format("edit %s", ns_file))
+		vim.api.nvim_win_set_cursor(0, { 1, 0 })
+		print(string.format("Jumped to namespace %s", symbol))
+		return
+	end
+
+	-- If it's a namespaced symbol that wasn't found, provide helpful message
+	local ns, name = symbol:match("^([a-zA-Z_%-][a-zA-Z0-9_%-]*)/([a-zA-Z_%-][a-zA-Z0-9_%-]*)$")
+	if ns then
+		if namespaces[ns] then
+			print(string.format("Symbol '%s' not found in namespace '%s' (%s)", name, ns, namespaces[ns]))
+		else
+			print(string.format("Namespace '%s' not found (symbol: %s)", ns, name))
+		end
+		return
+	end
+
+	print(string.format("Definition not found: %s", symbol))
 end
 
 -- Re-parse current file
@@ -143,11 +196,24 @@ function M.update_current_file()
 	end
 end
 
+-- List all indexed namespaces
+function M.list_namespaces()
+	if vim.tbl_count(namespaces) == 0 then
+		M.index_project()
+	end
+
+	print("Indexed namespaces:")
+	for ns, filepath in pairs(namespaces) do
+		print(string.format("  %s -> %s", ns, filepath))
+	end
+end
+
 -- Setup function to be called from init.lua
 function M.setup()
 	-- Create commands
 	vim.api.nvim_create_user_command("Tiny16SeIndex", M.index_project, {})
 	vim.api.nvim_create_user_command("Tiny16SeGoto", M.goto_definition, {})
+	vim.api.nvim_create_user_command("Tiny16SeNamespaces", M.list_namespaces, {})
 
 	-- Auto-index on enter and after save
 	vim.api.nvim_create_autocmd("BufRead", {
