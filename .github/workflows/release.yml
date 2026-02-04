@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: write
@@ -39,13 +39,13 @@ jobs:
         run: make raylib-build
 
       - name: Build project
-        run: make asm emulator
+        run: make asm sec emulator
 
       - name: Package (Unix)
         if: matrix.platform != 'windows'
         run: |
           mkdir -p dist
-          cp bin/tiny16-asm bin/tiny16-emu dist/
+          cp build/tiny16-asm build/tiny16-sec build/tiny16-emu dist/
           tar -czvf ${{ matrix.artifact }}.tar.gz -C dist .
 
       - name: Package (Windows)
@@ -53,7 +53,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist
-          cp bin/tiny16-asm.exe bin/tiny16-emu.exe dist/
+          cp build/tiny16-asm.exe build/tiny16-sec.exe build/tiny16-emu.exe dist/
           7z a ${{ matrix.artifact }}.zip ./dist/*
 
       - name: Upload artifact
