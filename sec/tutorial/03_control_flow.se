@@ -1,5 +1,4 @@
 ; Tutorial 03: Control Flow (if/while)
-;
 ; Build:
 ;   ./build/tiny16-sec sec/tutorial/03_control_flow.se build/03_control_flow.asm
 ;   ./build/tiny16-asm build/03_control_flow.asm build/03_control_flow.tiny16

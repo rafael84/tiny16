@@ -1,12 +1,9 @@
 ; Exercise 20: Post-Increment Addressing
 ; Level: 3 - Memory & Data Structures
-;
 ; Goal: Read first 3 elements of an array using post-increment
 ;       Array: [5, 10, 15, 20, 25] at 0x4000
-;
 ; Instructions to use: LOADI, LOAD with [PAIR]+, HALT
 ; Expected result: R0=5, R1=10, R2=15, R6:R7=0x4003
-;
 ; Hint: [PAIR]+ means: access memory at PAIR, then increment PAIR by 1
 ; Hint: Post-increment automatically advances to next array element
 ; Hint: This is the most efficient way to traverse arrays

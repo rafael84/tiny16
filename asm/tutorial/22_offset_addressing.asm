@@ -1,12 +1,9 @@
 ; Exercise 22: Offset Addressing for Structs
 ; Level: 3 - Memory & Data Structures
-;
 ; Goal: Access struct-like data using offset addressing
 ;       Struct at 0x4000: {id: 1, x: 50, y: 75, color: 255}
-;
 ; Instructions to use: LOADI, LOAD with offsets, HALT
 ; Expected result: R0=1, R1=50, R2=75, R3=255
-;
 ; Hint: Offset addressing is perfect for struct field access
 ; Hint: Base address stays constant, offsets reach different fields
 ; Hint: [PAIR + N] doesn't modify PAIR

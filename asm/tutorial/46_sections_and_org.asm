@@ -1,9 +1,7 @@
 ; Tutorial 46: Sections and ORG
 ; Level: 7 - Assembler Power Features
-;
 ; Goal: Read array at 0x4020, compute sum, store at 0x4100
 ; Expected: Memory[0x4100] = 0x96 (150 = sum of 10,20,30,40,50)
-;
 ; Concepts: Multiple ORG directives, expressions in immediates
 
 ARRAY_ADDR  = 0x4020

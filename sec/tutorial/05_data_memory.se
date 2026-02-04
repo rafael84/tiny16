@@ -1,5 +1,4 @@
 ; Tutorial 05: Data & Memory
-;
 ; Build:
 ;   ./build/tiny16-sec sec/tutorial/05_data_memory.se build/05_data_memory.asm
 ;   ./build/tiny16-asm build/05_data_memory.asm build/05_data_memory.tiny16

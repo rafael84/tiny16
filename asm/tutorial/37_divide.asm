@@ -1,12 +1,9 @@
 ; Exercise 37: 8-bit Division
 ; Level: 5 - Advanced Arithmetic
-;
 ; Goal: Divide 42 / 7 = 6 using repeated subtraction
 ;       Count how many times divisor can be subtracted from dividend
-;
 ; Instructions to use: LOADI, SUB, INC, CMP, JC, HALT
 ; Expected result: R0 = 6 (quotient)
-;
 ; Hint: Division is repeated subtraction: 42-7-7-7-7-7-7 = 0 (6 times)
 ; Hint: Count subtractions until dividend < divisor
 ; Hint: Use CMP and JC to detect when dividend < divisor

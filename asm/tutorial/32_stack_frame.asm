@@ -1,20 +1,16 @@
 ; Exercise 32: Stack-Based Parameters with Frame Pointer
 ; Level: 4 - Stack & Subroutines
-;
 ; Goal: Pass three arguments via the stack to a function
 ;       Function uses frame pointer to access arguments, computes sum
 ;       Also demonstrates local variables with negative offsets
 ;       Call sum(5, 10, 15) and get R0 = 30
-;
 ; Instructions to use: LOADI, PUSH, MOVSPR, LOAD, STORE, ADD, CALL, RET, HALT
 ; Expected result: R0 = 30
-;
 ; Hint: Push arguments in reverse order: arg3, arg2, arg1
 ; Hint: Function uses MOVSPR to get frame pointer (SP into R6:R7)
 ; Hint: Access arguments via POSITIVE offset: [R6:R7 + offset]
 ; Hint: Access local variables via NEGATIVE offset: [R6:R7 - offset]
 ; Hint: Signed offsets range from -128 to +127
-;
 ; Stack layout after MOVSPR and local allocation:
 ;   Higher addresses
 ;   [FP + 5] = arg1 (5)  - first pushed

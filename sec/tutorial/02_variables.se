@@ -1,5 +1,4 @@
 ; Tutorial 02: Variables & Mutation
-;
 ; Build:
 ;   ./build/tiny16-sec sec/tutorial/02_variables.se build/02_variables.asm
 ;   ./build/tiny16-asm build/02_variables.asm build/02_variables.tiny16

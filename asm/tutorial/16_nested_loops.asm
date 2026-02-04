@@ -1,13 +1,10 @@
 ; Exercise 16: Nested Loops
 ; Level: 2 - Control Flow
-;
 ; Goal: Implement nested loops to count iterations
 ;       Outer loop: 3 times, Inner loop: 4 times each
 ;       Count total iterations in R0 (should be 3 * 4 = 12)
-;
 ; Instructions to use: LOADI, INC, DEC, JNZ, HALT
 ; Expected result: R0 = 12
-;
 ; Hint: Use R1 for outer loop counter, R2 for inner loop counter
 ; Hint: Must reload R2 for each outer iteration
 ; Hint: Nested structure: outer_loop { inner_loop { count++ } }

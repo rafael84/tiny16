@@ -27,9 +27,7 @@ static char* preprocess_source(const char* filename);
 int main(int argc, char** argv) {
     make_and_parse_args(argc, argv);
 
-    //
     // Pass 0: Preprocess (expand macros and includes)
-    //
 
     char* source_content = preprocess_source(args.source_filename);
     if (source_content == NULL) {
@@ -72,9 +70,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    //
     // Pass 1: Collect labels and parse data section
-    //
 
     parser.lexer = lexer_new(source_content, strlen(source_content));
     tiny16_parser_next(&parser);
@@ -141,9 +137,7 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    //
     // Pass 2: Emit code section
-    //
 
     parser.current_section = TINY16_PARSER_SECTION_CODE;
     parser.code_pc = TINY16_MEMORY_CODE_BEGIN;

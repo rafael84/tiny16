@@ -179,16 +179,13 @@ bool tiny16_cpu_step(Tiny16CPU* cpu, void* memory_context, tiny16_mem_read_fn me
 
     case TINY16_OPCODE_LOAD:
     case TINY16_OPCODE_STORE: {
-        //
         // BYTE 0 : OPCODE   (LOAD / STORE)
         // BYTE 1 : REG | MODE | PAIR
         // BYTE 2 : AUX (offset or 0)
-        //
         // BYTE 1  bits 7–5 : REG    (Rd or Rs)
         //         bits 4–3 : MODE   (addressing mode)
         //         bits 2–1 : PAIR   (00–11)
         //         bit  0   : unused (0)
-        //
 
         uint8_t reg = (arg1 >> 5) & 0x7;
         Tiny16AddrMode mode = (arg1 >> 3) & 0x3;

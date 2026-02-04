@@ -1,12 +1,9 @@
 ; Exercise 24: Array Copy
 ; Level: 3 - Memory & Data Structures
-;
 ; Goal: Copy 5 bytes from source (0x4000) to destination (0x4010)
 ;       Use two register pairs: R6:R7 for source, R4:R5 for dest
-;
 ; Instructions to use: LOADI, LOAD, STORE, post-increment, DEC, JNZ, HALT
 ; Expected result: Bytes at 0x4010-0x4014 = [10, 20, 30, 40, 50]
-;
 ; Hint: Use R6:R7 for source, R4:R5 for destination
 ; Hint: Post-increment on both pairs: [R6:R7]+ and [R4:R5]+
 ; Hint: Load from source, store to destination, repeat

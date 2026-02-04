@@ -1,5 +1,4 @@
 ; Tutorial 04: Functions & Composition
-;
 ; Build:
 ;   ./build/tiny16-sec sec/tutorial/04_functions.se build/04_functions.asm
 ;   ./build/tiny16-asm build/04_functions.asm build/04_functions.tiny16
