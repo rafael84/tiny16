@@ -365,7 +365,6 @@ void tiny16_apu_reset(Tiny16APU* apu) {
     apu->lock = 0;
     apu->enabled = false;
     apu->master_volume = 0;
-    apu->sample_accum = 0;
     apu->frame_samples = 0;
     apu->memory = NULL;
 
@@ -460,8 +459,10 @@ static void update_sfx(Tiny16APU* apu) {
 // [2] duration (frames)
 // [3] waveform (0-7)
 
-static void play_music_note(Tiny16MusicChannel* mch, uint8_t note, uint8_t volume,
+static void music_play_note(Tiny16MusicChannel* mch, uint8_t note, uint8_t volume, uint8_t duration,
                             uint8_t waveform) {
+    mch->frames_left = duration;
+
     if (note == 0) {
         mch->volume = 0;
         return;
@@ -470,20 +471,18 @@ static void play_music_note(Tiny16MusicChannel* mch, uint8_t note, uint8_t volum
     mch->volume = volume & 0x0F;
     mch->waveform = waveform & 0x07;
 
+    uint8_t note_idx = note - 1;
+    if (note_idx >= NOTE_TABLE_SIZE) {
+        mch->volume = 0;
+        return;
+    }
+    mch->freq = note_freq[note_idx];
+    mch->phase_inc = calc_phase_inc(mch->freq);
+    mch->phase = 0;
+
     if (waveform == TINY16_APU_WAVE_NOISE) {
-        uint8_t period = (note <= 15) ? note : 8;
-        mch->freq = period << 7;
         mch->lfsr = LFSR_SEED;
         mch->noise_timer = 0;
-    } else {
-        uint8_t note_idx = note - 1;
-        if (note_idx >= NOTE_TABLE_SIZE) {
-            mch->volume = 0;
-            return;
-        }
-        mch->freq = note_freq[note_idx];
-        mch->phase_inc = calc_phase_inc(mch->freq);
-        mch->phase = 0;
     }
 }
 
@@ -537,8 +536,7 @@ static void update_music_channel(Tiny16APU* apu, int ch) {
     uint8_t duration = mem->bytes[addr + 2];
     uint8_t waveform = mem->bytes[addr + 3];
 
-    play_music_note(mch, note, volume, waveform);
-    mch->frames_left = duration;
+    music_play_note(mch, note, volume, duration, waveform);
 
     mch->current_note++;
     if (mch->current_note >= mch->track_length) {
@@ -727,19 +725,6 @@ uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr) {
 // =============================================================================
 // Sample Generation
 // =============================================================================
-
-uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz) {
-    if (cpu_hz == 0) return 0;
-
-    apu_lock(apu);
-    uint64_t add = (uint64_t)cpu_cycles * TINY16_APU_SAMPLE_RATE;
-    uint64_t accum = apu->sample_accum + add;
-    uint32_t frames = (uint32_t)(accum / cpu_hz);
-    apu->sample_accum = accum - (uint64_t)frames * cpu_hz;
-    apu_unlock(apu);
-
-    return frames;
-}
 
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames) {
     apu_lock(apu);

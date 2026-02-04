@@ -99,7 +99,6 @@ typedef struct {
     volatile int lock;
     bool enabled;
     uint8_t master_volume;
-    uint64_t sample_accum;
 
     Tiny16APUChannel ch[TINY16_APU_NUM_CHANNELS];
 
@@ -114,5 +113,4 @@ typedef struct {
 void tiny16_apu_reset(Tiny16APU* apu);
 void tiny16_apu_mmio_write(Tiny16APU* apu, uint16_t addr, uint8_t value);
 uint8_t tiny16_apu_mmio_read(Tiny16APU* apu, uint16_t addr);
-uint32_t tiny16_apu_samples_for_cycles(Tiny16APU* apu, uint32_t cpu_cycles, uint32_t cpu_hz);
 void tiny16_apu_generate_samples(Tiny16APU* apu, float* buffer, unsigned int frames);

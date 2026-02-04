@@ -16,6 +16,50 @@
 (def WAVE_PHASER   7)
 
 ; =============================================================================
+; Envelope Presets (ADSR)
+; =============================================================================
+; Format for env_ad: attack[7:4] | decay[3:0]
+; Format for env_sr: sustain[7:4] | release[3:0]
+; Time values: 0=instant, 1=0.005s, 2=0.01s, 3=0.02s, 4=0.04s, 5=0.06s,
+;              6=0.08s, 7=0.10s, 8=0.15s, 9=0.20s, A=0.30s, B=0.40s,
+;              C=0.60s, D=0.80s, E=1.00s, F=1.50s
+; Sustain values: 0=silent, F=full volume
+
+; Attack/Decay (AD) presets
+(def ENV_SMOOTH_AD  0x11)  ; smooth attack/decay for melody
+(def ENV_PLUCK_AD   0x12)  ; fast attack, medium decay
+(def ENV_ORGAN_AD   0x00)  ; instant on/off
+(def ENV_KICK_AD    0x05)  ; instant attack, 0.06s decay (punchy)
+(def ENV_SNARE_AD   0x03)  ; instant attack, 0.02s decay (snappy)
+(def ENV_HIHAT_AD   0x02)  ; instant attack, 0.01s decay (crisp)
+(def ENV_BRASS_AD   0x23)  ; medium attack, medium decay
+(def ENV_STRINGS_AD 0x45)  ; slow attack, slow decay
+
+; Sustain/Release (SR) presets
+(def ENV_SMOOTH_SR  0xF2)  ; full sustain, fast release
+(def ENV_PLUCK_SR   0x03)  ; no sustain, fast decay
+(def ENV_ORGAN_SR   0xF0)  ; full sustain, instant release
+(def ENV_KICK_SR    0x02)  ; no sustain, instant release
+(def ENV_SNARE_SR   0x01)  ; no sustain, instant release
+(def ENV_HIHAT_SR   0x01)  ; no sustain, instant release
+(def ENV_HIHAT_OPEN_SR 0x62); medium sustain, fast release (open hi-hat)
+(def ENV_TOM_SR     0x02)  ; no sustain, instant release (toms)
+(def ENV_CRASH_SR   0x08)  ; no sustain, medium release (crash)
+(def ENV_RIDE_SR    0x42)  ; low sustain, fast release (ride)
+(def ENV_BRASS_SR   0xC3)  ; high sustain, medium release
+(def ENV_STRINGS_SR 0xE5)  ; very high sustain, slow release
+
+; Legacy combined names (for backwards compatibility - use AD for env_ad, SR for env_sr)
+(def ENV_SMOOTH     ENV_SMOOTH_AD)
+(def ENV_PLUCK      ENV_PLUCK_AD)
+(def ENV_ORGAN      ENV_ORGAN_AD)
+(def ENV_KICK       ENV_KICK_AD)
+(def ENV_SNARE      ENV_SNARE_AD)
+(def ENV_HIHAT      ENV_HIHAT_AD)
+(def ENV_BRASS      ENV_BRASS_AD)
+(def ENV_STRINGS    ENV_STRINGS_AD)
+
+; =============================================================================
 ; Master Control
 ; =============================================================================
 (def APU_CTRL   (+ MMIO_BASE 0x40))
@@ -201,7 +245,11 @@
 ; =============================================================================
 ; Music System
 ; =============================================================================
-; Track format (4 bytes per note): note, volume, duration, waveform
+; Track format (4 bytes per note):
+;   note      - 0=rest, 1-60=C2 to B6 (use NOTE_ constants)
+;   volume    - 0-15 (use DYN_ constants)
+;   duration  - frames (use DUR_ constants)
+;   waveform  - 0-7 (use WAVE_ constants)
 
 (def MUSIC_CH0_ADDR_HI (+ MMIO_BASE 0x60))
 (def MUSIC_CH0_ADDR_LO (+ MMIO_BASE 0x61))
