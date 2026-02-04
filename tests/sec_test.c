@@ -12,6 +12,8 @@
 #include "../sec/codegen.h"
 #include "../sec/lexer.c"
 #include "../sec/lexer.h"
+#include "../sec/macro.c"
+#include "../sec/macro.h"
 #include "../sec/parser.c"
 #include "../sec/parser.h"
 
@@ -72,6 +74,14 @@ void test_parser_require_empty(void);
 void test_parser_error_expected_lparen(void);
 void test_parser_error_expected_rparen(void);
 void test_parser_error_unknown_form(void);
+
+// =============================================================================
+// Macro Tests
+// =============================================================================
+
+void test_macro_simple_substitution(void);
+void test_macro_suffix_substitution(void);
+void test_macro_numeric_args(void);
 
 // =============================================================================
 // Codegen Tests
@@ -149,6 +159,11 @@ int main(void) {
     TEST(test_parser_error_expected_lparen);
     TEST(test_parser_error_expected_rparen);
     TEST(test_parser_error_unknown_form);
+
+    // Macro tests
+    TEST(test_macro_simple_substitution);
+    TEST(test_macro_suffix_substitution);
+    TEST(test_macro_numeric_args);
 
     // Codegen tests
     TEST(test_codegen_def);
@@ -891,6 +906,11 @@ static char* codegen_to_string(const char* input) {
         return NULL;
     }
 
+    SeMacroTable macros;
+    se_macro_init(&macros);
+    se_macro_collect(&macros, &program);
+    se_macro_expand(&macros, &program, &pool);
+
     // Use a temporary file for output
     FILE* tmp = tmpfile();
     if (!tmp) return NULL;
@@ -1061,5 +1081,38 @@ void test_integration_data_and_code(void) {
     TEST_ASSERT(strstr(output, "MSG_ADDR") != NULL);
     TEST_ASSERT(strstr(output, "msg:") != NULL);
     TEST_ASSERT(strstr(output, "main:") != NULL);
+    free(output);
+}
+
+// =============================================================================
+// Macro Test Implementations
+// =============================================================================
+
+void test_macro_simple_substitution(void) {
+    const char* input = "(defmacro inc-var (v) (set {v} (+ {v} 1))) "
+                        "(defn test () (let (x 10) (inc-var x) x))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "test:") != NULL);
+    free(output);
+}
+
+void test_macro_suffix_substitution(void) {
+    const char* input = "(data pos_hi (db 0)) (data pos_lo (db 10)) "
+                        "(defmacro read16 (v) (peek16 {v}_lo)) "
+                        "(defn test () (read16 pos))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "pos_lo") != NULL);
+    free(output);
+}
+
+void test_macro_numeric_args(void) {
+    const char* input = "(data val (db 0)) "
+                        "(defmacro set-val (v) (poke16 val {v})) "
+                        "(defn test () (set-val 42))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "0x2A") != NULL || strstr(output, "42") != NULL);
     free(output);
 }
