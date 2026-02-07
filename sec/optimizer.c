@@ -1515,7 +1515,7 @@ static bool is_recursive(AstNode* defn) {
 
 // Deep-copy an AST node, substituting parameter symbols with argument nodes
 static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
-                                 const char params[][SE_MAX_SYMBOL_LEN],
+                                 char params[][SE_MAX_SYMBOL_LEN],
                                  AstNode** args, size_t param_count) {
     if (!node) return NULL;
 
@@ -1588,19 +1588,6 @@ static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
     return n;
 }
 
-// Count how many times a function is called in the program
-static int count_call_uses(AstProgram* program, const char* func_name) {
-    FuncSet calls;
-    calls.count = 0;
-    for (size_t i = 0; i < program->node_count; i++) {
-        collect_calls(program->nodes[i], &calls);
-    }
-    int count = 0;
-    for (size_t i = 0; i < calls.count; i++) {
-        if (strcmp(calls.names[i], func_name) == 0) count++;
-    }
-    return count;
-}
 
 // Inline call sites for eligible functions
 static AstNode* inline_calls(AstPool* pool, AstNode* node, AstProgram* program) {
