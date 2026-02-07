@@ -2360,6 +2360,7 @@ void test_optimizer_cprop_immutable_let(void) {
 
 void test_optimizer_dead_fn_elim(void) {
     // Unreachable functions should be removed at -O2
+    // Note: simple leaf functions get inlined, then become dead too
     const char* input = "(defn unused () 42) "
                         "(defn also-unused () 99) "
                         "(defn helper () 1) "
@@ -2375,26 +2376,26 @@ void test_optimizer_dead_fn_elim(void) {
 
     se_optimize(&program, &pool, SE_OPT_FULL);
 
-    // Only main and helper should remain (unused and also-unused removed)
+    // After inlining + dead fn elimination: only main remains
+    // (helper was inlined into main, then became dead)
     int fn_count = 0;
-    bool has_main = false, has_helper = false, has_unused = false;
+    bool has_main = false, has_unused = false;
     for (size_t i = 0; i < program.node_count; i++) {
         if (program.nodes[i]->kind == AST_DEFN) {
             fn_count++;
             if (strcmp(program.nodes[i]->as.defn.name, "main") == 0) has_main = true;
-            if (strcmp(program.nodes[i]->as.defn.name, "helper") == 0) has_helper = true;
             if (strcmp(program.nodes[i]->as.defn.name, "unused") == 0) has_unused = true;
         }
     }
-    TEST_ASSERT(fn_count == 2);
+    TEST_ASSERT(fn_count == 1);
     TEST_ASSERT(has_main);
-    TEST_ASSERT(has_helper);
     TEST_ASSERT(!has_unused);
     ast_pool_free(&pool);
 }
 
 void test_optimizer_dead_fn_keeps_transitive(void) {
-    // main -> a -> b: all three should be kept
+    // main -> a -> b: small leaf functions get inlined transitively,
+    // then become dead. With inlining, a and b get inlined into main.
     const char* input = "(defn b () 1) "
                         "(defn a () (b)) "
                         "(defn dead () 99) "
@@ -2409,19 +2410,18 @@ void test_optimizer_dead_fn_keeps_transitive(void) {
 
     se_optimize(&program, &pool, SE_OPT_FULL);
 
+    // After inlining + dead fn elim: only main remains
     int fn_count = 0;
-    bool has_a = false, has_b = false, has_dead = false;
+    bool has_dead = false, has_main = false;
     for (size_t i = 0; i < program.node_count; i++) {
         if (program.nodes[i]->kind == AST_DEFN) {
             fn_count++;
-            if (strcmp(program.nodes[i]->as.defn.name, "a") == 0) has_a = true;
-            if (strcmp(program.nodes[i]->as.defn.name, "b") == 0) has_b = true;
             if (strcmp(program.nodes[i]->as.defn.name, "dead") == 0) has_dead = true;
+            if (strcmp(program.nodes[i]->as.defn.name, "main") == 0) has_main = true;
         }
     }
-    TEST_ASSERT(fn_count == 3); // main, a, b
-    TEST_ASSERT(has_a);
-    TEST_ASSERT(has_b);
+    TEST_ASSERT(fn_count == 1); // only main
+    TEST_ASSERT(has_main);
     TEST_ASSERT(!has_dead);
     ast_pool_free(&pool);
 }
