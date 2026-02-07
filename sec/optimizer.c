@@ -151,6 +151,17 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
             return node->as.binary.left;
         if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
             return node->as.binary.right;
+        // Strength: (+ x 1) -> (inc x), (+ 1 x) -> (inc x)
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 1) {
+            node->kind = AST_INC;
+            node->as.unary.operand = node->as.binary.left;
+            return node;
+        }
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 1) {
+            node->kind = AST_INC;
+            node->as.unary.operand = node->as.binary.right;
+            return node;
+        }
         break;
     case AST_SUB:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -161,6 +172,12 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
         // Identity: (- x 0) -> x
         if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
             return node->as.binary.left;
+        // Strength: (- x 1) -> (dec x)
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 1) {
+            node->kind = AST_DEC;
+            node->as.unary.operand = node->as.binary.left;
+            return node;
+        }
         break;
     case AST_MUL:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
