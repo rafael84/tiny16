@@ -290,7 +290,8 @@ struct AstNode {
         struct {
             char name[SE_MAX_SYMBOL_LEN];
             char fields[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
-            bool field_is_16bit[SE_MAX_PARAMS]; // true if field has ^i16 or ^u16 hint
+            bool field_is_16bit[SE_MAX_PARAMS];  // true if field has ^i16 or ^u16 hint
+            bool field_is_signed[SE_MAX_PARAMS]; // true if field has ^i16 or ^i8 hint
             size_t field_count;
         } defrecord;
 

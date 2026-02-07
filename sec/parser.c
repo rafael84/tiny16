@@ -1203,6 +1203,7 @@ static AstNode* parse_defrecord(SeParser* parser) {
 
         size_t idx = node->as.defrecord.field_count;
         node->as.defrecord.field_is_16bit[idx] = false;
+        node->as.defrecord.field_is_signed[idx] = false;
 
         // Check for ^hint annotation
         if (parser->current.kind == SE_TOKEN_SYMBOL && parser->current.text_len > 0 &&
@@ -1212,6 +1213,11 @@ static AstNode* parse_defrecord(SeParser* parser) {
                  (strncmp(parser->current.text, "^i16", 4) == 0 ||
                   strncmp(parser->current.text, "^u16", 4) == 0))) {
                 node->as.defrecord.field_is_16bit[idx] = true;
+            }
+            // Check if it's ^i16 or ^i8 (signed)
+            if ((parser->current.text_len == 4 && (strncmp(parser->current.text, "^i16", 4) == 0 ||
+                                                   strncmp(parser->current.text, "^i8", 3) == 0))) {
+                node->as.defrecord.field_is_signed[idx] = true;
             }
             advance(parser); // skip hint
         }

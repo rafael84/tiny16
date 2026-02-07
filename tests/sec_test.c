@@ -222,6 +222,12 @@ void test_codegen_or_short_circuit(void);
 void test_codegen_optimized_while_loop(void);
 void test_codegen_optimized_for_range(void);
 
+// ^i16 record fields in arrays — expr_is_16bit/expr_is_signed for (nth arr i)
+void test_parser_defrecord_field_is_signed(void);
+void test_codegen_i16_field_nth_is_16bit(void);
+void test_codegen_i16_field_nth_arithmetic(void);
+void test_codegen_shl_u8_by_8_is_16bit(void);
+
 int main(void) {
     test_init();
 
@@ -380,6 +386,10 @@ int main(void) {
     TEST(test_codegen_or_short_circuit);
     TEST(test_codegen_optimized_while_loop);
     TEST(test_codegen_optimized_for_range);
+    TEST(test_parser_defrecord_field_is_signed);
+    TEST(test_codegen_i16_field_nth_is_16bit);
+    TEST(test_codegen_i16_field_nth_arithmetic);
+    TEST(test_codegen_shl_u8_by_8_is_16bit);
 
     return test_run_all();
 }
@@ -2610,5 +2620,78 @@ void test_codegen_optimized_for_range(void) {
     TEST_ASSERT(strstr(output, "main:") != NULL);
     // Should have comparison against 4
     TEST_ASSERT(strstr(output, "0x04") != NULL);
+    free(output);
+}
+
+// ---------------------------------------------------------------------------
+// Tests for ^i16 record field fixes
+// ---------------------------------------------------------------------------
+
+void test_parser_defrecord_field_is_signed(void) {
+    // Parser should track field_is_signed for ^i16 hints
+    const char* input = "(defrecord entity (^i16 x ^u16 y hp))";
+    AstPool pool;
+    ast_pool_init(&pool);
+    SeParser parser;
+    se_parser_init(&parser, input, strlen(input), &pool);
+
+    AstNode* node = se_parser_parse_form(&parser);
+    TEST_ASSERT(node != NULL);
+    TEST_ASSERT(node->kind == AST_DEFRECORD);
+    TEST_ASSERT(node->as.defrecord.field_count == 3);
+    // ^i16 x — 16-bit and signed
+    TEST_ASSERT(node->as.defrecord.field_is_16bit[0]);
+    TEST_ASSERT(node->as.defrecord.field_is_signed[0]);
+    // ^u16 y — 16-bit but not signed
+    TEST_ASSERT(node->as.defrecord.field_is_16bit[1]);
+    TEST_ASSERT(!node->as.defrecord.field_is_signed[1]);
+    // hp — 8-bit, not signed
+    TEST_ASSERT(!node->as.defrecord.field_is_16bit[2]);
+    TEST_ASSERT(!node->as.defrecord.field_is_signed[2]);
+    TEST_ASSERT(!se_parser_has_error(&parser));
+}
+
+void test_codegen_i16_field_nth_is_16bit(void) {
+    // Accessing an ^i16 field via (nth arr i) must produce 16-bit loads (R0:R1)
+    // Previously the compiler only recognized i16 fields on bare symbol records,
+    // not on (nth array index) access, causing 8-bit codegen for 16-bit fields.
+    const char* input = "(defrecord ball (^i16 x ^i16 y speed)) "
+                        "(var balls (array 3 (ball 0 0 0))) "
+                        "(defn main () (:x (nth balls 0)))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
+    // i16 field access should generate two LOADs (high byte + low byte)
+    TEST_ASSERT(strstr(output, "LOAD R0, [R6:R7 + 0]") != NULL);
+    TEST_ASSERT(strstr(output, "LOAD R1, [R6:R7 + 1]") != NULL);
+    free(output);
+}
+
+void test_codegen_i16_field_nth_arithmetic(void) {
+    // Adding a u8 constant to an ^i16 field via (nth arr i) must use 16-bit
+    // addition (ADC). Previously the compiler did 8-bit ADD, corrupting the
+    // 16-bit value.
+    const char* input = "(defrecord ball (^i16 x ^i16 y speed)) "
+                        "(var balls (array 3 (ball 0 0 0))) "
+                        "(defn main () (set! (:y (nth balls 0)) (+ (:y (nth balls 0)) 50)))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
+    // Must use ADC for 16-bit addition (not just ADD)
+    TEST_ASSERT(strstr(output, "ADC") != NULL);
+    free(output);
+}
+
+void test_codegen_shl_u8_by_8_is_16bit(void) {
+    // (<< u8_val 8) must produce a 16-bit result. Shifting an 8-bit value
+    // left by 8 positions without promotion would yield 0.
+    const char* input = "(defn main (x) (<< x 8))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
+    // Should promote u8 to 16-bit (MOV R1, R0 + LOADI R0, 0) then shift R0:R1
+    TEST_ASSERT(strstr(output, "MOV R1, R0") != NULL);
+    TEST_ASSERT(strstr(output, "SHL R1") != NULL);     // 16-bit shift uses SHL R1
+    TEST_ASSERT(strstr(output, "ADC R0, R0") != NULL); // carry into high byte
     free(output);
 }

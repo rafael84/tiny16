@@ -44,6 +44,7 @@ typedef struct {
     char name[SE_MAX_SYMBOL_LEN];
     int32_t offset; // Byte offset from record base
     bool is_16bit;  // true for i16/u16 fields (2 bytes)
+    bool is_signed; // true for i8/i16 fields
 } SeRecordField;
 
 typedef struct {

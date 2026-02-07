@@ -125,6 +125,26 @@ static SeLocal* find_local_info(SeCodegen* cg, const char* name) {
     return NULL;
 }
 
+// Forward declaration for eval_const (used by expr_is_16bit)
+static bool eval_const(SeCodegen* cg, AstNode* node, int32_t* result);
+
+// Resolve the record type for a record expression (symbol or (nth arr i))
+static SeRecordType* resolve_record_type(SeCodegen* cg, AstNode* record_node) {
+    if (record_node->kind == AST_SYMBOL) {
+        return find_var_record_type(cg, record_node->as.symbol.name);
+    }
+    if (record_node->kind == AST_NTH) {
+        AstNode* arr = record_node->as.binary.left;
+        if (arr->kind == AST_SYMBOL) {
+            SeDataLabel* label = find_data_label(cg, arr->as.symbol.name);
+            if (label && label->record_type[0] != '\0') {
+                return find_record_type(cg, label->record_type);
+            }
+        }
+    }
+    return NULL;
+}
+
 // Determine if an expression produces a 16-bit result
 // Returns true if the expression should be treated as 16-bit (u16/i16)
 static bool expr_is_16bit(SeCodegen* cg, AstNode* node) {
@@ -151,9 +171,16 @@ static bool expr_is_16bit(SeCodegen* cg, AstNode* node) {
     case AST_BAND:
     case AST_BOR:
     case AST_XOR:
-    case AST_SHL:
     case AST_SHR:
         return expr_is_16bit(cg, node->as.binary.left) || expr_is_16bit(cg, node->as.binary.right);
+    case AST_SHL: {
+        // Left shift: if shift amount is a compile-time constant >= 8,
+        // the result always needs 16 bits (even if the operand is 8-bit)
+        if (expr_is_16bit(cg, node->as.binary.left)) return true;
+        int32_t shift_amt;
+        if (eval_const(cg, node->as.binary.right, &shift_amt) && shift_amt >= 8) return true;
+        return expr_is_16bit(cg, node->as.binary.right);
+    }
     case AST_NEG:
     case AST_INC:
     case AST_DEC:
@@ -164,13 +191,11 @@ static bool expr_is_16bit(SeCodegen* cg, AstNode* node) {
     case AST_LO: return false; // hi/lo always return 8-bit
     case AST_FIELD_GET: {
         // Field access: check if the field is 16-bit
-        // We need to resolve the record type
-        if (node->as.field_get.record->kind == AST_SYMBOL) {
-            SeRecordType* rec = find_var_record_type(cg, node->as.field_get.record->as.symbol.name);
-            if (rec) {
-                SeRecordField* field = find_record_field(rec, node->as.field_get.field);
-                if (field) return field->is_16bit;
-            }
+        // Supports both (:field var) and (:field (nth arr i))
+        SeRecordType* rec = resolve_record_type(cg, node->as.field_get.record);
+        if (rec) {
+            SeRecordField* field = find_record_field(rec, node->as.field_get.field);
+            if (field) return field->is_16bit;
         }
         return false;
     }
@@ -225,16 +250,11 @@ static bool expr_is_signed(SeCodegen* cg, AstNode* node) {
     case AST_CAST_U8: return false;
     case AST_FIELD_GET: {
         // Check defrecord field hint
-        if (node->as.field_get.record->kind == AST_SYMBOL) {
-            SeRecordType* rec = find_var_record_type(cg, node->as.field_get.record->as.symbol.name);
-            if (rec) {
-                SeRecordField* field = find_record_field(rec, node->as.field_get.field);
-                // is_16bit on fields means i16 or u16; we don't track signedness on fields
-                // but i16 is the only signed 16-bit type, and field_is_16bit with
-                // the original hint being ^i16 means signed
-                // For now, we don't distinguish - this would need field-level signedness
-                if (field) return false;
-            }
+        // Supports both (:field var) and (:field (nth arr i))
+        SeRecordType* rec = resolve_record_type(cg, node->as.field_get.record);
+        if (rec) {
+            SeRecordField* field = find_record_field(rec, node->as.field_get.field);
+            if (field) return field->is_signed;
         }
         return false;
     }
@@ -823,6 +843,7 @@ bool se_codegen_collect(SeCodegen* cg, AstProgram* program) {
                 strncpy(rec->fields[f].name, node->as.defrecord.fields[f], SE_MAX_SYMBOL_LEN - 1);
                 rec->fields[f].name[SE_MAX_SYMBOL_LEN - 1] = '\0';
                 rec->fields[f].is_16bit = node->as.defrecord.field_is_16bit[f];
+                rec->fields[f].is_signed = node->as.defrecord.field_is_signed[f];
                 rec->fields[f].offset = offset;
                 offset += rec->fields[f].is_16bit ? 2 : 1;
             }
@@ -1647,18 +1668,36 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         emit_line(cg, "XOR R0, R1");
         break;
 
-    case AST_SHL:
+    case AST_SHL: {
+        bool left_16 = expr_is_16bit(cg, node->as.binary.left);
+        bool result_16 = expr_is_16bit(cg, node);
         emit_expr(cg, node->as.binary.left);
-        // For now, only support constant shift amounts
-        if (node->as.binary.right->kind == AST_NUMBER) {
-            int count = node->as.binary.right->as.number;
+        if (node->as.binary.right->kind != AST_NUMBER) {
+            set_error(cg, node->line, "shift amount must be constant");
+            break;
+        }
+        int count = node->as.binary.right->as.number;
+        if (result_16 && !left_16) {
+            // Promote 8-bit operand to 16-bit: value goes to low byte (R1), high byte (R0) = 0
+            emit_line(cg, "MOV R1, R0");
+            emit_line(cg, "LOADI R0, 0");
+            left_16 = true;
+        }
+        if (left_16) {
+            // 16-bit shift: shift R0:R1 left (R0=hi, R1=lo)
+            for (int i = 0; i < count && i < 16; i++) {
+                emit_line(cg, "SHL R1");     // shift low byte, carry = old bit 7
+                emit_line(cg, "ADC R0, R0"); // shift high byte left and add carry (same as ROL+ADC
+                                             // trick: R0 = R0 + R0 + carry)
+            }
+        } else {
+            // 8-bit shift
             for (int i = 0; i < count && i < 8; i++) {
                 emit_line(cg, "SHL R0");
             }
-        } else {
-            set_error(cg, node->line, "shift amount must be constant");
         }
         break;
+    }
 
     case AST_SHR: {
         bool is_sgn = expr_is_signed(cg, node->as.binary.left);
