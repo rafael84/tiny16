@@ -146,6 +146,11 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number + node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (+ x 0) -> x, (+ 0 x) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
+            return node->as.binary.right;
         break;
     case AST_SUB:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -153,6 +158,9 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number - node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (- x 0) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
         break;
     case AST_MUL:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -160,6 +168,16 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number * node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (* x 1) -> x, (* 1 x) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 1)
+            return node->as.binary.left;
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 1)
+            return node->as.binary.right;
+        // Annihilation: (* x 0) -> 0, (* 0 x) -> 0
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return make_number(pool, 0, node->line, node->column);
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
+            return make_number(pool, 0, node->line, node->column);
         break;
     case AST_DIV:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right) &&
@@ -168,6 +186,9 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number / node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (/ x 1) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 1)
+            return node->as.binary.left;
         break;
     case AST_MOD:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right) &&
@@ -183,6 +204,16 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number & node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (& x 0xFF) -> x (for u8, mask is noop)
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0xFF)
+            return node->as.binary.left;
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0xFF)
+            return node->as.binary.right;
+        // Annihilation: (& x 0) -> 0
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return make_number(pool, 0, node->line, node->column);
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
+            return make_number(pool, 0, node->line, node->column);
         break;
     case AST_BOR:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -190,6 +221,11 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number | node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (| x 0) -> x, (| 0 x) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
+            return node->as.binary.right;
         break;
     case AST_XOR:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -197,6 +233,11 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number ^ node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (^ x 0) -> x, (^ 0 x) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
+        if (is_const_number(node->as.binary.left) && node->as.binary.left->as.number == 0)
+            return node->as.binary.right;
         break;
     case AST_SHL:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -204,6 +245,9 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number << node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (<< x 0) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
         break;
     case AST_SHR:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -211,6 +255,9 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->as.binary.left->as.number >> node->as.binary.right->as.number,
                                node->line, node->column);
         }
+        // Identity: (>> x 0) -> x
+        if (is_const_number(node->as.binary.right) && node->as.binary.right->as.number == 0)
+            return node->as.binary.left;
         break;
     case AST_EQ:
         if (is_const_number(node->as.binary.left) && is_const_number(node->as.binary.right)) {
@@ -294,12 +341,18 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
             return make_number(pool, node->as.unary.operand->as.number & 0xFF, node->line,
                                node->column);
         }
+        // Redundant cast: (u8 (u8 x)) -> (u8 x)
+        if (node->as.unary.operand->kind == AST_CAST_U8)
+            return node->as.unary.operand;
         break;
     case AST_CAST_I8:
         if (is_const_number(node->as.unary.operand)) {
             int8_t v = (int8_t)(node->as.unary.operand->as.number & 0xFF);
             return make_number(pool, (int32_t)v, node->line, node->column);
         }
+        // Redundant cast: (i8 (i8 x)) -> (i8 x)
+        if (node->as.unary.operand->kind == AST_CAST_I8)
+            return node->as.unary.operand;
         break;
     case AST_IF:
         // Fold constant conditions
@@ -312,6 +365,64 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
         }
         if (node->as.if_expr.cond->kind == AST_TRUE) return node->as.if_expr.then_branch;
         if (node->as.if_expr.cond->kind == AST_FALSE) return node->as.if_expr.else_branch;
+        break;
+    case AST_WHEN:
+        // (when true body...) -> (do body...)
+        if (node->as.when_expr.cond->kind == AST_TRUE ||
+            (is_const_number(node->as.when_expr.cond) &&
+             node->as.when_expr.cond->as.number != 0)) {
+            if (node->as.when_expr.body.count == 1)
+                return node->as.when_expr.body.items[0];
+            node->kind = AST_DO;
+            node->as.block.exprs = node->as.when_expr.body;
+            return node;
+        }
+        // (when false body...) -> nil
+        if (node->as.when_expr.cond->kind == AST_FALSE ||
+            (is_const_number(node->as.when_expr.cond) &&
+             node->as.when_expr.cond->as.number == 0)) {
+            AstNode* nil = ast_alloc(pool);
+            if (nil) { nil->kind = AST_NIL; nil->line = node->line; nil->column = node->column; }
+            return nil;
+        }
+        break;
+    case AST_UNLESS:
+        // (unless false body...) -> (do body...)
+        if (node->as.when_expr.cond->kind == AST_FALSE ||
+            (is_const_number(node->as.when_expr.cond) &&
+             node->as.when_expr.cond->as.number == 0)) {
+            if (node->as.when_expr.body.count == 1)
+                return node->as.when_expr.body.items[0];
+            node->kind = AST_DO;
+            node->as.block.exprs = node->as.when_expr.body;
+            return node;
+        }
+        // (unless true body...) -> nil
+        if (node->as.when_expr.cond->kind == AST_TRUE ||
+            (is_const_number(node->as.when_expr.cond) &&
+             node->as.when_expr.cond->as.number != 0)) {
+            AstNode* nil = ast_alloc(pool);
+            if (nil) { nil->kind = AST_NIL; nil->line = node->line; nil->column = node->column; }
+            return nil;
+        }
+        break;
+    case AST_LOGIC_NOT:
+        // (not true) -> false, (not false) -> true
+        if (node->as.unary.operand->kind == AST_TRUE) {
+            node->kind = AST_FALSE;
+            return node;
+        }
+        if (node->as.unary.operand->kind == AST_FALSE) {
+            node->kind = AST_TRUE;
+            return node;
+        }
+        if (is_const_number(node->as.unary.operand)) {
+            return make_number(pool, node->as.unary.operand->as.number == 0 ? 1 : 0,
+                               node->line, node->column);
+        }
+        // (not (not x)) -> x (double negation elimination)
+        if (node->as.unary.operand->kind == AST_LOGIC_NOT)
+            return node->as.unary.operand->as.unary.operand;
         break;
     default: break;
     }
@@ -461,6 +572,42 @@ static AstNode* strength_node(AstPool* pool, AstNode* node) {
                     node->as.binary.right = shift_node;
                 }
             }
+        }
+    }
+
+    // Strength reduce: (/ x 2^n) -> (>> x n)
+    if (node->kind == AST_DIV && is_const_number(node->as.binary.right)) {
+        int shift = log2_exact(node->as.binary.right->as.number);
+        if (shift > 0) {
+            AstNode* shift_node = make_number(pool, shift, node->line, node->column);
+            if (shift_node) {
+                node->kind = AST_SHR;
+                node->as.binary.right = shift_node;
+            }
+        }
+    }
+
+    // Strength reduce: (% x 2^n) -> (& x (2^n - 1))
+    if (node->kind == AST_MOD && is_const_number(node->as.binary.right)) {
+        int shift = log2_exact(node->as.binary.right->as.number);
+        if (shift > 0) {
+            int32_t mask = node->as.binary.right->as.number - 1;
+            AstNode* mask_node = make_number(pool, mask, node->line, node->column);
+            if (mask_node) {
+                node->kind = AST_BAND;
+                node->as.binary.right = mask_node;
+            }
+        }
+    }
+
+    // Strength reduce: (+ x x) -> (<< x 1)
+    if (node->kind == AST_ADD && node->as.binary.left && node->as.binary.right &&
+        node->as.binary.left->kind == AST_SYMBOL && node->as.binary.right->kind == AST_SYMBOL &&
+        strcmp(node->as.binary.left->as.symbol.name, node->as.binary.right->as.symbol.name) == 0) {
+        AstNode* one = make_number(pool, 1, node->line, node->column);
+        if (one) {
+            node->kind = AST_SHL;
+            node->as.binary.right = one;
         }
     }
 
