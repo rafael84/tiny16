@@ -80,7 +80,7 @@ endfunction
 " Use custom indentation (don't set 'lisp' as it overrides indentexpr)
 setlocal indentexpr=GetTiny16SEIndent()
 setlocal indentkeys=!^F,o,O,)
-setlocal lispwords=def,defn,defmacro,defrecord,var,let,fn,if,cond,when,unless,while,for,do,ns,require,import
+setlocal lispwords=def,defn,defmacro,defrecord,var,let,fn,data,if,cond,when,unless,while,for,do,ns,require,import
 
 " Basic indent settings
 setlocal expandtab

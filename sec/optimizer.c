@@ -359,8 +359,7 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
                                node->column);
         }
         // Redundant cast: (u8 (u8 x)) -> (u8 x)
-        if (node->as.unary.operand->kind == AST_CAST_U8)
-            return node->as.unary.operand;
+        if (node->as.unary.operand->kind == AST_CAST_U8) return node->as.unary.operand;
         break;
     case AST_CAST_I8:
         if (is_const_number(node->as.unary.operand)) {
@@ -368,8 +367,7 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
             return make_number(pool, (int32_t)v, node->line, node->column);
         }
         // Redundant cast: (i8 (i8 x)) -> (i8 x)
-        if (node->as.unary.operand->kind == AST_CAST_I8)
-            return node->as.unary.operand;
+        if (node->as.unary.operand->kind == AST_CAST_I8) return node->as.unary.operand;
         break;
     case AST_IF:
         // Fold constant conditions
@@ -386,40 +384,42 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
     case AST_WHEN:
         // (when true body...) -> (do body...)
         if (node->as.when_expr.cond->kind == AST_TRUE ||
-            (is_const_number(node->as.when_expr.cond) &&
-             node->as.when_expr.cond->as.number != 0)) {
-            if (node->as.when_expr.body.count == 1)
-                return node->as.when_expr.body.items[0];
+            (is_const_number(node->as.when_expr.cond) && node->as.when_expr.cond->as.number != 0)) {
+            if (node->as.when_expr.body.count == 1) return node->as.when_expr.body.items[0];
             node->kind = AST_DO;
             node->as.block.exprs = node->as.when_expr.body;
             return node;
         }
         // (when false body...) -> nil
         if (node->as.when_expr.cond->kind == AST_FALSE ||
-            (is_const_number(node->as.when_expr.cond) &&
-             node->as.when_expr.cond->as.number == 0)) {
+            (is_const_number(node->as.when_expr.cond) && node->as.when_expr.cond->as.number == 0)) {
             AstNode* nil = ast_alloc(pool);
-            if (nil) { nil->kind = AST_NIL; nil->line = node->line; nil->column = node->column; }
+            if (nil) {
+                nil->kind = AST_NIL;
+                nil->line = node->line;
+                nil->column = node->column;
+            }
             return nil;
         }
         break;
     case AST_UNLESS:
         // (unless false body...) -> (do body...)
         if (node->as.when_expr.cond->kind == AST_FALSE ||
-            (is_const_number(node->as.when_expr.cond) &&
-             node->as.when_expr.cond->as.number == 0)) {
-            if (node->as.when_expr.body.count == 1)
-                return node->as.when_expr.body.items[0];
+            (is_const_number(node->as.when_expr.cond) && node->as.when_expr.cond->as.number == 0)) {
+            if (node->as.when_expr.body.count == 1) return node->as.when_expr.body.items[0];
             node->kind = AST_DO;
             node->as.block.exprs = node->as.when_expr.body;
             return node;
         }
         // (unless true body...) -> nil
         if (node->as.when_expr.cond->kind == AST_TRUE ||
-            (is_const_number(node->as.when_expr.cond) &&
-             node->as.when_expr.cond->as.number != 0)) {
+            (is_const_number(node->as.when_expr.cond) && node->as.when_expr.cond->as.number != 0)) {
             AstNode* nil = ast_alloc(pool);
-            if (nil) { nil->kind = AST_NIL; nil->line = node->line; nil->column = node->column; }
+            if (nil) {
+                nil->kind = AST_NIL;
+                nil->line = node->line;
+                nil->column = node->column;
+            }
             return nil;
         }
         break;
@@ -434,8 +434,8 @@ static AstNode* fold_node(AstPool* pool, AstNode* node) {
             return node;
         }
         if (is_const_number(node->as.unary.operand)) {
-            return make_number(pool, node->as.unary.operand->as.number == 0 ? 1 : 0,
-                               node->line, node->column);
+            return make_number(pool, node->as.unary.operand->as.number == 0 ? 1 : 0, node->line,
+                               node->column);
         }
         // (not (not x)) -> x (double negation elimination)
         if (node->as.unary.operand->kind == AST_LOGIC_NOT)
@@ -1420,19 +1420,42 @@ static void pass_dead_fn_elim(AstProgram* program) {
 static int count_nodes(AstNode* node) {
     if (!node) return 0;
     switch (node->kind) {
-    case AST_ADD: case AST_SUB: case AST_MUL: case AST_DIV: case AST_MOD:
-    case AST_BAND: case AST_BOR: case AST_XOR: case AST_SHL: case AST_SHR:
-    case AST_EQ: case AST_NE: case AST_LT: case AST_GT: case AST_LE: case AST_GE:
-    case AST_LOGIC_AND: case AST_LOGIC_OR: case AST_NTH:
-        return 1 + count_nodes(node->as.binary.left) + count_nodes(node->as.binary.right);
-    case AST_NEG: case AST_INC: case AST_DEC: case AST_BNOT: case AST_LNOT:
-    case AST_LOGIC_NOT: case AST_HI: case AST_LO: case AST_LEN:
-    case AST_NILP: case AST_ZEROP: case AST_POSP: case AST_NEGP:
-    case AST_CAST_U8: case AST_CAST_I8:
-        return 1 + count_nodes(node->as.unary.operand);
+    case AST_ADD:
+    case AST_SUB:
+    case AST_MUL:
+    case AST_DIV:
+    case AST_MOD:
+    case AST_BAND:
+    case AST_BOR:
+    case AST_XOR:
+    case AST_SHL:
+    case AST_SHR:
+    case AST_EQ:
+    case AST_NE:
+    case AST_LT:
+    case AST_GT:
+    case AST_LE:
+    case AST_GE:
+    case AST_LOGIC_AND:
+    case AST_LOGIC_OR:
+    case AST_NTH: return 1 + count_nodes(node->as.binary.left) + count_nodes(node->as.binary.right);
+    case AST_NEG:
+    case AST_INC:
+    case AST_DEC:
+    case AST_BNOT:
+    case AST_LNOT:
+    case AST_LOGIC_NOT:
+    case AST_HI:
+    case AST_LO:
+    case AST_LEN:
+    case AST_NILP:
+    case AST_ZEROP:
+    case AST_POSP:
+    case AST_NEGP:
+    case AST_CAST_U8:
+    case AST_CAST_I8: return 1 + count_nodes(node->as.unary.operand);
     case AST_IF:
-        return 1 + count_nodes(node->as.if_expr.cond) +
-               count_nodes(node->as.if_expr.then_branch) +
+        return 1 + count_nodes(node->as.if_expr.cond) + count_nodes(node->as.if_expr.then_branch) +
                count_nodes(node->as.if_expr.else_branch);
     case AST_CALL: {
         int c = 1;
@@ -1457,7 +1480,8 @@ static int count_nodes(AstNode* node) {
             c += count_nodes(node->as.while_expr.body.items[i]);
         return c;
     }
-    case AST_WHEN: case AST_UNLESS: {
+    case AST_WHEN:
+    case AST_UNLESS: {
         int c = 1 + count_nodes(node->as.when_expr.cond);
         for (size_t i = 0; i < node->as.when_expr.body.count; i++)
             c += count_nodes(node->as.when_expr.body.items[i]);
@@ -1470,7 +1494,8 @@ static int count_nodes(AstNode* node) {
             c += count_nodes(node->as.for_expr.body.items[i]);
         return c;
     }
-    case AST_DO: case AST_DB: {
+    case AST_DO:
+    case AST_DB: {
         int c = 1;
         for (size_t i = 0; i < node->as.block.exprs.count; i++)
             c += count_nodes(node->as.block.exprs.items[i]);
@@ -1485,10 +1510,10 @@ static int count_nodes(AstNode* node) {
         }
         return c;
     }
-    case AST_SET: case AST_SET_BANG:
+    case AST_SET:
+    case AST_SET_BANG:
         return 1 + count_nodes(node->as.set.value) + count_nodes(node->as.set.target_expr);
-    case AST_RANGE:
-        return 1 + count_nodes(node->as.range.start) + count_nodes(node->as.range.end);
+    case AST_RANGE: return 1 + count_nodes(node->as.range.start) + count_nodes(node->as.range.end);
     default: return 1;
     }
 }
@@ -1515,8 +1540,8 @@ static bool is_recursive(AstNode* defn) {
 
 // Deep-copy an AST node, substituting parameter symbols with argument nodes
 static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
-                                 const char params[][SE_MAX_SYMBOL_LEN],
-                                 AstNode** args, size_t param_count) {
+                                const char params[][SE_MAX_SYMBOL_LEN], AstNode** args,
+                                size_t param_count) {
     if (!node) return NULL;
 
     // Substitute parameter references with argument copies
@@ -1537,27 +1562,59 @@ static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
     *n = *node; // Shallow copy
 
     switch (node->kind) {
-    case AST_ADD: case AST_SUB: case AST_MUL: case AST_DIV: case AST_MOD:
-    case AST_BAND: case AST_BOR: case AST_XOR: case AST_SHL: case AST_SHR:
-    case AST_EQ: case AST_NE: case AST_LT: case AST_GT: case AST_LE: case AST_GE:
-    case AST_LOGIC_AND: case AST_LOGIC_OR: case AST_NTH:
+    case AST_ADD:
+    case AST_SUB:
+    case AST_MUL:
+    case AST_DIV:
+    case AST_MOD:
+    case AST_BAND:
+    case AST_BOR:
+    case AST_XOR:
+    case AST_SHL:
+    case AST_SHR:
+    case AST_EQ:
+    case AST_NE:
+    case AST_LT:
+    case AST_GT:
+    case AST_LE:
+    case AST_GE:
+    case AST_LOGIC_AND:
+    case AST_LOGIC_OR:
+    case AST_NTH:
         n->as.binary.left = clone_and_subst(pool, node->as.binary.left, params, args, param_count);
-        n->as.binary.right = clone_and_subst(pool, node->as.binary.right, params, args, param_count);
+        n->as.binary.right =
+            clone_and_subst(pool, node->as.binary.right, params, args, param_count);
         break;
-    case AST_NEG: case AST_INC: case AST_DEC: case AST_BNOT: case AST_LNOT:
-    case AST_LOGIC_NOT: case AST_HI: case AST_LO: case AST_LEN:
-    case AST_NILP: case AST_ZEROP: case AST_POSP: case AST_NEGP:
-    case AST_CAST_U8: case AST_CAST_I8:
-        n->as.unary.operand = clone_and_subst(pool, node->as.unary.operand, params, args, param_count);
+    case AST_NEG:
+    case AST_INC:
+    case AST_DEC:
+    case AST_BNOT:
+    case AST_LNOT:
+    case AST_LOGIC_NOT:
+    case AST_HI:
+    case AST_LO:
+    case AST_LEN:
+    case AST_NILP:
+    case AST_ZEROP:
+    case AST_POSP:
+    case AST_NEGP:
+    case AST_CAST_U8:
+    case AST_CAST_I8:
+        n->as.unary.operand =
+            clone_and_subst(pool, node->as.unary.operand, params, args, param_count);
         break;
     case AST_IF:
-        n->as.if_expr.cond = clone_and_subst(pool, node->as.if_expr.cond, params, args, param_count);
-        n->as.if_expr.then_branch = clone_and_subst(pool, node->as.if_expr.then_branch, params, args, param_count);
-        n->as.if_expr.else_branch = clone_and_subst(pool, node->as.if_expr.else_branch, params, args, param_count);
+        n->as.if_expr.cond =
+            clone_and_subst(pool, node->as.if_expr.cond, params, args, param_count);
+        n->as.if_expr.then_branch =
+            clone_and_subst(pool, node->as.if_expr.then_branch, params, args, param_count);
+        n->as.if_expr.else_branch =
+            clone_and_subst(pool, node->as.if_expr.else_branch, params, args, param_count);
         break;
     case AST_CALL:
         for (size_t i = 0; i < node->as.call.arg_count; i++)
-            n->as.call.args[i] = clone_and_subst(pool, node->as.call.args[i], params, args, param_count);
+            n->as.call.args[i] =
+                clone_and_subst(pool, node->as.call.args[i], params, args, param_count);
         break;
     case AST_LOAD:
         n->as.load.addr = clone_and_subst(pool, node->as.load.addr, params, args, param_count);
@@ -1567,12 +1624,15 @@ static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
         n->as.store.value = clone_and_subst(pool, node->as.store.value, params, args, param_count);
         break;
     case AST_FIELD_GET:
-        n->as.field_get.record = clone_and_subst(pool, node->as.field_get.record, params, args, param_count);
+        n->as.field_get.record =
+            clone_and_subst(pool, node->as.field_get.record, params, args, param_count);
         break;
-    case AST_SET: case AST_SET_BANG:
+    case AST_SET:
+    case AST_SET_BANG:
         n->as.set.value = clone_and_subst(pool, node->as.set.value, params, args, param_count);
         if (node->as.set.target_expr)
-            n->as.set.target_expr = clone_and_subst(pool, node->as.set.target_expr, params, args, param_count);
+            n->as.set.target_expr =
+                clone_and_subst(pool, node->as.set.target_expr, params, args, param_count);
         // Check if the set target variable is a parameter name
         for (size_t i = 0; i < param_count; i++) {
             if (strcmp(node->as.set.var, params[i]) == 0) {
@@ -1586,20 +1646,6 @@ static AstNode* clone_and_subst(AstPool* pool, AstNode* node,
         return node;
     }
     return n;
-}
-
-// Count how many times a function is called in the program
-static int count_call_uses(AstProgram* program, const char* func_name) {
-    FuncSet calls;
-    calls.count = 0;
-    for (size_t i = 0; i < program->node_count; i++) {
-        collect_calls(program->nodes[i], &calls);
-    }
-    int count = 0;
-    for (size_t i = 0; i < calls.count; i++) {
-        if (strcmp(calls.names[i], func_name) == 0) count++;
-    }
-    return count;
 }
 
 // Inline call sites for eligible functions
@@ -1621,7 +1667,8 @@ static AstNode* inline_calls(AstPool* pool, AstNode* node, AstProgram* program) 
             node->as.let.body.items[i] = inline_calls(pool, node->as.let.body.items[i], program);
         break;
     case AST_VAR: node->as.var.value = inline_calls(pool, node->as.var.value, program); break;
-    case AST_SET: case AST_SET_BANG:
+    case AST_SET:
+    case AST_SET_BANG:
         node->as.set.value = inline_calls(pool, node->as.set.value, program);
         if (node->as.set.target_expr)
             node->as.set.target_expr = inline_calls(pool, node->as.set.target_expr, program);
@@ -1634,47 +1681,77 @@ static AstNode* inline_calls(AstPool* pool, AstNode* node, AstProgram* program) 
     case AST_WHILE:
         node->as.while_expr.cond = inline_calls(pool, node->as.while_expr.cond, program);
         for (size_t i = 0; i < node->as.while_expr.body.count; i++)
-            node->as.while_expr.body.items[i] = inline_calls(pool, node->as.while_expr.body.items[i], program);
+            node->as.while_expr.body.items[i] =
+                inline_calls(pool, node->as.while_expr.body.items[i], program);
         break;
     case AST_DO:
         for (size_t i = 0; i < node->as.block.exprs.count; i++)
-            node->as.block.exprs.items[i] = inline_calls(pool, node->as.block.exprs.items[i], program);
+            node->as.block.exprs.items[i] =
+                inline_calls(pool, node->as.block.exprs.items[i], program);
         break;
     case AST_COND:
         for (size_t i = 0; i < node->as.cond.clause_count; i++) {
             node->as.cond.tests[i] = inline_calls(pool, node->as.cond.tests[i], program);
             for (size_t j = 0; j < node->as.cond.bodies[i].count; j++)
-                node->as.cond.bodies[i].items[j] = inline_calls(pool, node->as.cond.bodies[i].items[j], program);
+                node->as.cond.bodies[i].items[j] =
+                    inline_calls(pool, node->as.cond.bodies[i].items[j], program);
         }
         break;
-    case AST_WHEN: case AST_UNLESS:
+    case AST_WHEN:
+    case AST_UNLESS:
         node->as.when_expr.cond = inline_calls(pool, node->as.when_expr.cond, program);
         for (size_t i = 0; i < node->as.when_expr.body.count; i++)
-            node->as.when_expr.body.items[i] = inline_calls(pool, node->as.when_expr.body.items[i], program);
+            node->as.when_expr.body.items[i] =
+                inline_calls(pool, node->as.when_expr.body.items[i], program);
         break;
     case AST_FOR:
         node->as.for_expr.collection = inline_calls(pool, node->as.for_expr.collection, program);
         if (node->as.for_expr.when_cond)
             node->as.for_expr.when_cond = inline_calls(pool, node->as.for_expr.when_cond, program);
         for (size_t i = 0; i < node->as.for_expr.body.count; i++)
-            node->as.for_expr.body.items[i] = inline_calls(pool, node->as.for_expr.body.items[i], program);
+            node->as.for_expr.body.items[i] =
+                inline_calls(pool, node->as.for_expr.body.items[i], program);
         break;
-    case AST_ADD: case AST_SUB: case AST_MUL: case AST_DIV: case AST_MOD:
-    case AST_BAND: case AST_BOR: case AST_XOR: case AST_SHL: case AST_SHR:
-    case AST_EQ: case AST_NE: case AST_LT: case AST_GT: case AST_LE: case AST_GE:
-    case AST_LOGIC_AND: case AST_LOGIC_OR: case AST_NTH:
+    case AST_ADD:
+    case AST_SUB:
+    case AST_MUL:
+    case AST_DIV:
+    case AST_MOD:
+    case AST_BAND:
+    case AST_BOR:
+    case AST_XOR:
+    case AST_SHL:
+    case AST_SHR:
+    case AST_EQ:
+    case AST_NE:
+    case AST_LT:
+    case AST_GT:
+    case AST_LE:
+    case AST_GE:
+    case AST_LOGIC_AND:
+    case AST_LOGIC_OR:
+    case AST_NTH:
         node->as.binary.left = inline_calls(pool, node->as.binary.left, program);
         node->as.binary.right = inline_calls(pool, node->as.binary.right, program);
         break;
-    case AST_NEG: case AST_INC: case AST_DEC: case AST_BNOT: case AST_LNOT:
-    case AST_LOGIC_NOT: case AST_HI: case AST_LO: case AST_LEN:
-    case AST_NILP: case AST_ZEROP: case AST_POSP: case AST_NEGP:
-    case AST_CAST_U8: case AST_CAST_I8:
+    case AST_NEG:
+    case AST_INC:
+    case AST_DEC:
+    case AST_BNOT:
+    case AST_LNOT:
+    case AST_LOGIC_NOT:
+    case AST_HI:
+    case AST_LO:
+    case AST_LEN:
+    case AST_NILP:
+    case AST_ZEROP:
+    case AST_POSP:
+    case AST_NEGP:
+    case AST_CAST_U8:
+    case AST_CAST_I8:
         node->as.unary.operand = inline_calls(pool, node->as.unary.operand, program);
         break;
-    case AST_LOAD:
-        node->as.load.addr = inline_calls(pool, node->as.load.addr, program);
-        break;
+    case AST_LOAD: node->as.load.addr = inline_calls(pool, node->as.load.addr, program); break;
     case AST_STORE:
         node->as.store.addr = inline_calls(pool, node->as.store.addr, program);
         node->as.store.value = inline_calls(pool, node->as.store.value, program);
@@ -1712,10 +1789,9 @@ static AstNode* inline_calls(AstPool* pool, AstNode* node, AstProgram* program) 
                 AstNode* body0 = target->as.defn.body.items[0];
                 if (body0->kind == AST_ASM) return node;
                 // Inline: substitute parameters with arguments
-                AstNode* inlined = clone_and_subst(pool, target->as.defn.body.items[0],
-                                                    target->as.defn.params,
-                                                    node->as.call.args,
-                                                    target->as.defn.param_count);
+                AstNode* inlined =
+                    clone_and_subst(pool, target->as.defn.body.items[0], target->as.defn.params,
+                                    node->as.call.args, target->as.defn.param_count);
                 if (inlined) return inlined;
             }
         }

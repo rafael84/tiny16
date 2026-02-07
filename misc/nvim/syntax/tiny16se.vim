@@ -42,7 +42,7 @@ syntax keyword tiny16seNil nil
 syntax keyword tiny16seBoolean true false
 
 " Special Forms (language keywords)
-syntax keyword tiny16seSpecial def defn defmacro defrecord var let fn
+syntax keyword tiny16seSpecial def defn defmacro defrecord var let fn data
 syntax match tiny16seSpecial "\<set!\>"
 
 " Control flow
@@ -69,9 +69,10 @@ syntax match tiny16seOperator "(\s*\zs<="
 syntax match tiny16seOperator "(\s*\zs>="
 syntax match tiny16seOperator "(\s*\zs<\ze[^<=]"
 syntax match tiny16seOperator "(\s*\zs>\ze[^>=]"
+syntax match tiny16seOperator "(\s*\zs!\ze[^=]"
 
 " Arithmetic builtins
-syntax keyword tiny16seBuiltin inc dec
+syntax keyword tiny16seBuiltin inc dec neg
 
 " Logic (short-circuit)
 syntax keyword tiny16seBuiltin and or not
@@ -87,6 +88,14 @@ syntax keyword tiny16seBuiltin load store hi lo
 
 " Array and collection builtins
 syntax keyword tiny16seBuiltin nth len array range
+
+" Data builtins
+syntax keyword tiny16seBuiltin db
+
+" Word-form operator aliases (alternative syntax)
+syntax keyword tiny16seBuiltin add sub mul div mod
+syntax keyword tiny16seBuiltin eq ne lt gt le ge
+syntax keyword tiny16seBuiltin xor shl shr lnot
 
 " Type casts
 syntax keyword tiny16seCast u8 i8
@@ -110,6 +119,9 @@ syntax match tiny16seVariable "(\s*var\s\+\^[iu]\d\+\s\+\zs[a-zA-Z_\-][a-zA-Z0-9
 
 " Constant definitions - highlight the constant name
 syntax match tiny16seConstant "(\s*def\s\+\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*"
+
+" Data definitions - highlight the data label name
+syntax match tiny16seVariable "(\s*data\s\+\zs[a-zA-Z_\-][a-zA-Z0-9_\-]*"
 
 " Symbols (identifiers) - generic catch-all for identifiers
 syntax match tiny16seSymbol "\<[a-zA-Z_\-][a-zA-Z0-9_\-!?]*\>"

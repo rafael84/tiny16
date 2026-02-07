@@ -17,6 +17,7 @@
     { "include": "#record-definitions" },
     { "include": "#variable-definitions" },
     { "include": "#constant-definitions" },
+    { "include": "#data-definitions" },
     { "include": "#operators" },
     { "include": "#builtins" },
     { "include": "#type-casts" },
@@ -99,7 +100,7 @@
       "patterns": [
         {
           "name": "keyword.control.tiny16se",
-          "match": "(?<=\\()\\s*(def|defn|defmacro|defrecord|var|let|fn|set!)(?=\\s|\\))"
+          "match": "(?<=\\()\\s*(def|defn|defmacro|defrecord|var|let|fn|data|set!)(?=\\s|\\))"
         }
       ]
     },
@@ -192,11 +193,22 @@
         }
       ]
     },
+    "data-definitions": {
+      "patterns": [
+        {
+          "match": "\\(\\s*(data)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.tiny16se" },
+            "2": { "name": "variable.other.definition.tiny16se" }
+          }
+        }
+      ]
+    },
     "operators": {
       "patterns": [
         {
           "name": "keyword.operator.tiny16se",
-          "match": "(?<=\\()\\s*(\\+|\\-|\\*|/|%|&|\\||\\^|~|<<|>>|=|!=|<=|>=|<|>)(?=\\s)"
+          "match": "(?<=\\()\\s*(\\+|\\-|\\*|/|%|&|\\||\\^|~|<<|>>|=|!=|<=|>=|<|>|!)(?=\\s)"
         }
       ]
     },
@@ -205,7 +217,7 @@
         {
           "comment": "Arithmetic builtins",
           "name": "support.function.builtin.tiny16se",
-          "match": "(?<=\\()\\s*(inc|dec)(?=\\s|\\))"
+          "match": "(?<=\\()\\s*(inc|dec|neg)(?=\\s|\\))"
         },
         {
           "comment": "Logic (short-circuit)",
@@ -226,6 +238,16 @@
           "comment": "Array and collection builtins",
           "name": "support.function.builtin.tiny16se",
           "match": "(?<=\\()\\s*(nth|len|array|range)(?=\\s|\\))"
+        },
+        {
+          "comment": "Data builtins",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(db)(?=\\s|\\))"
+        },
+        {
+          "comment": "Word-form operator aliases",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(add|sub|mul|div|mod|eq|ne|lt|gt|le|ge|xor|shl|shr|lnot)(?=\\s|\\))"
         },
         {
           "comment": "Inline assembly",

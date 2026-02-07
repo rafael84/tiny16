@@ -1118,9 +1118,18 @@ static void emit_simple_to_reg(SeCodegen* cg, AstNode* node, const char* reg) {
         emit_line(cg, "LOADI %s, 0x%02X", reg, node->as.number & 0xFF);
         return;
     }
-    if (node->kind == AST_NIL) { emit_line(cg, "LOADI %s, 0xFF", reg); return; }
-    if (node->kind == AST_TRUE) { emit_line(cg, "LOADI %s, 1", reg); return; }
-    if (node->kind == AST_FALSE) { emit_line(cg, "LOADI %s, 0", reg); return; }
+    if (node->kind == AST_NIL) {
+        emit_line(cg, "LOADI %s, 0xFF", reg);
+        return;
+    }
+    if (node->kind == AST_TRUE) {
+        emit_line(cg, "LOADI %s, 1", reg);
+        return;
+    }
+    if (node->kind == AST_FALSE) {
+        emit_line(cg, "LOADI %s, 0", reg);
+        return;
+    }
     if (node->kind == AST_KEYWORD) {
         for (size_t i = 0; i < cg->keyword_count; i++) {
             if (strcmp(cg->keywords[i], node->as.symbol.name) == 0) {
@@ -1145,8 +1154,8 @@ static void emit_simple_to_reg(SeCodegen* cg, AstNode* node, const char* reg) {
 static void emit_cmp_operands(SeCodegen* cg, AstNode* node, bool swap) {
     AstNode* first = swap ? node->as.binary.right : node->as.binary.left;
     AstNode* second = swap ? node->as.binary.left : node->as.binary.right;
-    bool is_sgn = expr_is_signed(cg, node->as.binary.left) ||
-                  expr_is_signed(cg, node->as.binary.right);
+    bool is_sgn =
+        expr_is_signed(cg, node->as.binary.left) || expr_is_signed(cg, node->as.binary.right);
 
     if (!expr_is_16bit(cg, first) && !expr_is_16bit(cg, second)) {
         // 8-bit comparison - optimized paths
@@ -1283,8 +1292,7 @@ static void emit_branch_false(SeCodegen* cg, AstNode* cond, int target_label) {
         // Always false, always branch
         emit_line(cg, "JMP __L%d", target_label);
         return;
-    default:
-        break;
+    default: break;
     }
     // Fallback: evaluate expression and use JFALSE macro
     emit_expr(cg, cond);
@@ -1357,14 +1365,10 @@ static void emit_branch_true(SeCodegen* cg, AstNode* cond, int target_label) {
         emit_expr(cg, cond->as.unary.operand);
         emit_line(cg, "JFALSE __L%d", target_label);
         return;
-    case AST_TRUE:
-        emit_line(cg, "JMP __L%d", target_label);
-        return;
+    case AST_TRUE: emit_line(cg, "JMP __L%d", target_label); return;
     case AST_FALSE:
-    case AST_NIL:
-        return;
-    default:
-        break;
+    case AST_NIL: return;
+    default: break;
     }
     // Fallback: evaluate expression and use JTRUE macro
     emit_expr(cg, cond);
@@ -1805,8 +1809,7 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     case AST_EQ: {
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        if (!expr_is_16bit(cg, node->as.binary.left) &&
-            !expr_is_16bit(cg, node->as.binary.right)) {
+        if (!expr_is_16bit(cg, node->as.binary.left) && !expr_is_16bit(cg, node->as.binary.right)) {
             emit_cmp_operands(cg, node, false);
         } else {
             emit_expr(cg, node->as.binary.left);
@@ -1828,8 +1831,7 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     case AST_NE: {
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        if (!expr_is_16bit(cg, node->as.binary.left) &&
-            !expr_is_16bit(cg, node->as.binary.right)) {
+        if (!expr_is_16bit(cg, node->as.binary.left) && !expr_is_16bit(cg, node->as.binary.right)) {
             emit_cmp_operands(cg, node, false);
         } else {
             emit_expr(cg, node->as.binary.left);
@@ -2914,15 +2916,11 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
 
     case AST_CAST_U8:
     case AST_CAST_I8:
-        // (u8 expr) / (i8 expr) - truncate to 8-bit
+        // (u8 expr) / (i8 expr) - extract integer part from 16-bit (8.8 fixed-point)
         emit_expr(cg, node->as.unary.operand);
-        // Only mask if the operand is 16-bit (cast is truncation)
-        // For 8-bit operands, this is already a no-op
-        if (expr_is_16bit(cg, node->as.unary.operand)) {
-            // R0 already has the high byte from 16-bit expression,
-            // but for cast, we want just the low byte (R1 for 16-bit results)
-            emit_line(cg, "MOV R0, R1");
-        }
+        // For 16-bit operands: R0 already has the high byte (integer part of 8.8),
+        // which is the correct u8/i8 truncation result. No extra instruction needed.
+        // For 8-bit operands: already a no-op.
         break;
 
     case AST_FN: {
@@ -3291,7 +3289,12 @@ bool se_codegen_emit(SeCodegen* cg, AstProgram* program) {
         if (!cg->constants[i].is_function) {
             char name[SE_MAX_SYMBOL_LEN];
             sanitize_name(name, cg->constants[i].name, SE_MAX_SYMBOL_LEN);
-            emit(cg, "%s = 0x%02X\n", name, cg->constants[i].value);
+            int32_t val = cg->constants[i].value;
+            if (val < 0 || val > 0xFF) {
+                emit(cg, "%s = 0x%04X\n", name, (unsigned)(val & 0xFFFF));
+            } else {
+                emit(cg, "%s = 0x%02X\n", name, (unsigned)(val & 0xFF));
+            }
         }
     }
 

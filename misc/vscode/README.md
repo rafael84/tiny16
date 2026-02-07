@@ -66,14 +66,15 @@ ln -s "$(pwd)/misc/vscode" ~/.cursor/extensions/tiny16-syntax
 
 ### SE Language (`.se` files)
 
-- **Special Forms**: `def`, `defn`, `defmacro`, `defrecord`, `var`, `let`, `fn`, `set!`
+- **Special Forms**: `def`, `defn`, `defmacro`, `defrecord`, `var`, `let`, `fn`, `data`, `set!`
 - **Control Flow**: `if`, `cond`, `when`, `unless`, `while`, `for`, `do`
 - **Module System**: `ns`, `require`, `import`
 - **Logic**: `and`, `or`, `not` (short-circuit)
-- **Builtins**: `inc`, `dec`, `load`, `store`, `hi`, `lo`, `nth`, `len`, `array`, `range`, `asm`
+- **Builtins**: `inc`, `dec`, `neg`, `load`, `store`, `hi`, `lo`, `nth`, `len`, `array`, `range`, `db`, `asm`
+- **Word-Form Aliases**: `add`, `sub`, `mul`, `div`, `mod`, `eq`, `ne`, `lt`, `gt`, `le`, `ge`, `xor`, `shl`, `shr`, `lnot`
 - **Type Predicates**: `nil?`, `zero?`, `pos?`, `neg?`
 - **Type Casts**: `u8`, `i8`
-- **Operators**: `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `!=`, `<`, `>`, `<=`, `>=`
+- **Operators**: `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `!=`, `<`, `>`, `<=`, `>=`, `!`
 - **Keywords**: `:alive`, `:dead`, `:x`, etc. (compile-time interned symbols)
 - **Type Hints**: `^u8`, `^i8`, `^u16`, `^i16`
 - **Special Literals**: `nil`, `true`, `false`
@@ -82,6 +83,7 @@ ln -s "$(pwd)/misc/vscode" ~/.cursor/extensions/tiny16-syntax
 - **Macro Definitions**: Highlighted macro names after `defmacro`
 - **Record Definitions**: Highlighted record type names after `defrecord`
 - **Variable Definitions**: Highlighted variable names after `var`
+- **Data Definitions**: Highlighted data label names after `data`
 - **Constants**: Highlighted constant names after `def`
 - **Namespaced Symbols**: `apu/init`, `sprite/draw`, `apu/NOTE_C4`
 - **Comments**: Lines starting with `;`

@@ -87,6 +87,16 @@ local function parse_file(filepath)
 				definitions[current_ns .. "/" .. var_name] = { file = filepath, line = line_num, col = col - 1 }
 			end
 		end
+
+		-- Match (data name ...) - data section labels
+		local data_name = line:match("^%s*%(%s*data%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
+		if data_name then
+			local col = line:find(data_name, 1, true) or 1
+			definitions[data_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. data_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
+		end
 	end
 
 	file:close()

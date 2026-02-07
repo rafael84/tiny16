@@ -8,7 +8,8 @@
 ; - Press A to restart after game over
 ;
 ; Features:
-; - 8.8 fixed-point subpixel physics (v2 native ^i16)
+; - 8.8 fixed-point subpixel physics (SEv2 native ^i16)
+; - Direct 16-bit signed comparisons for physics
 ; - Animated bird sprite
 ; - Visual boundaries
 ; - Sound effects
@@ -78,16 +79,16 @@
 (data str_game_over (db "GAME OVER" 0))
 
 (defn clear-text ()
-  (for (x (range 0 9))  ; TEXT_MAX_LEN
-    (tilemap/put (+ 4 x) 5 0)  ; TEXT_COL, TEXT_ROW1
-    (tilemap/put (+ 4 x) 6 0)))  ; TEXT_COL, TEXT_ROW2
+  (for (x (range 0 9))
+    (tilemap/put (+ 4 x) 5 0)
+    (tilemap/put (+ 4 x) 6 0)))
 
 (defn show-press-a ()
-  (tilemap/text 5 5 (hi str_press_a) (lo str_press_a)))  ; TEXT_COL+1, TEXT_ROW1
+  (tilemap/text 5 5 (hi str_press_a) (lo str_press_a)))
 
 (defn show-game-over ()
-  (tilemap/text 4 5 (hi str_game_over) (lo str_game_over))  ; TEXT_COL, TEXT_ROW1
-  (tilemap/text 5 6 (hi str_press_a) (lo str_press_a)))     ; TEXT_COL+1, TEXT_ROW2
+  (tilemap/text 4 5 (hi str_game_over) (lo str_game_over))
+  (tilemap/text 5 6 (hi str_press_a) (lo str_press_a)))
 
 ; =============================================================================
 ; Score Display
@@ -96,16 +97,12 @@
 (def TILE_DIGIT_0 144)
 
 (defn render-score ()
-  (let (s score
-        tens 0
-        ones s)
-    (while (>= ones 10)
-      (set! tens (inc tens))
-      (set! ones (- ones 10)))
+  (let (tens (/ score 10)
+        ones (% score 10))
     (if (> tens 0)
-        (sprite/draw 29 4 104 (+ TILE_DIGIT_0 tens))   ; SPR_SCORE_TENS, Y=4, X=112-8
-        (sprite/draw 29 constants/SPRITE_HIDDEN_Y 0 0)) ; Hide tens sprite
-    (sprite/draw 30 4 112 (+ TILE_DIGIT_0 ones))))     ; SPR_SCORE_ONES, Y=4, X=112
+        (sprite/draw 29 4 104 (+ TILE_DIGIT_0 tens))
+        (sprite/draw 29 constants/SPRITE_HIDDEN_Y 0 0))
+    (sprite/draw 30 4 112 (+ TILE_DIGIT_0 ones))))
 
 ; =============================================================================
 ; Bird (8.8 fixed-point physics using ^i16)
@@ -113,12 +110,16 @@
 
 (def BIRD_X 24)
 (def BIRD_SIZE 6)
-(def AREA_TOP 20)
-(def AREA_BOTTOM 108)
 
-; Physics constants
-(def GRAVITY 70)          ; raw i16 value (~0.27 px/frame²)
-(def MAX_FALL 4)          ; max fall speed (integer part comparison)
+; Physics — 8.8 fixed-point constants
+(def GRAVITY 70)              ; ~0.27 px/frame² (raw 8.8 sub-pixel increment)
+(def FLAP_VEL -3.0)           ; upward impulse
+(def MAX_FALL_SPEED 4.0)      ; terminal velocity
+(def ANIM_THRESHOLD 2.0)      ; velocity above which bird shows "falling" frame
+
+; Boundary positions (8.8 fixed-point for direct 16-bit comparison)
+(def CEILING_Y 20.0)
+(def GROUND_Y  100.0)
 
 ; Tiles
 (def TILE_BIRD_UP   41)
@@ -135,56 +136,43 @@
 (var ^i16 bird-vel 0)
 (var anim-frame 0)
 
-(defn add-gravity ()
-  (set! bird-vel (+ bird-vel GRAVITY)))
-
-(defn apply-velocity ()
-  (set! bird-y (+ bird-y bird-vel)))
-
-(defn set-flap-velocity ()
-  (set! bird-vel -3.0))
-
-(defn clamp-velocity ()
-  (let (v-hi (u8 bird-vel))
-    (when (< v-hi 128)  ; positive (below sign bit)
-      (when (> v-hi MAX_FALL)
-        (set! bird-vel 4.0)))))
-
-(defn update-bird (keys)
-  (when (!= (& keys constants/KEY_A) 0)
-    (set-flap-velocity)
+(defn update-bird ()
+  ; Input
+  (when (input/key-pressed constants/KEY_A)
+    (set! bird-vel FLAP_VEL)
     (sfx-flap))
 
-  (add-gravity)
-  (clamp-velocity)
-  (apply-velocity)
+  ; Gravity
+  (set! bird-vel (+ bird-vel GRAVITY))
 
-  (let (y-hi (u8 bird-y))
-    ; Check if bird hit ceiling (y wrapped to negative/large value)
-    (when (>= y-hi 128)
-      (set! bird-y 20.0)
-      (die))
-    ; Check if bird hit ground
-    (when (> y-hi (- AREA_BOTTOM 8))  ; 8 = TILE_SIZE
-      (set! bird-y 100.0)
-      (die)))
+  ; Clamp terminal velocity (signed: negative velocities pass through)
+  (when (> bird-vel MAX_FALL_SPEED)
+    (set! bird-vel MAX_FALL_SPEED))
 
-  ; Update animation based on velocity
-  (let (v-hi (u8 bird-vel))
-    (if (>= v-hi 128)  ; Moving up (negative velocity)
-        (set! anim-frame ANIM_GOING_UP)
-        (if (> v-hi 2)  ; Falling fast
-            (set! anim-frame ANIM_FALLING)
-            (set! anim-frame ANIM_NEUTRAL)))))
+  ; Apply velocity
+  (set! bird-y (+ bird-y bird-vel))
+
+  ; Boundary checks (16-bit signed)
+  (when (< bird-y 0)
+    (set! bird-y CEILING_Y)
+    (die))
+  (when (> bird-y GROUND_Y)
+    (set! bird-y GROUND_Y)
+    (die))
+
+  ; Animation based on velocity (16-bit signed)
+  (cond
+    ((< bird-vel 0)              (set! anim-frame ANIM_GOING_UP))
+    ((> bird-vel ANIM_THRESHOLD) (set! anim-frame ANIM_FALLING))
+    (true                        (set! anim-frame ANIM_NEUTRAL))))
 
 (defn render-bird ()
   (let (y (u8 bird-y)
-        anim anim-frame
         tile TILE_BIRD_MID)
     (cond
-      ((= anim ANIM_FALLING)  (set! tile TILE_BIRD_UP))
-      ((= anim ANIM_GOING_UP) (set! tile TILE_BIRD_DOWN)))
-    (sprite/draw 0 y BIRD_X tile)))  ; SPR_BIRD = 0
+      ((= anim-frame ANIM_FALLING)  (set! tile TILE_BIRD_UP))
+      ((= anim-frame ANIM_GOING_UP) (set! tile TILE_BIRD_DOWN)))
+    (sprite/draw 0 y BIRD_X tile)))
 
 ; =============================================================================
 ; Pipes (defrecord + array + keyword accessors)
@@ -196,6 +184,7 @@
 (def PIPE_SPACING 70)
 (def GAP_MIN      38)
 (def GAP_RANGE    50)
+(def GAP_MAX      88)        ; GAP_MIN + GAP_RANGE
 
 ; Tiles
 (def TILE_PIPE_CAP_UP 39)
@@ -208,7 +197,6 @@
 
 (def PIPE_SPAWN_X 136)
 (def PIPE_SPR_BASE_0 1)
-(def PIPE_SPR_BASE_1 15)
 
 (defn init-one-pipe (i x gap-y)
   (set! (:x (nth pipes i)) x)
@@ -216,9 +204,8 @@
   (set! (:passed (nth pipes i)) 0))
 
 (defn init-pipe ()
-  (let (seed (core/read-frame)
-        gap1 (+ GAP_MIN (% seed GAP_RANGE))
-        gap2 (+ GAP_MIN (% (+ seed 37) GAP_RANGE)))
+  (let (gap1 (math/random-range GAP_MIN GAP_MAX)
+        gap2 (+ GAP_MIN (% (+ gap1 37) GAP_RANGE)))
     (init-one-pipe 0 PIPE_SPAWN_X gap1)
     (init-one-pipe 1 206 gap2)))
 
@@ -229,15 +216,14 @@
 
     (if (>= x PIPE_SPEED)
         (set! x (- x PIPE_SPEED))
-        (let (seed (core/read-frame)
-              new-gap (+ GAP_MIN (% seed GAP_RANGE)))
+        (do
           (set! x (+ x (+ PIPE_SPACING PIPE_SPACING)))
-          (set! gap-y new-gap)
+          (set! gap-y (math/random-range GAP_MIN GAP_MAX))
           (set! passed 0)))
 
     (when (and (= passed 0) (< x BIRD_X))
       (set! passed 1)
-      (set! score (inc score))
+      (core/inc! score)
       (sfx-score))
 
     (set! (:x (nth pipes i)) x)
@@ -343,7 +329,7 @@
 (defn main ()
   (unless initialized
     (apu/init)
-    (apu/sfx-init (hi sfx_table) (lo sfx_table) 3)  ; 3 SFX
+    (apu/sfx-init (hi sfx_table) (lo sfx_table) 3)
     (init-tilemap)
     (init-game)
     (set! initialized true))
@@ -351,27 +337,25 @@
   (while 1
     (core/wait-frame)
 
-    (let (pressed (input/keys-pressed))
-
-      (cond
-        ((= state :waiting)
-         (when (!= (& pressed constants/KEY_A) 0)
+    (cond
+      ((= state :waiting)
+       (when (input/key-pressed constants/KEY_A)
+         (start-game)
+         (set! bird-vel FLAP_VEL)
+         (sfx-flap)))
+      ((= state :dead)
+       (when (< dead-timer RESTART_DELAY)
+         (core/inc! dead-timer))
+       (when (>= dead-timer RESTART_DELAY)
+         (when (input/key-pressed constants/KEY_A)
+           (init-game)
            (start-game)
-           (set-flap-velocity)
-           (sfx-flap)))
-        ((= state :dead)
-         (when (< dead-timer RESTART_DELAY)
-           (set! dead-timer (inc dead-timer)))
-         (when (>= dead-timer RESTART_DELAY)
-           (when (!= (& pressed constants/KEY_A) 0)
-             (init-game)
-             (start-game)
-             (set-flap-velocity)
-             (sfx-flap))))
-        ((= state :playing)
-         (update-bird pressed)
-         (update-pipes)
-         (check-collision))))
+           (set! bird-vel FLAP_VEL)
+           (sfx-flap))))
+      ((= state :playing)
+       (update-bird)
+       (update-pipes)
+       (check-collision)))
 
     (render-game)))
 
