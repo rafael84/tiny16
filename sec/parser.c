@@ -691,7 +691,7 @@ static AstNode* parse_data(SeParser* parser) {
     return node;
 }
 
-// Parse (cond (test body...)...)
+// Parse (cond test1 body1 test2 body2 ...)
 static AstNode* parse_cond(SeParser* parser) {
     advance(parser); // skip 'cond'
 
@@ -699,33 +699,39 @@ static AstNode* parse_cond(SeParser* parser) {
     if (!node) return NULL;
 
     node->as.cond.clause_count = 0;
-    while (parser->current.kind == SE_TOKEN_LPAREN &&
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END &&
            node->as.cond.clause_count < SE_MAX_COND_CLAUSES) {
-        advance(parser); // skip '('
 
         size_t i = node->as.cond.clause_count;
+
+        // Parse test
         node->as.cond.tests[i] = se_parser_parse_form(parser);
         if (!node->as.cond.tests[i]) {
-            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "cond clause requires test");
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "cond requires test");
             return NULL;
         }
 
+        // Parse body (at least one form required)
         ast_array_init(&node->as.cond.bodies[i]);
-        while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-            AstNode* form = se_parser_parse_form(parser);
-            if (!form) return NULL;
-            if (!ast_array_push(&node->as.cond.bodies[i], form)) {
-                parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "cond body");
-                return NULL;
-            }
-        }
-
-        if (parser->current.kind != SE_TOKEN_RPAREN) {
-            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "cond clause");
+        if (parser->current.kind == SE_TOKEN_RPAREN || parser->current.kind == SE_TOKEN_END) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "cond test requires body");
             return NULL;
         }
-        advance(parser);
+
+        AstNode* body_form = se_parser_parse_form(parser);
+        if (!body_form) return NULL;
+        if (!ast_array_push(&node->as.cond.bodies[i], body_form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "cond body");
+            return NULL;
+        }
+
         node->as.cond.clause_count++;
+    }
+
+    if (node->as.cond.clause_count == 0) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS,
+                         "cond requires at least one test-body pair");
+        return NULL;
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {

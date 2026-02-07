@@ -821,7 +821,7 @@ void test_parser_set_bang(void) {
 }
 
 void test_parser_cond(void) {
-    const char* input = "(cond ((= x 0) 1) (true 2))";
+    const char* input = "(cond (= x 0) 1 true 2)";
     AstPool pool;
     ast_pool_init(&pool);
     SeParser parser;
@@ -2109,7 +2109,7 @@ void test_codegen_when_returns_nil(void) {
 
 void test_codegen_cond_returns_nil(void) {
     // cond should return nil when no clause matches
-    const char* input = "(defn main () (cond (false 1)))";
+    const char* input = "(defn main () (cond false 1))";
     char* output = codegen_to_string(input);
     TEST_ASSERT(output != NULL);
     TEST_ASSERT(strstr(output, "LOADI R0, 0xFF") != NULL);
@@ -2444,13 +2444,13 @@ void test_codegen_hi_lo_data_label(void) {
 // --- cond with keywords ---
 
 void test_codegen_cond_keywords(void) {
-    // Pattern from floppy: (cond ((= state :waiting) ...) ((= state :playing) ...) ...)
+    // Pattern from floppy: (cond (= state :waiting) ... (= state :playing) ... ...)
     const char* input = "(var state :waiting) "
                         "(defn main () "
                         "  (cond "
-                        "    ((= state :waiting) 1) "
-                        "    ((= state :playing) 2) "
-                        "    ((= state :dead) 3)))";
+                        "    (= state :waiting) 1 "
+                        "    (= state :playing) 2 "
+                        "    (= state :dead) 3))";
     char* output = codegen_to_string(input);
     TEST_ASSERT(output != NULL);
     TEST_ASSERT(strstr(output, "main:") != NULL);

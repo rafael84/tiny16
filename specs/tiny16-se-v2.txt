@@ -506,22 +506,20 @@ Memory Access
     (if (= state :dead) (respawn))
     (if (> hp 0) (fight) (flee))
 
-(cond clause...)
-    Multi-way conditional. Each clause is (test body...).
+(cond test1 body1 test2 body2 ...)
+    Multi-way conditional with test-body pairs (Clojure-style).
     Evaluates tests in order; the first truthy test causes its body
-    to be evaluated. A bare true as the last test acts as a default.
-    Returns nil if no clause matches.
+    to be evaluated. Each body is a single expression. Use (do ...)
+    for multiple expressions. A bare true as the last test acts as
+    a default. Returns nil if no clause matches.
 
     (cond
-      ((= state :waiting)
-        (show-press-a))
-      ((= state :playing)
-        (update-game)
-        (check-collision))
-      ((= state :dead)
-        (show-game-over))
-      (true
-        (init-game)))
+      (= state :waiting) (show-press-a)
+      (= state :playing) (do
+                           (update-game)
+                           (check-collision))
+      (= state :dead)    (show-game-over)
+      true               (init-game))
 
 (when cond body...)
     One-armed conditional. If cond is truthy, evaluates all body forms
@@ -721,9 +719,9 @@ Example Program
       (while true
         (core/wait-frame)
         (cond
-          ((= state :waiting) (handle-waiting))
-          ((= state :playing) (update) (render))
-          ((= state :dead) (handle-death)))
+          (= state :waiting) (handle-waiting)
+          (= state :playing) (do (update) (render))
+          (= state :dead)    (handle-death))
         (ppu/render-all)))
 
 ------------------------------------------------------------
