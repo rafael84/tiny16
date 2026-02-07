@@ -198,3 +198,181 @@ void ast_program_free(AstProgram* prog) {
     prog->node_count = 0;
     prog->node_capacity = 0;
 }
+
+void ast_for_each_child(AstNode* node, AstChildCallback cb, void* ctx) {
+    if (!node || !cb) return;
+
+    switch (node->kind) {
+    case AST_NUMBER:
+    case AST_STRING:
+    case AST_SYMBOL:
+    case AST_KEYWORD:
+    case AST_NIL:
+    case AST_TRUE:
+    case AST_FALSE:
+    case AST_NS:
+    case AST_IMPORT:
+    case AST_ASM:
+    case AST_DEFRECORD: break;
+
+    case AST_DEF: cb(&node->as.def.value, ctx); break;
+
+    case AST_DEFN:
+    case AST_FN:
+    case AST_DEFMACRO:
+        for (size_t i = 0; i < node->as.defn.body.count; i++) {
+            cb(&node->as.defn.body.items[i], ctx);
+        }
+        break;
+
+    case AST_LET:
+        for (size_t i = 0; i < node->as.let.binding_count; i++) {
+            cb(&node->as.let.vals[i], ctx);
+        }
+        for (size_t i = 0; i < node->as.let.body.count; i++) {
+            cb(&node->as.let.body.items[i], ctx);
+        }
+        break;
+
+    case AST_SET:
+    case AST_SET_BANG:
+        cb(&node->as.set.value, ctx);
+        if (node->as.set.target_expr) {
+            cb(&node->as.set.target_expr, ctx);
+        }
+        break;
+
+    case AST_VAR: cb(&node->as.var.value, ctx); break;
+
+    case AST_COND:
+        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
+            cb(&node->as.cond.tests[i], ctx);
+            for (size_t j = 0; j < node->as.cond.bodies[i].count; j++) {
+                cb(&node->as.cond.bodies[i].items[j], ctx);
+            }
+        }
+        break;
+
+    case AST_WHEN:
+    case AST_UNLESS:
+        cb(&node->as.when_expr.cond, ctx);
+        for (size_t i = 0; i < node->as.when_expr.body.count; i++) {
+            cb(&node->as.when_expr.body.items[i], ctx);
+        }
+        break;
+
+    case AST_FOR:
+        cb(&node->as.for_expr.collection, ctx);
+        if (node->as.for_expr.when_cond) {
+            cb(&node->as.for_expr.when_cond, ctx);
+        }
+        for (size_t i = 0; i < node->as.for_expr.body.count; i++) {
+            cb(&node->as.for_expr.body.items[i], ctx);
+        }
+        break;
+
+    case AST_RANGE:
+        cb(&node->as.range.start, ctx);
+        cb(&node->as.range.end, ctx);
+        break;
+
+    case AST_IF:
+        cb(&node->as.if_expr.cond, ctx);
+        cb(&node->as.if_expr.then_branch, ctx);
+        cb(&node->as.if_expr.else_branch, ctx);
+        break;
+
+    case AST_WHILE:
+        cb(&node->as.while_expr.cond, ctx);
+        for (size_t i = 0; i < node->as.while_expr.body.count; i++) {
+            cb(&node->as.while_expr.body.items[i], ctx);
+        }
+        break;
+
+    case AST_DO:
+    case AST_DB:
+    case AST_REQUIRE:
+        for (size_t i = 0; i < node->as.block.exprs.count; i++) {
+            cb(&node->as.block.exprs.items[i], ctx);
+        }
+        break;
+
+    case AST_DATA:
+        if (node->as.data.addr_expr) {
+            cb(&node->as.data.addr_expr, ctx);
+        }
+        for (size_t i = 0; i < node->as.data.body.count; i++) {
+            cb(&node->as.data.body.items[i], ctx);
+        }
+        break;
+
+    case AST_REPEAT: cb(&node->as.repeat.form, ctx); break;
+
+    case AST_ADD:
+    case AST_SUB:
+    case AST_MUL:
+    case AST_DIV:
+    case AST_MOD:
+    case AST_BAND:
+    case AST_BOR:
+    case AST_XOR:
+    case AST_SHL:
+    case AST_SHR:
+    case AST_EQ:
+    case AST_NE:
+    case AST_LT:
+    case AST_GT:
+    case AST_LE:
+    case AST_GE:
+    case AST_LOGIC_AND:
+    case AST_LOGIC_OR:
+    case AST_NTH:
+        cb(&node->as.binary.left, ctx);
+        cb(&node->as.binary.right, ctx);
+        break;
+
+    case AST_NEG:
+    case AST_INC:
+    case AST_DEC:
+    case AST_BNOT:
+    case AST_LNOT:
+    case AST_LOGIC_NOT:
+    case AST_HI:
+    case AST_LO:
+    case AST_ADDR16:
+    case AST_LEN:
+    case AST_NILP:
+    case AST_ZEROP:
+    case AST_POSP:
+    case AST_NEGP:
+    case AST_CAST_U8:
+    case AST_CAST_I8: cb(&node->as.unary.operand, ctx); break;
+
+    case AST_LOAD: cb(&node->as.load.addr, ctx); break;
+
+    case AST_STORE:
+        cb(&node->as.store.addr, ctx);
+        cb(&node->as.store.value, ctx);
+        break;
+
+    case AST_ADDR:
+        cb(&node->as.addr.hi, ctx);
+        cb(&node->as.addr.lo, ctx);
+        break;
+
+    case AST_CALL:
+        for (size_t i = 0; i < node->as.call.arg_count; i++) {
+            cb(&node->as.call.args[i], ctx);
+        }
+        break;
+
+    case AST_FIELD_GET: cb(&node->as.field_get.record, ctx); break;
+
+    case AST_ARRAY:
+        cb(&node->as.array_expr.count, ctx);
+        cb(&node->as.array_expr.value, ctx);
+        break;
+
+    default: break;
+    }
+}

@@ -347,5 +347,11 @@ void ast_program_init(AstProgram* prog);
 bool ast_program_add(AstProgram* prog, AstNode* node);
 void ast_program_free(AstProgram* prog);
 
+// Callback receives a pointer-to-child-pointer, allowing both reading and replacing.
+typedef void (*AstChildCallback)(AstNode** child_ptr, void* ctx);
+
+// Call `cb` for every child pointer in `node`. Handles all AstKind variants.
+void ast_for_each_child(AstNode* node, AstChildCallback cb, void* ctx);
+
 // Legacy compatibility
 void ast_pool_reset(AstPool* pool);

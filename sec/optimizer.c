@@ -22,121 +22,16 @@ static AstNode* make_number(AstPool* pool, int32_t value, size_t line, size_t co
 // Forward
 static AstNode* fold_node(AstPool* pool, AstNode* node);
 
-static void fold_array(AstPool* pool, AstNodeArray* arr) {
-    for (size_t i = 0; i < arr->count; i++) {
-        arr->items[i] = fold_node(pool, arr->items[i]);
-    }
+static void fold_child_cb(AstNode** child_ptr, void* ctx) {
+    AstPool* pool = *(AstPool**)ctx;
+    if (*child_ptr) *child_ptr = fold_node(pool, *child_ptr);
 }
 
 static AstNode* fold_node(AstPool* pool, AstNode* node) {
     if (!node) return NULL;
 
-    // Recurse into children first
-    switch (node->kind) {
-    case AST_DEF: node->as.def.value = fold_node(pool, node->as.def.value); break;
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO: fold_array(pool, &node->as.defn.body); break;
-    case AST_LET:
-        for (size_t i = 0; i < node->as.let.binding_count; i++)
-            node->as.let.vals[i] = fold_node(pool, node->as.let.vals[i]);
-        fold_array(pool, &node->as.let.body);
-        break;
-    case AST_VAR: node->as.var.value = fold_node(pool, node->as.var.value); break;
-    case AST_SET:
-    case AST_SET_BANG:
-        node->as.set.value = fold_node(pool, node->as.set.value);
-        if (node->as.set.target_expr)
-            node->as.set.target_expr = fold_node(pool, node->as.set.target_expr);
-        break;
-    case AST_IF:
-        node->as.if_expr.cond = fold_node(pool, node->as.if_expr.cond);
-        node->as.if_expr.then_branch = fold_node(pool, node->as.if_expr.then_branch);
-        node->as.if_expr.else_branch = fold_node(pool, node->as.if_expr.else_branch);
-        break;
-    case AST_WHILE:
-        node->as.while_expr.cond = fold_node(pool, node->as.while_expr.cond);
-        fold_array(pool, &node->as.while_expr.body);
-        break;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            node->as.cond.tests[i] = fold_node(pool, node->as.cond.tests[i]);
-            fold_array(pool, &node->as.cond.bodies[i]);
-        }
-        break;
-    case AST_WHEN:
-    case AST_UNLESS:
-        node->as.when_expr.cond = fold_node(pool, node->as.when_expr.cond);
-        fold_array(pool, &node->as.when_expr.body);
-        break;
-    case AST_FOR:
-        node->as.for_expr.collection = fold_node(pool, node->as.for_expr.collection);
-        if (node->as.for_expr.when_cond)
-            node->as.for_expr.when_cond = fold_node(pool, node->as.for_expr.when_cond);
-        fold_array(pool, &node->as.for_expr.body);
-        break;
-    case AST_RANGE:
-        node->as.range.start = fold_node(pool, node->as.range.start);
-        node->as.range.end = fold_node(pool, node->as.range.end);
-        break;
-    case AST_DO:
-    case AST_DB:
-    case AST_REQUIRE: fold_array(pool, &node->as.block.exprs); break;
-    case AST_ADD:
-    case AST_SUB:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-    case AST_NTH:
-        node->as.binary.left = fold_node(pool, node->as.binary.left);
-        node->as.binary.right = fold_node(pool, node->as.binary.right);
-        break;
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_LOGIC_NOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: node->as.unary.operand = fold_node(pool, node->as.unary.operand); break;
-    case AST_CALL:
-        for (size_t i = 0; i < node->as.call.arg_count; i++)
-            node->as.call.args[i] = fold_node(pool, node->as.call.args[i]);
-        break;
-    case AST_LOAD: node->as.load.addr = fold_node(pool, node->as.load.addr); break;
-    case AST_STORE:
-        node->as.store.addr = fold_node(pool, node->as.store.addr);
-        node->as.store.value = fold_node(pool, node->as.store.value);
-        break;
-    case AST_FIELD_GET:
-        node->as.field_get.record = fold_node(pool, node->as.field_get.record);
-        break;
-    case AST_ARRAY:
-        node->as.array_expr.count = fold_node(pool, node->as.array_expr.count);
-        node->as.array_expr.value = fold_node(pool, node->as.array_expr.value);
-        break;
-    default: break;
-    }
+    // Recurse into children first (via single source of tree structure)
+    ast_for_each_child(node, fold_child_cb, &pool);
 
     // Now try to fold this node
     switch (node->kind) {
@@ -459,10 +354,9 @@ static void pass_constant_fold(AstProgram* program, AstPool* pool) {
 
 static AstNode* strength_node(AstPool* pool, AstNode* node);
 
-static void strength_array(AstPool* pool, AstNodeArray* arr) {
-    for (size_t i = 0; i < arr->count; i++) {
-        arr->items[i] = strength_node(pool, arr->items[i]);
-    }
+static void strength_child_cb(AstNode** child_ptr, void* ctx) {
+    AstPool* pool = *(AstPool**)ctx;
+    if (*child_ptr) *child_ptr = strength_node(pool, *child_ptr);
 }
 
 static int log2_exact(int32_t v) {
@@ -479,94 +373,8 @@ static int log2_exact(int32_t v) {
 static AstNode* strength_node(AstPool* pool, AstNode* node) {
     if (!node) return NULL;
 
-    // Recurse first
-    switch (node->kind) {
-    case AST_DEF: node->as.def.value = strength_node(pool, node->as.def.value); break;
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO: strength_array(pool, &node->as.defn.body); break;
-    case AST_LET:
-        for (size_t i = 0; i < node->as.let.binding_count; i++)
-            node->as.let.vals[i] = strength_node(pool, node->as.let.vals[i]);
-        strength_array(pool, &node->as.let.body);
-        break;
-    case AST_VAR: node->as.var.value = strength_node(pool, node->as.var.value); break;
-    case AST_IF:
-        node->as.if_expr.cond = strength_node(pool, node->as.if_expr.cond);
-        node->as.if_expr.then_branch = strength_node(pool, node->as.if_expr.then_branch);
-        node->as.if_expr.else_branch = strength_node(pool, node->as.if_expr.else_branch);
-        break;
-    case AST_WHILE:
-        node->as.while_expr.cond = strength_node(pool, node->as.while_expr.cond);
-        strength_array(pool, &node->as.while_expr.body);
-        break;
-    case AST_DO: strength_array(pool, &node->as.block.exprs); break;
-    case AST_ADD:
-    case AST_SUB:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-    case AST_NTH:
-        node->as.binary.left = strength_node(pool, node->as.binary.left);
-        node->as.binary.right = strength_node(pool, node->as.binary.right);
-        break;
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_LOGIC_NOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: node->as.unary.operand = strength_node(pool, node->as.unary.operand); break;
-    case AST_CALL:
-        for (size_t i = 0; i < node->as.call.arg_count; i++)
-            node->as.call.args[i] = strength_node(pool, node->as.call.args[i]);
-        break;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            node->as.cond.tests[i] = strength_node(pool, node->as.cond.tests[i]);
-            strength_array(pool, &node->as.cond.bodies[i]);
-        }
-        break;
-    case AST_WHEN:
-    case AST_UNLESS:
-        node->as.when_expr.cond = strength_node(pool, node->as.when_expr.cond);
-        strength_array(pool, &node->as.when_expr.body);
-        break;
-    case AST_FOR:
-        node->as.for_expr.collection = strength_node(pool, node->as.for_expr.collection);
-        if (node->as.for_expr.when_cond)
-            node->as.for_expr.when_cond = strength_node(pool, node->as.for_expr.when_cond);
-        strength_array(pool, &node->as.for_expr.body);
-        break;
-    case AST_SET:
-    case AST_SET_BANG:
-        node->as.set.value = strength_node(pool, node->as.set.value);
-        if (node->as.set.target_expr)
-            node->as.set.target_expr = strength_node(pool, node->as.set.target_expr);
-        break;
-    default: break;
-    }
+    // Recurse first (via single source of tree structure)
+    ast_for_each_child(node, strength_child_cb, &pool);
 
     // Strength reduce: (* x 2^n) -> (<< x n)
     if (node->kind == AST_MUL) {
@@ -643,170 +451,57 @@ static void pass_strength_reduce(AstProgram* program, AstPool* pool) {
 // Also remove unreachable code after constant-folded conditions.
 // -------------------------------------------------------------------
 
+// Context for name_used_in visitor
+typedef struct {
+    const char* name;
+    bool found;
+} NameUsedCtx;
+
+static void name_used_child_cb(AstNode** child_ptr, void* ctx) {
+    NameUsedCtx* uc = (NameUsedCtx*)ctx;
+    if (uc->found || !*child_ptr) return;
+    AstNode* n = *child_ptr;
+    if (n->kind == AST_SYMBOL && strcmp(n->as.symbol.name, uc->name) == 0) {
+        uc->found = true;
+        return;
+    }
+    if ((n->kind == AST_SET || n->kind == AST_SET_BANG) && strcmp(n->as.set.var, uc->name) == 0) {
+        uc->found = true;
+        return;
+    }
+    if (n->kind == AST_CALL && strcmp(n->as.call.func, uc->name) == 0) {
+        uc->found = true;
+        return;
+    }
+    ast_for_each_child(n, name_used_child_cb, ctx);
+}
+
 // Check if a symbol name is referenced anywhere in a subtree
 static bool name_used_in(const char* name, AstNode* node) {
     if (!node) return false;
-
     if (node->kind == AST_SYMBOL && strcmp(node->as.symbol.name, name) == 0) return true;
+    if ((node->kind == AST_SET || node->kind == AST_SET_BANG) &&
+        strcmp(node->as.set.var, name) == 0)
+        return true;
+    if (node->kind == AST_CALL && strcmp(node->as.call.func, name) == 0) return true;
+    NameUsedCtx uc = {.name = name, .found = false};
+    ast_for_each_child(node, name_used_child_cb, &uc);
+    return uc.found;
+}
 
-    switch (node->kind) {
-    case AST_DEF: return name_used_in(name, node->as.def.value);
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO:
-        for (size_t i = 0; i < node->as.defn.body.count; i++)
-            if (name_used_in(name, node->as.defn.body.items[i])) return true;
-        return false;
-    case AST_LET:
-        for (size_t i = 0; i < node->as.let.binding_count; i++)
-            if (name_used_in(name, node->as.let.vals[i])) return true;
-        for (size_t i = 0; i < node->as.let.body.count; i++)
-            if (name_used_in(name, node->as.let.body.items[i])) return true;
-        return false;
-    case AST_VAR: return name_used_in(name, node->as.var.value);
-    case AST_SET:
-    case AST_SET_BANG:
-        if (strcmp(node->as.set.var, name) == 0) return true;
-        if (name_used_in(name, node->as.set.value)) return true;
-        return name_used_in(name, node->as.set.target_expr);
-    case AST_IF:
-        return name_used_in(name, node->as.if_expr.cond) ||
-               name_used_in(name, node->as.if_expr.then_branch) ||
-               name_used_in(name, node->as.if_expr.else_branch);
-    case AST_WHILE:
-        if (name_used_in(name, node->as.while_expr.cond)) return true;
-        for (size_t i = 0; i < node->as.while_expr.body.count; i++)
-            if (name_used_in(name, node->as.while_expr.body.items[i])) return true;
-        return false;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            if (name_used_in(name, node->as.cond.tests[i])) return true;
-            for (size_t j = 0; j < node->as.cond.bodies[i].count; j++)
-                if (name_used_in(name, node->as.cond.bodies[i].items[j])) return true;
-        }
-        return false;
-    case AST_WHEN:
-    case AST_UNLESS:
-        if (name_used_in(name, node->as.when_expr.cond)) return true;
-        for (size_t i = 0; i < node->as.when_expr.body.count; i++)
-            if (name_used_in(name, node->as.when_expr.body.items[i])) return true;
-        return false;
-    case AST_FOR:
-        if (name_used_in(name, node->as.for_expr.collection)) return true;
-        if (name_used_in(name, node->as.for_expr.when_cond)) return true;
-        for (size_t i = 0; i < node->as.for_expr.body.count; i++)
-            if (name_used_in(name, node->as.for_expr.body.items[i])) return true;
-        return false;
-    case AST_RANGE:
-        return name_used_in(name, node->as.range.start) || name_used_in(name, node->as.range.end);
-    case AST_DO:
-    case AST_DB:
-    case AST_REQUIRE:
-        for (size_t i = 0; i < node->as.block.exprs.count; i++)
-            if (name_used_in(name, node->as.block.exprs.items[i])) return true;
-        return false;
-    case AST_ADD:
-    case AST_SUB:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-    case AST_NTH:
-        return name_used_in(name, node->as.binary.left) ||
-               name_used_in(name, node->as.binary.right);
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_LOGIC_NOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: return name_used_in(name, node->as.unary.operand);
-    case AST_CALL:
-        if (strcmp(node->as.call.func, name) == 0) return true;
-        for (size_t i = 0; i < node->as.call.arg_count; i++)
-            if (name_used_in(name, node->as.call.args[i])) return true;
-        return false;
-    case AST_LOAD: return name_used_in(name, node->as.load.addr);
-    case AST_STORE:
-        return name_used_in(name, node->as.store.addr) || name_used_in(name, node->as.store.value);
-    case AST_FIELD_GET: return name_used_in(name, node->as.field_get.record);
-    case AST_ARRAY:
-        return name_used_in(name, node->as.array_expr.count) ||
-               name_used_in(name, node->as.array_expr.value);
-    default: return false;
-    }
+static AstNode* dce_node(AstNode* node);
+
+static void dce_child_cb(AstNode** child_ptr, void* ctx) {
+    (void)ctx;
+    if (*child_ptr) *child_ptr = dce_node(*child_ptr);
 }
 
 // Remove unused let bindings from a node (recursively)
 static AstNode* dce_node(AstNode* node) {
     if (!node) return NULL;
 
-    // Recurse into children first
-    switch (node->kind) {
-    case AST_DEF: node->as.def.value = dce_node(node->as.def.value); break;
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO:
-        for (size_t i = 0; i < node->as.defn.body.count; i++)
-            node->as.defn.body.items[i] = dce_node(node->as.defn.body.items[i]);
-        break;
-    case AST_VAR: node->as.var.value = dce_node(node->as.var.value); break;
-    case AST_IF:
-        node->as.if_expr.cond = dce_node(node->as.if_expr.cond);
-        node->as.if_expr.then_branch = dce_node(node->as.if_expr.then_branch);
-        node->as.if_expr.else_branch = dce_node(node->as.if_expr.else_branch);
-        break;
-    case AST_WHILE:
-        node->as.while_expr.cond = dce_node(node->as.while_expr.cond);
-        for (size_t i = 0; i < node->as.while_expr.body.count; i++)
-            node->as.while_expr.body.items[i] = dce_node(node->as.while_expr.body.items[i]);
-        break;
-    case AST_DO:
-        for (size_t i = 0; i < node->as.block.exprs.count; i++)
-            node->as.block.exprs.items[i] = dce_node(node->as.block.exprs.items[i]);
-        break;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            node->as.cond.tests[i] = dce_node(node->as.cond.tests[i]);
-            for (size_t j = 0; j < node->as.cond.bodies[i].count; j++)
-                node->as.cond.bodies[i].items[j] = dce_node(node->as.cond.bodies[i].items[j]);
-        }
-        break;
-    case AST_WHEN:
-    case AST_UNLESS:
-        node->as.when_expr.cond = dce_node(node->as.when_expr.cond);
-        for (size_t i = 0; i < node->as.when_expr.body.count; i++)
-            node->as.when_expr.body.items[i] = dce_node(node->as.when_expr.body.items[i]);
-        break;
-    case AST_FOR:
-        node->as.for_expr.collection = dce_node(node->as.for_expr.collection);
-        if (node->as.for_expr.when_cond)
-            node->as.for_expr.when_cond = dce_node(node->as.for_expr.when_cond);
-        for (size_t i = 0; i < node->as.for_expr.body.count; i++)
-            node->as.for_expr.body.items[i] = dce_node(node->as.for_expr.body.items[i]);
-        break;
-    default: break;
-    }
+    // Recurse into children first (via single source of tree structure)
+    ast_for_each_child(node, dce_child_cb, NULL);
 
     // Now check let bindings for unused variables
     if (node->kind == AST_LET) {
@@ -916,131 +611,65 @@ static bool cprop_lookup(ConstPropCtx* ctx, const char* name, int32_t* value) {
 
 static AstNode* cprop_node(ConstPropCtx* ctx, AstNode* node);
 
-static void cprop_array(ConstPropCtx* ctx, AstNodeArray* arr) {
-    for (size_t i = 0; i < arr->count; i++) {
-        arr->items[i] = cprop_node(ctx, arr->items[i]);
+static void cprop_child_cb(AstNode** child_ptr, void* ctx) {
+    ConstPropCtx* cctx = (ConstPropCtx*)ctx;
+    if (*child_ptr) *child_ptr = cprop_node(cctx, *child_ptr);
+}
+
+// Context for is_set_target_in visitor
+typedef struct {
+    const char* name;
+    bool found;
+} SetTargetCtx;
+
+static bool is_set_target_in(const char* name, AstNode* node);
+
+static void is_set_target_child_cb(AstNode** child_ptr, void* ctx) {
+    SetTargetCtx* sc = (SetTargetCtx*)ctx;
+    if (sc->found || !*child_ptr) return;
+    AstNode* n = *child_ptr;
+    if ((n->kind == AST_SET || n->kind == AST_SET_BANG) && strcmp(n->as.set.var, sc->name) == 0) {
+        sc->found = true;
+        return;
     }
+    if (n->kind == AST_LET) {
+        for (size_t i = 0; i < n->as.let.binding_count; i++) {
+            if (strcmp(n->as.let.vars[i], sc->name) == 0) {
+                for (size_t j = 0; j < i; j++) {
+                    if (is_set_target_in(sc->name, n->as.let.vals[j])) {
+                        sc->found = true;
+                        return;
+                    }
+                }
+                if (is_set_target_in(sc->name, n->as.let.vals[i])) sc->found = true;
+                return; /* shadowing: don't check body */
+            }
+            if (is_set_target_in(sc->name, n->as.let.vals[i])) {
+                sc->found = true;
+                return;
+            }
+        }
+        for (size_t i = 0; i < n->as.let.body.count; i++) {
+            if (is_set_target_in(sc->name, n->as.let.body.items[i])) {
+                sc->found = true;
+                return;
+            }
+        }
+        return;
+    }
+    ast_for_each_child(n, is_set_target_child_cb, ctx);
 }
 
 // Check if a variable name is the target of any (set! name ...) in a subtree.
 // Used to prevent constant propagation of mutable let bindings.
 static bool is_set_target_in(const char* name, AstNode* node) {
     if (!node) return false;
-
     if ((node->kind == AST_SET || node->kind == AST_SET_BANG) &&
-        strcmp(node->as.set.var, name) == 0) {
+        strcmp(node->as.set.var, name) == 0)
         return true;
-    }
-
-    switch (node->kind) {
-    case AST_LET:
-        // If the let shadows the variable name, don't look further into its body
-        for (size_t i = 0; i < node->as.let.binding_count; i++) {
-            if (strcmp(node->as.let.vars[i], name) == 0) {
-                // Check only values up to the shadowing point
-                for (size_t j = 0; j < i; j++)
-                    if (is_set_target_in(name, node->as.let.vals[j])) return true;
-                return false;
-            }
-            if (is_set_target_in(name, node->as.let.vals[i])) return true;
-        }
-        for (size_t i = 0; i < node->as.let.body.count; i++)
-            if (is_set_target_in(name, node->as.let.body.items[i])) return true;
-        return false;
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO:
-        for (size_t i = 0; i < node->as.defn.body.count; i++)
-            if (is_set_target_in(name, node->as.defn.body.items[i])) return true;
-        return false;
-    case AST_IF:
-        return is_set_target_in(name, node->as.if_expr.cond) ||
-               is_set_target_in(name, node->as.if_expr.then_branch) ||
-               is_set_target_in(name, node->as.if_expr.else_branch);
-    case AST_WHILE:
-        if (is_set_target_in(name, node->as.while_expr.cond)) return true;
-        for (size_t i = 0; i < node->as.while_expr.body.count; i++)
-            if (is_set_target_in(name, node->as.while_expr.body.items[i])) return true;
-        return false;
-    case AST_DO:
-    case AST_DB:
-    case AST_REQUIRE:
-        for (size_t i = 0; i < node->as.block.exprs.count; i++)
-            if (is_set_target_in(name, node->as.block.exprs.items[i])) return true;
-        return false;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            if (is_set_target_in(name, node->as.cond.tests[i])) return true;
-            for (size_t j = 0; j < node->as.cond.bodies[i].count; j++)
-                if (is_set_target_in(name, node->as.cond.bodies[i].items[j])) return true;
-        }
-        return false;
-    case AST_WHEN:
-    case AST_UNLESS:
-        if (is_set_target_in(name, node->as.when_expr.cond)) return true;
-        for (size_t i = 0; i < node->as.when_expr.body.count; i++)
-            if (is_set_target_in(name, node->as.when_expr.body.items[i])) return true;
-        return false;
-    case AST_FOR:
-        if (is_set_target_in(name, node->as.for_expr.collection)) return true;
-        if (is_set_target_in(name, node->as.for_expr.when_cond)) return true;
-        for (size_t i = 0; i < node->as.for_expr.body.count; i++)
-            if (is_set_target_in(name, node->as.for_expr.body.items[i])) return true;
-        return false;
-    case AST_SET:
-    case AST_SET_BANG:
-        return is_set_target_in(name, node->as.set.value) ||
-               is_set_target_in(name, node->as.set.target_expr);
-    case AST_ADD:
-    case AST_SUB:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-    case AST_NTH:
-        return is_set_target_in(name, node->as.binary.left) ||
-               is_set_target_in(name, node->as.binary.right);
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_LOGIC_NOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: return is_set_target_in(name, node->as.unary.operand);
-    case AST_CALL:
-        for (size_t i = 0; i < node->as.call.arg_count; i++)
-            if (is_set_target_in(name, node->as.call.args[i])) return true;
-        return false;
-    case AST_LOAD: return is_set_target_in(name, node->as.load.addr);
-    case AST_STORE:
-        return is_set_target_in(name, node->as.store.addr) ||
-               is_set_target_in(name, node->as.store.value);
-    case AST_FIELD_GET: return is_set_target_in(name, node->as.field_get.record);
-    case AST_RANGE:
-        return is_set_target_in(name, node->as.range.start) ||
-               is_set_target_in(name, node->as.range.end);
-    default: return false;
-    }
+    SetTargetCtx sc = {.name = name, .found = false};
+    ast_for_each_child(node, is_set_target_child_cb, &sc);
+    return sc.found;
 }
 
 static AstNode* cprop_node(ConstPropCtx* ctx, AstNode* node) {
@@ -1083,112 +712,14 @@ static AstNode* cprop_node(ConstPropCtx* ctx, AstNode* node) {
                 }
             }
         }
-        cprop_array(ctx, &node->as.let.body);
+        for (size_t i = 0; i < node->as.let.body.count; i++)
+            node->as.let.body.items[i] = cprop_node(ctx, node->as.let.body.items[i]);
         ctx->count = saved_count;
         return node;
     }
 
-    // Recurse into children
-    switch (node->kind) {
-    case AST_DEF: node->as.def.value = cprop_node(ctx, node->as.def.value); break;
-    case AST_DEFN:
-    case AST_FN:
-    case AST_DEFMACRO: cprop_array(ctx, &node->as.defn.body); break;
-    case AST_VAR: node->as.var.value = cprop_node(ctx, node->as.var.value); break;
-    case AST_SET:
-    case AST_SET_BANG:
-        node->as.set.value = cprop_node(ctx, node->as.set.value);
-        if (node->as.set.target_expr)
-            node->as.set.target_expr = cprop_node(ctx, node->as.set.target_expr);
-        break;
-    case AST_IF:
-        node->as.if_expr.cond = cprop_node(ctx, node->as.if_expr.cond);
-        node->as.if_expr.then_branch = cprop_node(ctx, node->as.if_expr.then_branch);
-        node->as.if_expr.else_branch = cprop_node(ctx, node->as.if_expr.else_branch);
-        break;
-    case AST_WHILE:
-        node->as.while_expr.cond = cprop_node(ctx, node->as.while_expr.cond);
-        cprop_array(ctx, &node->as.while_expr.body);
-        break;
-    case AST_DO:
-    case AST_DB:
-    case AST_REQUIRE: cprop_array(ctx, &node->as.block.exprs); break;
-    case AST_ADD:
-    case AST_SUB:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-    case AST_NTH:
-        node->as.binary.left = cprop_node(ctx, node->as.binary.left);
-        node->as.binary.right = cprop_node(ctx, node->as.binary.right);
-        break;
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_LOGIC_NOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: node->as.unary.operand = cprop_node(ctx, node->as.unary.operand); break;
-    case AST_CALL:
-        for (size_t i = 0; i < node->as.call.arg_count; i++)
-            node->as.call.args[i] = cprop_node(ctx, node->as.call.args[i]);
-        break;
-    case AST_COND:
-        for (size_t i = 0; i < node->as.cond.clause_count; i++) {
-            node->as.cond.tests[i] = cprop_node(ctx, node->as.cond.tests[i]);
-            cprop_array(ctx, &node->as.cond.bodies[i]);
-        }
-        break;
-    case AST_WHEN:
-    case AST_UNLESS:
-        node->as.when_expr.cond = cprop_node(ctx, node->as.when_expr.cond);
-        cprop_array(ctx, &node->as.when_expr.body);
-        break;
-    case AST_FOR:
-        node->as.for_expr.collection = cprop_node(ctx, node->as.for_expr.collection);
-        if (node->as.for_expr.when_cond)
-            node->as.for_expr.when_cond = cprop_node(ctx, node->as.for_expr.when_cond);
-        cprop_array(ctx, &node->as.for_expr.body);
-        break;
-    case AST_RANGE:
-        node->as.range.start = cprop_node(ctx, node->as.range.start);
-        node->as.range.end = cprop_node(ctx, node->as.range.end);
-        break;
-    case AST_LOAD: node->as.load.addr = cprop_node(ctx, node->as.load.addr); break;
-    case AST_STORE:
-        node->as.store.addr = cprop_node(ctx, node->as.store.addr);
-        node->as.store.value = cprop_node(ctx, node->as.store.value);
-        break;
-    case AST_FIELD_GET:
-        node->as.field_get.record = cprop_node(ctx, node->as.field_get.record);
-        break;
-    case AST_ARRAY:
-        node->as.array_expr.count = cprop_node(ctx, node->as.array_expr.count);
-        node->as.array_expr.value = cprop_node(ctx, node->as.array_expr.value);
-        break;
-    default: break;
-    }
+    // Recurse into children (via single source of tree structure)
+    ast_for_each_child(node, cprop_child_cb, ctx);
 
     return node;
 }

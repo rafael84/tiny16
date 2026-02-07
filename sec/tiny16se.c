@@ -90,7 +90,17 @@ static void qualify_name(char* name, const char* ns) {
     name[SE_MAX_SYMBOL_LEN - 1] = '\0';
 }
 
+typedef struct {
+    const char* ns;
+    SeScope* scope;
+} NsCtx;
+
 static void apply_namespace(AstNode* node, const char* ns, SeScope* scope);
+
+static void apply_ns_child_cb(AstNode** child_ptr, void* ctx) {
+    NsCtx* nc = (NsCtx*)ctx;
+    if (*child_ptr) apply_namespace(*child_ptr, nc->ns, nc->scope);
+}
 
 static void apply_namespace_list(AstNode** nodes, size_t count, const char* ns, SeScope* scope) {
     if (!nodes || count == 0) return;
@@ -101,6 +111,8 @@ static void apply_namespace_list(AstNode** nodes, size_t count, const char* ns, 
 
 static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     if (!node) return;
+
+    NsCtx ctx = {.ns = ns, .scope = scope};
 
     switch (node->kind) {
     case AST_NUMBER:
@@ -115,9 +127,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_REQUIRE: return;
 
     case AST_SYMBOL:
-        if (!scope_contains(scope, node->as.symbol.name)) {
-            qualify_name(node->as.symbol.name, ns);
-        }
+        if (!scope_contains(scope, node->as.symbol.name)) qualify_name(node->as.symbol.name, ns);
         return;
 
     case AST_DEF:
@@ -128,10 +138,9 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_DEFN: {
         qualify_name(node->as.defn.name, ns);
         size_t saved = scope->count;
-        for (size_t i = 0; i < node->as.defn.param_count; i++) {
+        for (size_t i = 0; i < node->as.defn.param_count; i++)
             scope_push(scope, node->as.defn.params[i]);
-        }
-        apply_namespace_list(node->as.defn.body.items, node->as.defn.body.count, ns, scope);
+        ast_for_each_child(node, apply_ns_child_cb, &ctx);
         scope_pop_to(scope, saved);
         return;
     }
@@ -139,12 +148,10 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_DEFMACRO: qualify_name(node->as.defn.name, ns); return;
 
     case AST_FN: {
-        // Anonymous function: don't qualify generated name, but apply ns to body
         size_t saved = scope->count;
-        for (size_t i = 0; i < node->as.defn.param_count; i++) {
+        for (size_t i = 0; i < node->as.defn.param_count; i++)
             scope_push(scope, node->as.defn.params[i]);
-        }
-        apply_namespace_list(node->as.defn.body.items, node->as.defn.body.count, ns, scope);
+        ast_for_each_child(node, apply_ns_child_cb, &ctx);
         scope_pop_to(scope, saved);
         return;
     }
@@ -162,15 +169,11 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
 
     case AST_SET:
     case AST_SET_BANG:
-        // Qualify the target variable name (unless it's a field like ":x")
         if (node->as.set.var[0] != ':' && node->as.set.var[0] != '\0' &&
-            !scope_contains(scope, node->as.set.var)) {
+            !scope_contains(scope, node->as.set.var))
             qualify_name(node->as.set.var, ns);
-        }
         apply_namespace(node->as.set.value, ns, scope);
-        if (node->as.set.target_expr) {
-            apply_namespace(node->as.set.target_expr, ns, scope);
-        }
+        if (node->as.set.target_expr) apply_namespace(node->as.set.target_expr, ns, scope);
         return;
 
     case AST_VAR:
@@ -178,14 +181,13 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
         apply_namespace(node->as.var.value, ns, scope);
         return;
 
-    case AST_COND: {
+    case AST_COND:
         for (size_t i = 0; i < node->as.cond.clause_count; i++) {
             apply_namespace(node->as.cond.tests[i], ns, scope);
             apply_namespace_list(node->as.cond.bodies[i].items, node->as.cond.bodies[i].count, ns,
                                  scope);
         }
         return;
-    }
 
     case AST_WHEN:
     case AST_UNLESS:
@@ -197,94 +199,17 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
     case AST_FOR: {
         apply_namespace(node->as.for_expr.collection, ns, scope);
         size_t saved = scope->count;
-        scope_push(scope, node->as.for_expr.var); // loop variable is local
-        if (node->as.for_expr.when_cond) {
-            apply_namespace(node->as.for_expr.when_cond, ns, scope);
-        }
+        scope_push(scope, node->as.for_expr.var);
+        if (node->as.for_expr.when_cond) apply_namespace(node->as.for_expr.when_cond, ns, scope);
         apply_namespace_list(node->as.for_expr.body.items, node->as.for_expr.body.count, ns, scope);
         scope_pop_to(scope, saved);
         return;
     }
 
-    case AST_RANGE:
-        apply_namespace(node->as.range.start, ns, scope);
-        apply_namespace(node->as.range.end, ns, scope);
-        return;
-
-    case AST_LOGIC_AND:
-    case AST_LOGIC_OR:
-        apply_namespace(node->as.binary.left, ns, scope);
-        apply_namespace(node->as.binary.right, ns, scope);
-        return;
-
-    case AST_LOGIC_NOT: apply_namespace(node->as.unary.operand, ns, scope); return;
-
-    case AST_IF:
-        apply_namespace(node->as.if_expr.cond, ns, scope);
-        apply_namespace(node->as.if_expr.then_branch, ns, scope);
-        apply_namespace(node->as.if_expr.else_branch, ns, scope);
-        return;
-
-    case AST_WHILE:
-        apply_namespace(node->as.while_expr.cond, ns, scope);
-        apply_namespace_list(node->as.while_expr.body.items, node->as.while_expr.body.count, ns,
-                             scope);
-        return;
-
-    case AST_DO:
-    case AST_DB:
-        apply_namespace_list(node->as.block.exprs.items, node->as.block.exprs.count, ns, scope);
-        return;
-
     case AST_DATA:
         qualify_name(node->as.data.name, ns);
-        if (node->as.data.addr_expr) {
-            apply_namespace(node->as.data.addr_expr, ns, scope);
-        }
+        if (node->as.data.addr_expr) apply_namespace(node->as.data.addr_expr, ns, scope);
         apply_namespace_list(node->as.data.body.items, node->as.data.body.count, ns, scope);
-        return;
-
-    case AST_REPEAT: apply_namespace(node->as.repeat.form, ns, scope); return;
-
-    case AST_ADD:
-    case AST_SUB:
-    case AST_BAND:
-    case AST_BOR:
-    case AST_XOR:
-    case AST_SHL:
-    case AST_SHR:
-    case AST_MUL:
-    case AST_DIV:
-    case AST_MOD:
-    case AST_EQ:
-    case AST_NE:
-    case AST_LT:
-    case AST_GT:
-    case AST_LE:
-    case AST_GE:
-        apply_namespace(node->as.binary.left, ns, scope);
-        apply_namespace(node->as.binary.right, ns, scope);
-        return;
-
-    case AST_NEG:
-    case AST_INC:
-    case AST_DEC:
-    case AST_BNOT:
-    case AST_LNOT:
-    case AST_HI:
-    case AST_LO:
-    case AST_ADDR16: apply_namespace(node->as.unary.operand, ns, scope); return;
-
-    case AST_ADDR:
-        apply_namespace(node->as.addr.hi, ns, scope);
-        apply_namespace(node->as.addr.lo, ns, scope);
-        return;
-
-    case AST_LOAD: apply_namespace(node->as.load.addr, ns, scope); return;
-
-    case AST_STORE:
-        apply_namespace(node->as.store.addr, ns, scope);
-        apply_namespace(node->as.store.value, ns, scope);
         return;
 
     case AST_CALL:
@@ -294,25 +219,7 @@ static void apply_namespace(AstNode* node, const char* ns, SeScope* scope) {
 
     case AST_DEFRECORD: qualify_name(node->as.defrecord.name, ns); return;
 
-    case AST_FIELD_GET: apply_namespace(node->as.field_get.record, ns, scope); return;
-
-    case AST_ARRAY:
-        apply_namespace(node->as.array_expr.count, ns, scope);
-        apply_namespace(node->as.array_expr.value, ns, scope);
-        return;
-
-    case AST_NTH:
-        apply_namespace(node->as.binary.left, ns, scope);
-        apply_namespace(node->as.binary.right, ns, scope);
-        return;
-
-    case AST_LEN:
-    case AST_NILP:
-    case AST_ZEROP:
-    case AST_POSP:
-    case AST_NEGP:
-    case AST_CAST_U8:
-    case AST_CAST_I8: apply_namespace(node->as.unary.operand, ns, scope); return;
+    default: ast_for_each_child(node, apply_ns_child_cb, &ctx); break;
     }
 }
 
