@@ -1,51 +1,72 @@
-; sprite - OAM/sprite management
+; sprite - OAM/sprite management (v2: native store/load)
 (ns sprite)
 
 (def OAM_BASE 0x9000)
-(def OAM_HI (hi OAM_BASE))
-
 (def TILES_BASE 0x5000)
-(def TILES_HI (hi TILES_BASE))
 (def TILE_SIZE_BYTES 32)
+(def NUM_SPRITES 64)
+(def SPRITE_HIDDEN_Y 255)
 
-; Calculate OAM address offset for sprite index
-; Each sprite = 4 bytes: Y, X, Tile, Attributes
-(defn oam-addr (idx)
+; Each sprite = 4 bytes in OAM: Y, X, Tile, Attributes
+(defn oam-offset (idx)
   (* idx 4))
+
+; Draw sprite at OAM slot idx
+(defn draw (idx y x tile)
+  (let (a (oam-offset idx))
+    (store (+ OAM_BASE a) y)
+    (store (+ OAM_BASE (+ a 1)) x)
+    (store (+ OAM_BASE (+ a 2)) tile)
+    (store (+ OAM_BASE (+ a 3)) 0)))
+
+; Draw sprite with attributes (flip, priority, etc.)
+(defn draw-attr (idx y x tile attr)
+  (let (a (oam-offset idx))
+    (store (+ OAM_BASE a) y)
+    (store (+ OAM_BASE (+ a 1)) x)
+    (store (+ OAM_BASE (+ a 2)) tile)
+    (store (+ OAM_BASE (+ a 3)) attr)))
+
+; Hide sprite by moving it off-screen
+(defn hide (idx)
+  (let (a (oam-offset idx))
+    (store (+ OAM_BASE a) SPRITE_HIDDEN_Y)
+    (store (+ OAM_BASE (+ a 1)) 0)
+    (store (+ OAM_BASE (+ a 2)) 0)
+    (store (+ OAM_BASE (+ a 3)) 0)))
+
+; Hide all sprites
+(defn hide-all ()
+  (for (i (range 0 NUM_SPRITES))
+    (hide i)))
+
+; Set sprite position
+(defn set-pos (idx x y)
+  (let (a (oam-offset idx))
+    (store (+ OAM_BASE a) y)
+    (store (+ OAM_BASE (+ a 1)) x)))
+
+; Set sprite tile
+(defn set-tile (idx tile)
+  (store (+ OAM_BASE (+ (oam-offset idx) 2)) tile))
+
+; Set sprite attributes
+(defn set-attr (idx attr)
+  (store (+ OAM_BASE (+ (oam-offset idx) 3)) attr))
 
 ; Check if a tile has any non-transparent pixels (palette index != 0)
 ; Tiles are 8x8 pixels, 4bpp (2 pixels per byte) = 32 bytes
 ; Returns 1 if tile is visible, 0 if completely transparent
 (defn tile-visible? (tile-idx)
-  (let (tile-addr-lo (* tile-idx TILE_SIZE_BYTES)
+  (let (base-lo (* tile-idx TILE_SIZE_BYTES)
         i 0
         visible 0)
-    ; Check all 32 bytes of the tile
     (while (< i TILE_SIZE_BYTES)
-      (let (byte-val (peek TILES_HI (+ (lo TILES_BASE) (+ tile-addr-lo i))))
-        (if (!= byte-val 0)
-            (do
-              (set visible 1)
-              (set i TILE_SIZE_BYTES)) ; early exit
-            0))
-      (set i (inc i)))
+      (when (!= (load (+ TILES_BASE (+ base-lo i))) 0)
+        (set! visible 1)
+        (set! i TILE_SIZE_BYTES))
+      (set! i (inc i)))
     visible))
-
-; Draw sprite with Y, X, tile index
-(defn draw (idx y x tile)
-  (let (a (oam-addr idx))
-    (poke OAM_HI a y)
-    (poke OAM_HI (+ a 1) x)
-    (poke OAM_HI (+ a 2) tile)
-    (poke OAM_HI (+ a 3) 0)))
-
-; Draw sprite with attributes (flip, priority, etc.)
-(defn draw-attr (idx y x tile attr)
-  (let (a (oam-addr idx))
-    (poke OAM_HI a y)
-    (poke OAM_HI (+ a 1) x)
-    (poke OAM_HI (+ a 2) tile)
-    (poke OAM_HI (+ a 3) attr)))
 
 ; Draw sprite only if tile has visible (non-transparent) pixels
 (defn draw-visible (idx y x tile)
@@ -58,34 +79,3 @@
   (if (tile-visible? tile)
       (draw-attr idx y x tile attr)
       (hide idx)))
-
-(def SPRITE_HIDDEN_Y 255)
-
-; Hide sprite by moving it off-screen
-(defn hide (idx)
-  (draw idx SPRITE_HIDDEN_Y 0 0))
-
-(def NUM_SPRITES 64)
-
-; Hide all sprites
-(defn hide-all ()
-  (let (i 0)
-    (while (< i NUM_SPRITES)
-      (hide i)
-      (set i (inc i)))))
-
-; Set sprite position
-(defn set-pos (idx x y)
-  (let (a (oam-addr idx))
-    (poke OAM_HI a y)
-    (poke OAM_HI (+ a 1) x)))
-
-; Set sprite tile
-(defn set-tile (idx tile)
-  (let (a (oam-addr idx))
-    (poke OAM_HI (+ a 2) tile)))
-
-; Set sprite attributes
-(defn set-attr (idx attr)
-  (let (a (oam-addr idx))
-    (poke OAM_HI (+ a 3) attr)))

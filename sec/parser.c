@@ -60,10 +60,12 @@ void se_parser_init(SeParser* parser, const char* source, size_t source_len, Ast
     parser->error_line = 0;
     parser->error_column = 0;
     parser->error_msg[0] = '\0';
+    parser->fn_counter = 0;
     advance(parser);
 }
 
 static AstNode* parse_list(SeParser* parser);
+static AstNode* parse_unary(SeParser* parser, AstKind kind);
 
 AstNode* se_parser_parse_form(SeParser* parser) {
     if (parser->error != SE_PARSE_OK) return NULL;
@@ -100,6 +102,32 @@ AstNode* se_parser_parse_form(SeParser* parser) {
         return node;
     }
 
+    case SE_TOKEN_KEYWORD: {
+        AstNode* node = alloc_node(parser, AST_KEYWORD);
+        if (!node) return NULL;
+        copy_token_text(node->as.symbol.name, &parser->current, SE_MAX_SYMBOL_LEN);
+        advance(parser);
+        return node;
+    }
+
+    case SE_TOKEN_NIL: {
+        AstNode* node = alloc_node(parser, AST_NIL);
+        advance(parser);
+        return node;
+    }
+
+    case SE_TOKEN_TRUE: {
+        AstNode* node = alloc_node(parser, AST_TRUE);
+        advance(parser);
+        return node;
+    }
+
+    case SE_TOKEN_FALSE: {
+        AstNode* node = alloc_node(parser, AST_FALSE);
+        advance(parser);
+        return node;
+    }
+
     case SE_TOKEN_LPAREN: return parse_list(parser);
 
     case SE_TOKEN_RPAREN:
@@ -114,6 +142,27 @@ AstNode* se_parser_parse_form(SeParser* parser) {
 
 static bool is_symbol(SeParser* parser, const char* name) {
     return se_token_is_symbol(&parser->current, name);
+}
+
+// Try to parse a ^hint annotation. Returns SE_HINT_NONE if no hint present.
+static SeTypeHint try_parse_hint(SeParser* parser) {
+    if (parser->current.kind != SE_TOKEN_SYMBOL || parser->current.text_len == 0 ||
+        parser->current.text[0] != '^') {
+        return SE_HINT_NONE;
+    }
+    SeTypeHint hint = SE_HINT_NONE;
+    if (parser->current.text_len == 3 && strncmp(parser->current.text, "^u8", 3) == 0) {
+        hint = SE_HINT_U8;
+    } else if (parser->current.text_len == 3 && strncmp(parser->current.text, "^i8", 3) == 0) {
+        hint = SE_HINT_I8;
+    } else if (parser->current.text_len == 4 && strncmp(parser->current.text, "^u16", 4) == 0) {
+        hint = SE_HINT_U16;
+    } else if (parser->current.text_len == 4 && strncmp(parser->current.text, "^i16", 4) == 0) {
+        hint = SE_HINT_I16;
+    }
+    // Even for unknown hints, skip them
+    advance(parser);
+    return hint;
 }
 
 // Parse (def name value)
@@ -174,8 +223,12 @@ static AstNode* parse_defn(SeParser* parser) {
             parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many parameters");
             return NULL;
         }
-        copy_token_text(node->as.defn.params[node->as.defn.param_count++], &parser->current,
-                        SE_MAX_SYMBOL_LEN);
+        size_t idx = node->as.defn.param_count;
+        // Optional ^hint before parameter name
+        node->as.defn.param_hints[idx] = try_parse_hint(parser);
+        if (parser->current.kind != SE_TOKEN_SYMBOL) break;
+        copy_token_text(node->as.defn.params[idx], &parser->current, SE_MAX_SYMBOL_LEN);
+        node->as.defn.param_count++;
         advance(parser);
     }
 
@@ -186,6 +239,63 @@ static AstNode* parse_defn(SeParser* parser) {
     advance(parser);
 
     // Parse body forms (dynamic array)
+    ast_array_init(&node->as.defn.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.defn.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add body form");
+            return NULL;
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+static AstNode* parse_fn(SeParser* parser) {
+    advance(parser); // skip 'fn'
+
+    AstNode* node = alloc_node(parser, AST_FN);
+    if (!node) return NULL;
+
+    // Generate unique name: __fn0, __fn1, etc.
+    snprintf(node->as.defn.name, SE_MAX_SYMBOL_LEN, "__fn%d", parser->fn_counter++);
+
+    // Parse parameter list
+    if (parser->current.kind != SE_TOKEN_LPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_LPAREN, "fn requires parameter list");
+        return NULL;
+    }
+    advance(parser);
+
+    node->as.defn.param_count = 0;
+    while (parser->current.kind == SE_TOKEN_SYMBOL) {
+        if (node->as.defn.param_count >= SE_MAX_PARAMS) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many parameters");
+            return NULL;
+        }
+        size_t idx = node->as.defn.param_count;
+        // Optional ^hint before parameter name
+        node->as.defn.param_hints[idx] = try_parse_hint(parser);
+        if (parser->current.kind != SE_TOKEN_SYMBOL) break;
+        copy_token_text(node->as.defn.params[idx], &parser->current, SE_MAX_SYMBOL_LEN);
+        node->as.defn.param_count++;
+        advance(parser);
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "unclosed parameter list");
+        return NULL;
+    }
+    advance(parser);
+
+    // Parse body forms
     ast_array_init(&node->as.defn.body);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
         AstNode* form = se_parser_parse_form(parser);
@@ -282,13 +392,17 @@ static AstNode* parse_let(SeParser* parser) {
             return NULL;
         }
 
+        size_t idx = node->as.let.binding_count;
+
+        // Optional ^hint before binding name
+        node->as.let.hints[idx] = try_parse_hint(parser);
+
         if (parser->current.kind != SE_TOKEN_SYMBOL) {
             parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL,
                              "binding requires variable name");
             return NULL;
         }
 
-        size_t idx = node->as.let.binding_count;
         copy_token_text(node->as.let.vars[idx], &parser->current, SE_MAX_SYMBOL_LEN);
         advance(parser);
 
@@ -327,24 +441,83 @@ static AstNode* parse_let(SeParser* parser) {
     return node;
 }
 
-// Parse (set var value)
-static AstNode* parse_set(SeParser* parser) {
-    advance(parser); // skip 'set'
+// Parse (var name value) or (var ^hint name value)
+static AstNode* parse_var(SeParser* parser) {
+    advance(parser); // skip 'var'
+
+    // Optional ^hint
+    SeTypeHint hint = try_parse_hint(parser);
 
     if (parser->current.kind != SE_TOKEN_SYMBOL) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "set requires variable name");
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "var requires variable name");
         return NULL;
     }
 
-    AstNode* node = alloc_node(parser, AST_SET);
+    AstNode* node = alloc_node(parser, AST_VAR);
     if (!node) return NULL;
 
-    copy_token_text(node->as.set.var, &parser->current, SE_MAX_SYMBOL_LEN);
+    node->as.var.type_hint = hint;
+    copy_token_text(node->as.var.name, &parser->current, SE_MAX_SYMBOL_LEN);
     advance(parser);
+
+    node->as.var.value = se_parser_parse_form(parser);
+    if (!node->as.var.value) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "var requires value");
+        return NULL;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (set! target value)
+// target can be:
+//   - symbol:  (set! x 10)
+//   - field:   (set! (:field record) value)
+static AstNode* parse_set_bang(SeParser* parser) {
+    advance(parser); // skip 'set!'
+
+    AstNode* node = alloc_node(parser, AST_SET_BANG);
+    if (!node) return NULL;
+
+    node->as.set.target_expr = NULL;
+
+    // Check if target is (:field record-expr) or (nth array index)
+    if (parser->current.kind == SE_TOKEN_LPAREN) {
+        AstNode* target = se_parser_parse_form(parser);
+        if (!target) return NULL;
+
+        if (target->kind == AST_FIELD_GET) {
+            // (set! (:field record) value) - field mutation
+            strncpy(node->as.set.var, target->as.field_get.field, SE_MAX_SYMBOL_LEN - 1);
+            node->as.set.var[SE_MAX_SYMBOL_LEN - 1] = '\0';
+            node->as.set.target_expr = target->as.field_get.record;
+        } else if (target->kind == AST_NTH) {
+            // (set! (nth array index) value) - array element mutation
+            node->as.set.var[0] = '\0'; // empty var signals nth target
+            node->as.set.target_expr = target;
+        } else {
+            parser_set_error(parser, SE_PARSE_ERROR_UNEXPECTED_TOKEN,
+                             "set! compound target must be (:field record) or (nth array index)");
+            return NULL;
+        }
+    } else {
+        if (parser->current.kind != SE_TOKEN_SYMBOL) {
+            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "set! requires variable name");
+            return NULL;
+        }
+        copy_token_text(node->as.set.var, &parser->current, SE_MAX_SYMBOL_LEN);
+        advance(parser);
+    }
 
     node->as.set.value = se_parser_parse_form(parser);
     if (!node->as.set.value) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "set requires value");
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "set! requires value");
         return NULL;
     }
 
@@ -376,10 +549,14 @@ static AstNode* parse_if(SeParser* parser) {
         return NULL;
     }
 
-    node->as.if_expr.else_branch = se_parser_parse_form(parser);
-    if (!node->as.if_expr.else_branch) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "if requires else branch");
-        return NULL;
+    if (parser->current.kind == SE_TOKEN_RPAREN) {
+        node->as.if_expr.else_branch = alloc_node(parser, AST_NIL);
+    } else {
+        node->as.if_expr.else_branch = se_parser_parse_form(parser);
+        if (!node->as.if_expr.else_branch) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "if else branch parse failed");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -451,73 +628,13 @@ static AstNode* parse_do(SeParser* parser) {
     return node;
 }
 
-// Parse (data name [addr] body...)
-static AstNode* parse_data(SeParser* parser) {
-    advance(parser); // skip 'data'
-
-    if (parser->current.kind != SE_TOKEN_SYMBOL) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "data requires name");
-        return NULL;
-    }
-
-    AstNode* node = alloc_node(parser, AST_DATA);
-    if (!node) return NULL;
-
-    copy_token_text(node->as.data.name, &parser->current, SE_MAX_SYMBOL_LEN);
-    advance(parser);
-
-    // Optional address - can be a number, symbol, or arithmetic expression
-    // But NOT special forms like (db ...), (repeat ...), etc.
-    node->as.data.addr = -1;
-    node->as.data.addr_expr = NULL;
-    if (parser->current.kind == SE_TOKEN_NUMBER) {
-        node->as.data.addr = parser->current.number_value;
-        advance(parser);
-    } else if (parser->current.kind == SE_TOKEN_SYMBOL) {
-        // Symbol could be a constant/data label for address
-        node->as.data.addr_expr = se_parser_parse_form(parser);
-    } else if (parser->current.kind == SE_TOKEN_LPAREN) {
-        // Peek inside: if it's an arithmetic op, parse as address
-        SeToken peek = se_lexer_peek(&parser->lexer);
-        if (peek.kind == SE_TOKEN_SYMBOL &&
-            (se_token_is_symbol(&peek, "+") || se_token_is_symbol(&peek, "-") ||
-             se_token_is_symbol(&peek, "*") || se_token_is_symbol(&peek, "/") ||
-             se_token_is_symbol(&peek, "hi") || se_token_is_symbol(&peek, "lo") ||
-             se_token_is_symbol(&peek, "&") || se_token_is_symbol(&peek, "|") ||
-             se_token_is_symbol(&peek, "<<") || se_token_is_symbol(&peek, ">>"))) {
-            node->as.data.addr_expr = se_parser_parse_form(parser);
-        }
-        // Otherwise, it's body content - don't consume it
-    }
-
-    // Parse body (dynamic array)
-    ast_array_init(&node->as.data.body);
-    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
-        AstNode* form = se_parser_parse_form(parser);
-        if (!form) return NULL;
-        if (!ast_array_push(&node->as.data.body, form)) {
-            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add data form");
-            return NULL;
-        }
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    return node;
-}
-
-// Parse (db values...)
+// Parse (db expr...) - data block for (data name (db ...))
 static AstNode* parse_db(SeParser* parser) {
     advance(parser); // skip 'db'
 
     AstNode* node = alloc_node(parser, AST_DB);
     if (!node) return NULL;
 
-    // Parse values (dynamic array)
     ast_array_init(&node->as.block.exprs);
     while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
         AstNode* form = se_parser_parse_form(parser);
@@ -537,24 +654,297 @@ static AstNode* parse_db(SeParser* parser) {
     return node;
 }
 
-// Parse (repeat count form)
-static AstNode* parse_repeat(SeParser* parser) {
-    advance(parser); // skip 'repeat'
+// Parse (data name [addr] body...) - legacy data block
+static AstNode* parse_data(SeParser* parser) {
+    advance(parser); // skip 'data'
 
-    AstNode* node = alloc_node(parser, AST_REPEAT);
-    if (!node) return NULL;
-
-    if (parser->current.kind != SE_TOKEN_NUMBER) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_NUMBER, "repeat requires count");
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "data requires a name");
         return NULL;
     }
-    node->as.repeat.count = parser->current.number_value;
+
+    AstNode* node = alloc_node(parser, AST_DATA);
+    if (!node) return NULL;
+
+    copy_token_text(node->as.data.name, &parser->current, SE_MAX_SYMBOL_LEN);
     advance(parser);
 
-    node->as.repeat.form = se_parser_parse_form(parser);
-    if (!node->as.repeat.form) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "repeat requires form");
+    node->as.data.addr = -1;
+    node->as.data.addr_expr = NULL;
+
+    ast_array_init(&node->as.data.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.data.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "failed to add data body");
+            return NULL;
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
         return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (cond (test body...)...)
+static AstNode* parse_cond(SeParser* parser) {
+    advance(parser); // skip 'cond'
+
+    AstNode* node = alloc_node(parser, AST_COND);
+    if (!node) return NULL;
+
+    node->as.cond.clause_count = 0;
+    while (parser->current.kind == SE_TOKEN_LPAREN &&
+           node->as.cond.clause_count < SE_MAX_COND_CLAUSES) {
+        advance(parser); // skip '('
+
+        size_t i = node->as.cond.clause_count;
+        node->as.cond.tests[i] = se_parser_parse_form(parser);
+        if (!node->as.cond.tests[i]) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "cond clause requires test");
+            return NULL;
+        }
+
+        ast_array_init(&node->as.cond.bodies[i]);
+        while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+            AstNode* form = se_parser_parse_form(parser);
+            if (!form) return NULL;
+            if (!ast_array_push(&node->as.cond.bodies[i], form)) {
+                parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "cond body");
+                return NULL;
+            }
+        }
+
+        if (parser->current.kind != SE_TOKEN_RPAREN) {
+            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "cond clause");
+            return NULL;
+        }
+        advance(parser);
+        node->as.cond.clause_count++;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (when cond body...)
+static AstNode* parse_when(SeParser* parser) {
+    advance(parser); // skip 'when'
+
+    AstNode* node = alloc_node(parser, AST_WHEN);
+    if (!node) return NULL;
+
+    node->as.when_expr.cond = se_parser_parse_form(parser);
+    if (!node->as.when_expr.cond) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "when requires condition");
+        return NULL;
+    }
+
+    ast_array_init(&node->as.when_expr.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.when_expr.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "when body");
+            return NULL;
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (unless cond body...)
+static AstNode* parse_unless(SeParser* parser) {
+    advance(parser); // skip 'unless'
+
+    AstNode* node = alloc_node(parser, AST_UNLESS);
+    if (!node) return NULL;
+
+    node->as.when_expr.cond = se_parser_parse_form(parser);
+    if (!node->as.when_expr.cond) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "unless requires condition");
+        return NULL;
+    }
+
+    ast_array_init(&node->as.when_expr.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.when_expr.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "unless body");
+            return NULL;
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (and a b ...) - build left-associative tree
+static AstNode* parse_and(SeParser* parser) {
+    advance(parser); // skip 'and'
+
+    AstNode* left = se_parser_parse_form(parser);
+    if (!left) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "and requires at least one form");
+        return NULL;
+    }
+
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* right = se_parser_parse_form(parser);
+        if (!right) return NULL;
+        AstNode* node = alloc_node(parser, AST_LOGIC_AND);
+        if (!node) return NULL;
+        node->as.binary.left = left;
+        node->as.binary.right = right;
+        left = node;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return left;
+}
+
+// Parse (or a b ...) - build left-associative tree
+static AstNode* parse_or(SeParser* parser) {
+    advance(parser); // skip 'or'
+
+    AstNode* left = se_parser_parse_form(parser);
+    if (!left) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "or requires at least one form");
+        return NULL;
+    }
+
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* right = se_parser_parse_form(parser);
+        if (!right) return NULL;
+        AstNode* node = alloc_node(parser, AST_LOGIC_OR);
+        if (!node) return NULL;
+        node->as.binary.left = left;
+        node->as.binary.right = right;
+        left = node;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return left;
+}
+
+// Parse (not expr)
+static AstNode* parse_not(SeParser* parser) {
+    advance(parser); // skip 'not'
+    return parse_unary(parser, AST_LOGIC_NOT);
+}
+
+// Parse (range start end)
+static AstNode* parse_range(SeParser* parser) {
+    advance(parser); // skip 'range'
+
+    AstNode* node = alloc_node(parser, AST_RANGE);
+    if (!node) return NULL;
+
+    node->as.range.start = se_parser_parse_form(parser);
+    if (!node->as.range.start) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "range requires start");
+        return NULL;
+    }
+
+    node->as.range.end = se_parser_parse_form(parser);
+    if (!node->as.range.end) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "range requires end");
+        return NULL;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (for (binding collection) body...) or (for (binding coll :when cond) body...)
+static AstNode* parse_for(SeParser* parser) {
+    advance(parser); // skip 'for'
+
+    if (parser->current.kind != SE_TOKEN_LPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_LPAREN,
+                         "for requires (binding collection)");
+        return NULL;
+    }
+    advance(parser);
+
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "for binding must be symbol");
+        return NULL;
+    }
+
+    AstNode* node = alloc_node(parser, AST_FOR);
+    if (!node) return NULL;
+
+    copy_token_text(node->as.for_expr.var, &parser->current, SE_MAX_SYMBOL_LEN);
+    advance(parser);
+
+    node->as.for_expr.collection = se_parser_parse_form(parser);
+    if (!node->as.for_expr.collection) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "for requires collection");
+        return NULL;
+    }
+
+    node->as.for_expr.when_cond = NULL;
+    if (parser->current.kind == SE_TOKEN_KEYWORD) {
+        size_t len = parser->current.text_len;
+        int is_when = (len == 5 && strncmp(parser->current.text, ":when", 5) == 0);
+        if (is_when) {
+            advance(parser);
+            node->as.for_expr.when_cond = se_parser_parse_form(parser);
+        }
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "for binding list");
+        return NULL;
+    }
+    advance(parser);
+
+    ast_array_init(&node->as.for_expr.body);
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        AstNode* form = se_parser_parse_form(parser);
+        if (!form) return NULL;
+        if (!ast_array_push(&node->as.for_expr.body, form)) {
+            parser_set_error(parser, SE_PARSE_ERROR_OUT_OF_MEMORY, "for body");
+            return NULL;
+        }
     }
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
@@ -725,56 +1115,6 @@ static AstNode* parse_unary(SeParser* parser, AstKind kind) {
     return node;
 }
 
-// Parse (addr hi lo)
-static AstNode* parse_addr(SeParser* parser) {
-    advance(parser); // skip 'addr'
-
-    AstNode* node = alloc_node(parser, AST_ADDR);
-    if (!node) return NULL;
-
-    node->as.addr.hi = se_parser_parse_form(parser);
-    if (!node->as.addr.hi) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "addr requires hi byte");
-        return NULL;
-    }
-
-    node->as.addr.lo = se_parser_parse_form(parser);
-    if (!node->as.addr.lo) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "addr requires lo byte");
-        return NULL;
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    return node;
-}
-
-// Parse (addr16 value) - 16-bit address that auto-splits to hi/lo
-static AstNode* parse_addr16(SeParser* parser) {
-    advance(parser); // skip 'addr16'
-
-    AstNode* node = alloc_node(parser, AST_ADDR16);
-    if (!node) return NULL;
-
-    node->as.unary.operand = se_parser_parse_form(parser);
-    if (!node->as.unary.operand) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "addr16 requires address value");
-        return NULL;
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    return node;
-}
-
 // Parse (load addr-expr)
 static AstNode* parse_load(SeParser* parser) {
     advance(parser); // skip 'load'
@@ -795,108 +1135,6 @@ static AstNode* parse_load(SeParser* parser) {
     advance(parser);
 
     return node;
-}
-
-// Parse (peek hi lo) - syntactic sugar for (load (addr hi lo))
-static AstNode* parse_peek(SeParser* parser) {
-    advance(parser); // skip 'peek'
-
-    // Create inner addr node
-    AstNode* addr_node = alloc_node(parser, AST_ADDR);
-    if (!addr_node) return NULL;
-
-    addr_node->as.addr.hi = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.hi) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "peek requires hi byte");
-        return NULL;
-    }
-
-    addr_node->as.addr.lo = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.lo) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "peek requires lo byte");
-        return NULL;
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    // Wrap in load node
-    AstNode* load_node = alloc_node(parser, AST_LOAD);
-    if (!load_node) return NULL;
-    load_node->as.load.addr = addr_node;
-
-    return load_node;
-}
-
-// Parse (peek16 addr) - syntactic sugar for (load (addr16 addr))
-static AstNode* parse_peek16(SeParser* parser) {
-    advance(parser); // skip 'peek16'
-
-    // Create inner addr16 node
-    AstNode* addr16_node = alloc_node(parser, AST_ADDR16);
-    if (!addr16_node) return NULL;
-
-    addr16_node->as.unary.operand = se_parser_parse_form(parser);
-    if (!addr16_node->as.unary.operand) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "peek16 requires address");
-        return NULL;
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    // Wrap in load node
-    AstNode* load_node = alloc_node(parser, AST_LOAD);
-    if (!load_node) return NULL;
-    load_node->as.load.addr = addr16_node;
-
-    return load_node;
-}
-
-// Parse (peek* hi lo) - syntactic sugar for (load (addr16 (addr hi lo)))
-// This dereferences a pointer stored at [hi:lo]
-static AstNode* parse_peek_ptr(SeParser* parser) {
-    advance(parser); // skip 'peek*'
-
-    // Create innermost addr node
-    AstNode* addr_node = alloc_node(parser, AST_ADDR);
-    if (!addr_node) return NULL;
-
-    addr_node->as.addr.hi = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.hi) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "peek* requires hi byte");
-        return NULL;
-    }
-
-    addr_node->as.addr.lo = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.lo) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "peek* requires lo byte");
-        return NULL;
-    }
-
-    if (parser->current.kind != SE_TOKEN_RPAREN) {
-        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
-        return NULL;
-    }
-    advance(parser);
-
-    // Wrap addr in addr16 (to dereference the pointer)
-    AstNode* addr16_node = alloc_node(parser, AST_ADDR16);
-    if (!addr16_node) return NULL;
-    addr16_node->as.unary.operand = addr_node;
-
-    // Wrap in load node
-    AstNode* load_node = alloc_node(parser, AST_LOAD);
-    if (!load_node) return NULL;
-    load_node->as.load.addr = addr16_node;
-
-    return load_node;
 }
 
 // Parse (store addr-expr value)
@@ -927,36 +1165,66 @@ static AstNode* parse_store(SeParser* parser) {
     return node;
 }
 
-// Parse (poke hi lo value) - syntactic sugar for (store (addr hi lo) value)
-static AstNode* parse_poke(SeParser* parser) {
-    advance(parser); // skip 'poke'
+// Parse (defrecord name (field1 field2 ... fieldN))
+// Fields may have ^hint annotations: (defrecord entity (^i16 x ^i16 y hp state))
+static AstNode* parse_defrecord(SeParser* parser) {
+    advance(parser); // skip 'defrecord'
 
-    // Create inner addr node
-    AstNode* addr_node = alloc_node(parser, AST_ADDR);
-    if (!addr_node) return NULL;
-
-    addr_node->as.addr.hi = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.hi) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "poke requires hi byte");
+    if (parser->current.kind != SE_TOKEN_SYMBOL) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "defrecord requires a name");
         return NULL;
     }
 
-    addr_node->as.addr.lo = se_parser_parse_form(parser);
-    if (!addr_node->as.addr.lo) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "poke requires lo byte");
+    AstNode* node = alloc_node(parser, AST_DEFRECORD);
+    if (!node) return NULL;
+
+    copy_token_text(node->as.defrecord.name, &parser->current, SE_MAX_SYMBOL_LEN);
+    advance(parser);
+
+    // Parse field list
+    if (parser->current.kind != SE_TOKEN_LPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_LPAREN, "defrecord requires field list");
         return NULL;
     }
+    advance(parser);
 
-    // Create store node
-    AstNode* store_node = alloc_node(parser, AST_STORE);
-    if (!store_node) return NULL;
-    store_node->as.store.addr = addr_node;
+    node->as.defrecord.field_count = 0;
+    while (parser->current.kind != SE_TOKEN_RPAREN && parser->current.kind != SE_TOKEN_END) {
+        if (node->as.defrecord.field_count >= SE_MAX_PARAMS) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_MANY_ARGS, "too many record fields");
+            return NULL;
+        }
 
-    store_node->as.store.value = se_parser_parse_form(parser);
-    if (!store_node->as.store.value) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "poke requires value");
+        size_t idx = node->as.defrecord.field_count;
+        node->as.defrecord.field_is_16bit[idx] = false;
+
+        // Check for ^hint annotation
+        if (parser->current.kind == SE_TOKEN_SYMBOL && parser->current.text_len > 0 &&
+            parser->current.text[0] == '^') {
+            // Check if it's ^i16 or ^u16
+            if ((parser->current.text_len == 4 &&
+                 (strncmp(parser->current.text, "^i16", 4) == 0 ||
+                  strncmp(parser->current.text, "^u16", 4) == 0))) {
+                node->as.defrecord.field_is_16bit[idx] = true;
+            }
+            advance(parser); // skip hint
+        }
+
+        if (parser->current.kind != SE_TOKEN_SYMBOL) {
+            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "expected field name");
+            return NULL;
+        }
+
+        copy_token_text(node->as.defrecord.fields[idx], &parser->current, SE_MAX_SYMBOL_LEN);
+        advance(parser);
+        node->as.defrecord.field_count++;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, "unclosed field list");
         return NULL;
     }
+    advance(parser);
 
     if (parser->current.kind != SE_TOKEN_RPAREN) {
         parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
@@ -964,31 +1232,25 @@ static AstNode* parse_poke(SeParser* parser) {
     }
     advance(parser);
 
-    return store_node;
+    return node;
 }
 
-// Parse (poke16 addr value) - syntactic sugar for (store (addr16 addr) value)
-static AstNode* parse_poke16(SeParser* parser) {
-    advance(parser); // skip 'poke16'
+// Parse (array count value)
+static AstNode* parse_array(SeParser* parser) {
+    advance(parser); // skip 'array'
 
-    // Create inner addr16 node
-    AstNode* addr16_node = alloc_node(parser, AST_ADDR16);
-    if (!addr16_node) return NULL;
+    AstNode* node = alloc_node(parser, AST_ARRAY);
+    if (!node) return NULL;
 
-    addr16_node->as.unary.operand = se_parser_parse_form(parser);
-    if (!addr16_node->as.unary.operand) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "poke16 requires address");
+    node->as.array_expr.count = se_parser_parse_form(parser);
+    if (!node->as.array_expr.count) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "array requires count");
         return NULL;
     }
 
-    // Create store node
-    AstNode* store_node = alloc_node(parser, AST_STORE);
-    if (!store_node) return NULL;
-    store_node->as.store.addr = addr16_node;
-
-    store_node->as.store.value = se_parser_parse_form(parser);
-    if (!store_node->as.store.value) {
-        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "poke16 requires value");
+    node->as.array_expr.value = se_parser_parse_form(parser);
+    if (!node->as.array_expr.value) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "array requires initial value");
         return NULL;
     }
 
@@ -998,7 +1260,57 @@ static AstNode* parse_poke16(SeParser* parser) {
     }
     advance(parser);
 
-    return store_node;
+    return node;
+}
+
+// Parse (nth array-expr index-expr) - reuses binary layout
+static AstNode* parse_nth(SeParser* parser) {
+    advance(parser); // skip 'nth'
+
+    AstNode* node = alloc_node(parser, AST_NTH);
+    if (!node) return NULL;
+
+    node->as.binary.left = se_parser_parse_form(parser);
+    if (!node->as.binary.left) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "nth requires array");
+        return NULL;
+    }
+
+    node->as.binary.right = se_parser_parse_form(parser);
+    if (!node->as.binary.right) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "nth requires index");
+        return NULL;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
+}
+
+// Parse (len array-expr) - reuses unary layout
+static AstNode* parse_len(SeParser* parser) {
+    advance(parser); // skip 'len'
+
+    AstNode* node = alloc_node(parser, AST_LEN);
+    if (!node) return NULL;
+
+    node->as.unary.operand = se_parser_parse_form(parser);
+    if (!node->as.unary.operand) {
+        parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS, "len requires array");
+        return NULL;
+    }
+
+    if (parser->current.kind != SE_TOKEN_RPAREN) {
+        parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+        return NULL;
+    }
+    advance(parser);
+
+    return node;
 }
 
 // Parse (include "filename")
@@ -1103,6 +1415,30 @@ static AstNode* parse_list(SeParser* parser) {
         return node;
     }
 
+    // Keyword-as-accessor: (:field record-expr)
+    if (parser->current.kind == SE_TOKEN_KEYWORD) {
+        AstNode* node = alloc_node(parser, AST_FIELD_GET);
+        if (!node) return NULL;
+
+        copy_token_text(node->as.field_get.field, &parser->current, SE_MAX_SYMBOL_LEN);
+        advance(parser);
+
+        node->as.field_get.record = se_parser_parse_form(parser);
+        if (!node->as.field_get.record) {
+            parser_set_error(parser, SE_PARSE_ERROR_TOO_FEW_ARGS,
+                             "keyword accessor requires record expression");
+            return NULL;
+        }
+
+        if (parser->current.kind != SE_TOKEN_RPAREN) {
+            parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_RPAREN, NULL);
+            return NULL;
+        }
+        advance(parser);
+
+        return node;
+    }
+
     if (parser->current.kind != SE_TOKEN_SYMBOL) {
         parser_set_error(parser, SE_PARSE_ERROR_EXPECTED_SYMBOL, "list must start with symbol");
         return NULL;
@@ -1111,14 +1447,22 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, "def")) return parse_def(parser);
     if (is_symbol(parser, "defn")) return parse_defn(parser);
     if (is_symbol(parser, "defmacro")) return parse_defmacro(parser);
+    if (is_symbol(parser, "fn")) return parse_fn(parser);
+    if (is_symbol(parser, "defrecord")) return parse_defrecord(parser);
+    if (is_symbol(parser, "array")) return parse_array(parser);
+    if (is_symbol(parser, "nth")) return parse_nth(parser);
+    if (is_symbol(parser, "len")) return parse_len(parser);
     if (is_symbol(parser, "let")) return parse_let(parser);
-    if (is_symbol(parser, "set")) return parse_set(parser);
+    if (is_symbol(parser, "var")) return parse_var(parser);
+    if (is_symbol(parser, "set!")) return parse_set_bang(parser);
     if (is_symbol(parser, "if")) return parse_if(parser);
     if (is_symbol(parser, "while")) return parse_while(parser);
     if (is_symbol(parser, "do")) return parse_do(parser);
-    if (is_symbol(parser, "data")) return parse_data(parser);
-    if (is_symbol(parser, "db")) return parse_db(parser);
-    if (is_symbol(parser, "repeat")) return parse_repeat(parser);
+    if (is_symbol(parser, "cond")) return parse_cond(parser);
+    if (is_symbol(parser, "when")) return parse_when(parser);
+    if (is_symbol(parser, "unless")) return parse_unless(parser);
+    if (is_symbol(parser, "for")) return parse_for(parser);
+    if (is_symbol(parser, "range")) return parse_range(parser);
     if (is_symbol(parser, "ns")) return parse_ns(parser);
     if (is_symbol(parser, "require")) return parse_require(parser);
 
@@ -1158,10 +1502,14 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, "dec")) return parse_unary(parser, AST_DEC);
 
     // Bitwise
-    if (is_symbol(parser, "&") || is_symbol(parser, "and")) return parse_binary(parser, AST_AND);
-    if (is_symbol(parser, "|") || is_symbol(parser, "or")) return parse_binary(parser, AST_OR);
+    if (is_symbol(parser, "&")) return parse_binary(parser, AST_BAND);
+    if (is_symbol(parser, "|")) return parse_binary(parser, AST_BOR);
     if (is_symbol(parser, "^") || is_symbol(parser, "xor")) return parse_binary(parser, AST_XOR);
-    if (is_symbol(parser, "~") || is_symbol(parser, "not")) return parse_unary(parser, AST_NOT);
+    if (is_symbol(parser, "~")) return parse_unary(parser, AST_BNOT);
+    // Logical (short-circuit)
+    if (is_symbol(parser, "and")) return parse_and(parser);
+    if (is_symbol(parser, "or")) return parse_or(parser);
+    if (is_symbol(parser, "not")) return parse_not(parser);
     if (is_symbol(parser, "<<") || is_symbol(parser, "shl")) return parse_binary(parser, AST_SHL);
     if (is_symbol(parser, ">>") || is_symbol(parser, "shr")) return parse_binary(parser, AST_SHR);
     if (is_symbol(parser, "*") || is_symbol(parser, "mul")) return parse_binary(parser, AST_MUL);
@@ -1177,16 +1525,19 @@ static AstNode* parse_list(SeParser* parser) {
     if (is_symbol(parser, ">=") || is_symbol(parser, "ge")) return parse_binary(parser, AST_GE);
     if (is_symbol(parser, "!") || is_symbol(parser, "lnot")) return parse_unary(parser, AST_LNOT);
 
-    // Memory
-    if (is_symbol(parser, "addr")) return parse_addr(parser);
-    if (is_symbol(parser, "addr16")) return parse_addr16(parser);
+    // Type predicates
+    if (is_symbol(parser, "nil?")) return parse_unary(parser, AST_NILP);
+    if (is_symbol(parser, "zero?")) return parse_unary(parser, AST_ZEROP);
+    if (is_symbol(parser, "pos?")) return parse_unary(parser, AST_POSP);
+    if (is_symbol(parser, "neg?")) return parse_unary(parser, AST_NEGP);
+
+    // Type casts
+    if (is_symbol(parser, "u8")) return parse_unary(parser, AST_CAST_U8);
+    if (is_symbol(parser, "i8")) return parse_unary(parser, AST_CAST_I8);
+
+    // Memory - load/store take single 16-bit address expression
     if (is_symbol(parser, "load")) return parse_load(parser);
     if (is_symbol(parser, "store")) return parse_store(parser);
-    if (is_symbol(parser, "peek")) return parse_peek(parser);
-    if (is_symbol(parser, "peek16")) return parse_peek16(parser);
-    if (is_symbol(parser, "peek*")) return parse_peek_ptr(parser);
-    if (is_symbol(parser, "poke")) return parse_poke(parser);
-    if (is_symbol(parser, "poke16")) return parse_poke16(parser);
 
     // Compile-time helpers
     if (is_symbol(parser, "hi")) return parse_unary(parser, AST_HI);
@@ -1195,6 +1546,10 @@ static AstNode* parse_list(SeParser* parser) {
     // Special directives
     if (is_symbol(parser, "import")) return parse_import(parser);
     if (is_symbol(parser, "asm")) return parse_asm(parser);
+
+    // Legacy data: (data name body...) and (db expr...)
+    if (is_symbol(parser, "data")) return parse_data(parser);
+    if (is_symbol(parser, "db")) return parse_db(parser);
 
     // Otherwise, it's a function call
     return parse_call(parser);

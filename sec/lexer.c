@@ -12,6 +12,10 @@ const char* se_token_kind_name(SeTokenKind kind) {
     case SE_TOKEN_NUMBER: return "NUMBER";
     case SE_TOKEN_STRING: return "STRING";
     case SE_TOKEN_SYMBOL: return "SYMBOL";
+    case SE_TOKEN_KEYWORD: return "KEYWORD";
+    case SE_TOKEN_NIL: return "NIL";
+    case SE_TOKEN_TRUE: return "TRUE";
+    case SE_TOKEN_FALSE: return "FALSE";
     case SE_TOKEN_INVALID: return "INVALID";
     default: return "UNKNOWN";
     }
@@ -63,8 +67,14 @@ static bool is_symbol_start(char c) {
     if (isalpha((unsigned char)c)) return true;
     if (c == '_' || c == '-' || c == '+' || c == '*' || c == '/' || c == '!' || c == '?' ||
         c == '<' || c == '>' || c == '=' || c == '&' || c == '|' || c == '^' || c == '~' ||
-        c == '@' || c == '#' || c == '$' || c == '%' || c == ':' || c == '{')
+        c == '@' || c == '#' || c == '$' || c == '%' || c == '{')
         return true;
+    return false;
+}
+
+static bool is_keyword_char(char c) {
+    if (isalnum((unsigned char)c)) return true;
+    if (c == '_' || c == '-' || c == '?') return true;
     return false;
 }
 
@@ -94,6 +104,7 @@ static SeToken scan_number(SeLexer* lexer) {
 
     bool is_hex = false;
     bool is_negative = false;
+    bool is_fixed_point = false;
 
     if (peek_char(lexer) == '-') {
         is_negative = true;
@@ -119,6 +130,19 @@ static SeToken scan_number(SeLexer* lexer) {
         next_char(lexer);
     }
 
+    // Check for fixed-point: N.N (only for decimal, not hex)
+    if (!is_hex && lexer->cursor < lexer->content_len && peek_char(lexer) == '.') {
+        // Look ahead to make sure there's a digit after the dot
+        if (lexer->cursor + 1 < lexer->content_len &&
+            isdigit((unsigned char)lexer->content[lexer->cursor + 1])) {
+            is_fixed_point = true;
+            next_char(lexer); // skip '.'
+            while (lexer->cursor < lexer->content_len && isdigit((unsigned char)peek_char(lexer))) {
+                next_char(lexer);
+            }
+        }
+    }
+
     size_t len = lexer->cursor - start;
     SeToken token = {
         .kind = SE_TOKEN_NUMBER,
@@ -131,14 +155,25 @@ static SeToken scan_number(SeLexer* lexer) {
     const char* num_start = lexer->content + start;
     if (is_negative) num_start++;
 
-    if (is_hex) {
+    if (is_fixed_point) {
+        // Parse as 8.8 fixed-point: integer part * 256 + fraction * 256
+        // Use strtod to parse the full decimal number, then convert
+        char buf[64];
+        size_t buf_len = (size_t)(lexer->content + lexer->cursor - num_start);
+        if (buf_len >= sizeof(buf)) buf_len = sizeof(buf) - 1;
+        memcpy(buf, num_start, buf_len);
+        buf[buf_len] = '\0';
+        double val = strtod(buf, NULL);
+        // Convert to 8.8 fixed-point: multiply by 256 and round
+        int32_t fixed = (int32_t)(val * 256.0 + 0.5);
+        if (is_negative) fixed = -fixed;
+        token.number_value = fixed;
+    } else if (is_hex) {
         token.number_value = (int32_t)strtol(num_start, NULL, 16);
+        if (is_negative) token.number_value = -token.number_value;
     } else {
         token.number_value = (int32_t)strtol(num_start, NULL, 10);
-    }
-
-    if (is_negative) {
-        token.number_value = -token.number_value;
+        if (is_negative) token.number_value = -token.number_value;
     }
 
     return token;
@@ -172,6 +207,26 @@ static SeToken scan_string(SeLexer* lexer) {
     };
 }
 
+static SeToken scan_keyword(SeLexer* lexer) {
+    size_t start = lexer->cursor;
+    size_t start_line = lexer->line;
+    size_t start_col = lexer->cursor - lexer->line_start + 1;
+
+    next_char(lexer); /* consume ':' */
+
+    while (lexer->cursor < lexer->content_len && is_keyword_char(peek_char(lexer))) {
+        next_char(lexer);
+    }
+
+    return (SeToken){
+        .kind = SE_TOKEN_KEYWORD,
+        .text = lexer->content + start,
+        .text_len = lexer->cursor - start,
+        .line = start_line,
+        .column = start_col,
+    };
+}
+
 static SeToken scan_symbol(SeLexer* lexer) {
     size_t start = lexer->cursor;
     size_t start_line = lexer->line;
@@ -181,13 +236,21 @@ static SeToken scan_symbol(SeLexer* lexer) {
         next_char(lexer);
     }
 
-    return (SeToken){
+    size_t len = lexer->cursor - start;
+    SeToken token = (SeToken){
         .kind = SE_TOKEN_SYMBOL,
         .text = lexer->content + start,
-        .text_len = lexer->cursor - start,
+        .text_len = len,
         .line = start_line,
         .column = start_col,
     };
+
+    /* Special literals: nil, true, false */
+    if (len == 3 && strncmp(lexer->content + start, "nil", 3) == 0) token.kind = SE_TOKEN_NIL;
+    if (len == 4 && strncmp(lexer->content + start, "true", 4) == 0) token.kind = SE_TOKEN_TRUE;
+    if (len == 5 && strncmp(lexer->content + start, "false", 5) == 0) token.kind = SE_TOKEN_FALSE;
+
+    return token;
 }
 
 SeToken se_lexer_next(SeLexer* lexer) {
@@ -204,6 +267,7 @@ SeToken se_lexer_next(SeLexer* lexer) {
     case '(': next_char(lexer); return make_token(lexer, SE_TOKEN_LPAREN, start, 1);
     case ')': next_char(lexer); return make_token(lexer, SE_TOKEN_RPAREN, start, 1);
     case '"': return scan_string(lexer);
+    case ':': return scan_keyword(lexer);
     default:
         // Number or symbol
         if (isdigit((unsigned char)c)) {

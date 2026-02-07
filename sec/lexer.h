@@ -11,7 +11,11 @@ typedef enum {
     SE_TOKEN_RPAREN,  // )
     SE_TOKEN_NUMBER,  // decimal or hex literal
     SE_TOKEN_STRING,  // "..."
-    SE_TOKEN_SYMBOL,  // identifier or keyword
+    SE_TOKEN_SYMBOL,  // identifier
+    SE_TOKEN_KEYWORD, // :alive, :x, etc.
+    SE_TOKEN_NIL,     // nil
+    SE_TOKEN_TRUE,    // true
+    SE_TOKEN_FALSE,   // false
     SE_TOKEN_INVALID, // lexer error
 } SeTokenKind;
 

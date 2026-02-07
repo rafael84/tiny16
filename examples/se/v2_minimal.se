@@ -1,0 +1,15 @@
+; Minimal v2 example: var, set!, cond, when, for, keywords, load/store
+; Compile: ./build/tiny16-sec examples/se/v2_minimal.se out.asm -I stdlib/se
+(def TILE_WALL 2)
+(var player-x 0)
+(var state 0)
+
+(defn main ()
+  (cond
+    ((= state 0)
+      (set! state 1))
+    ((= state 1)
+      (set! player-x 1)))
+  (for (i (range 0 4))
+    0)
+  0)

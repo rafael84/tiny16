@@ -26,16 +26,13 @@
           pressed (input/keys-pressed))
 
       ; Left click: draw white
-      (if (input/mouse-left)
-          (framebuffer/draw-pixel mx my COLOR_WHITE)
-          0)
+      (when (input/mouse-left)
+        (framebuffer/draw-pixel mx my COLOR_WHITE))
 
       ; Right click: erase
-      (if (input/mouse-right)
-          (framebuffer/draw-pixel mx my COLOR_BG)
-          0)
+      (when (input/mouse-right)
+        (framebuffer/draw-pixel mx my COLOR_BG))
 
       ; Space: clear screen
-      (if (!= (& pressed input/KEY_SELECT) 0)
-          (framebuffer/clear COLOR_BG)
-          0))))
+      (when (!= (& pressed input/KEY_SELECT) 0)
+        (framebuffer/clear COLOR_BG)))))

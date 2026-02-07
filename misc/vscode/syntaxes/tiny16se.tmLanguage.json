@@ -6,14 +6,21 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#type-hints" },
     { "include": "#special-forms" },
+    { "include": "#control-flow" },
     { "include": "#module-system" },
     { "include": "#namespace-definitions" },
     { "include": "#function-definitions" },
+    { "include": "#macro-definitions" },
+    { "include": "#record-definitions" },
+    { "include": "#variable-definitions" },
     { "include": "#constant-definitions" },
-    { "include": "#data-definitions" },
     { "include": "#operators" },
     { "include": "#builtins" },
+    { "include": "#type-casts" },
+    { "include": "#special-literals" },
     { "include": "#booleans" },
     { "include": "#namespaced-symbols" },
     { "include": "#symbols" },
@@ -60,8 +67,31 @@
           "match": "\\b0x[0-9a-fA-F]+\\b"
         },
         {
+          "comment": "Fixed-point numbers (8.8 encoding)",
+          "name": "constant.numeric.fixed-point.tiny16se",
+          "match": "-?\\b\\d+\\.\\d+\\b"
+        },
+        {
           "name": "constant.numeric.decimal.tiny16se",
-          "match": "\\b\\d+\\b"
+          "match": "-?\\b\\d+\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "comment": "Keywords starting with : (e.g. :alive, :dead, :x)",
+          "name": "constant.other.keyword.tiny16se",
+          "match": ":[a-zA-Z_\\-][a-zA-Z0-9_\\-]*"
+        }
+      ]
+    },
+    "type-hints": {
+      "patterns": [
+        {
+          "comment": "Type hint annotations (^u8, ^i8, ^u16, ^i16)",
+          "name": "storage.type.hint.tiny16se",
+          "match": "\\^(u8|i8|u16|i16)\\b"
         }
       ]
     },
@@ -69,7 +99,15 @@
       "patterns": [
         {
           "name": "keyword.control.tiny16se",
-          "match": "\\b(def|defn|let|set|if|while|do|data|db|repeat|include)\\b"
+          "match": "(?<=\\()\\s*(def|defn|defmacro|defrecord|var|let|fn|set!)(?=\\s|\\))"
+        }
+      ]
+    },
+    "control-flow": {
+      "patterns": [
+        {
+          "name": "keyword.control.flow.tiny16se",
+          "match": "(?<=\\()\\s*(if|cond|when|unless|while|for|do)(?=\\s|\\))"
         }
       ]
     },
@@ -95,10 +133,50 @@
     "function-definitions": {
       "patterns": [
         {
-          "match": "\\(\\s*(defn)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "match": "\\(\\s*(defn)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-!?]*)",
           "captures": {
             "1": { "name": "keyword.control.tiny16se" },
             "2": { "name": "entity.name.function.tiny16se" }
+          }
+        }
+      ]
+    },
+    "macro-definitions": {
+      "patterns": [
+        {
+          "match": "\\(\\s*(defmacro)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-!?]*)",
+          "captures": {
+            "1": { "name": "keyword.control.tiny16se" },
+            "2": { "name": "entity.name.function.macro.tiny16se" }
+          }
+        }
+      ]
+    },
+    "record-definitions": {
+      "patterns": [
+        {
+          "match": "\\(\\s*(defrecord)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.tiny16se" },
+            "2": { "name": "entity.name.type.record.tiny16se" }
+          }
+        }
+      ]
+    },
+    "variable-definitions": {
+      "patterns": [
+        {
+          "match": "\\(\\s*(var)\\s+\\^(?:u8|i8|u16|i16)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.tiny16se" },
+            "2": { "name": "variable.other.definition.tiny16se" }
+          }
+        },
+        {
+          "match": "\\(\\s*(var)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
+          "captures": {
+            "1": { "name": "keyword.control.tiny16se" },
+            "2": { "name": "variable.other.definition.tiny16se" }
           }
         }
       ]
@@ -114,30 +192,62 @@
         }
       ]
     },
-    "data-definitions": {
-      "patterns": [
-        {
-          "match": "\\(\\s*(data)\\s+([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)",
-          "captures": {
-            "1": { "name": "keyword.control.tiny16se" },
-            "2": { "name": "storage.type.data.tiny16se" }
-          }
-        }
-      ]
-    },
     "operators": {
       "patterns": [
         {
           "name": "keyword.operator.tiny16se",
-          "match": "(?<=\\()\\s*(\\+|\\-|\\*|&|\\||\\^|~|<<|>>|=|!=|<=|>=|<|>|!)(?=\\s)"
+          "match": "(?<=\\()\\s*(\\+|\\-|\\*|/|%|&|\\||\\^|~|<<|>>|=|!=|<=|>=|<|>)(?=\\s)"
         }
       ]
     },
     "builtins": {
       "patterns": [
         {
+          "comment": "Arithmetic builtins",
           "name": "support.function.builtin.tiny16se",
-          "match": "\\b(add|sub|neg|inc|dec|and|or|xor|not|shl|shr|eq|ne|lt|gt|le|ge|lnot|load|store|addr|addr\\+|addr16|peek|peek16|peek\\*|poke|poke16|hi|lo)\\b"
+          "match": "(?<=\\()\\s*(inc|dec)(?=\\s|\\))"
+        },
+        {
+          "comment": "Logic (short-circuit)",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(and|or|not)(?=\\s|\\))"
+        },
+        {
+          "comment": "Type predicates",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(nil\\?|zero\\?|pos\\?|neg\\?)(?=\\s|\\))"
+        },
+        {
+          "comment": "Memory access",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(load|store|hi|lo)(?=\\s|\\))"
+        },
+        {
+          "comment": "Array and collection builtins",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(nth|len|array|range)(?=\\s|\\))"
+        },
+        {
+          "comment": "Inline assembly",
+          "name": "support.function.builtin.tiny16se",
+          "match": "(?<=\\()\\s*(asm)(?=\\s|\\))"
+        }
+      ]
+    },
+    "type-casts": {
+      "patterns": [
+        {
+          "comment": "Type cast functions (u8 expr), (i8 expr)",
+          "name": "support.type.cast.tiny16se",
+          "match": "(?<=\\()\\s*(u8|i8)(?=\\s|\\))"
+        }
+      ]
+    },
+    "special-literals": {
+      "patterns": [
+        {
+          "name": "constant.language.nil.tiny16se",
+          "match": "\\bnil\\b"
         }
       ]
     },
@@ -153,7 +263,7 @@
       "patterns": [
         {
           "comment": "Namespaced symbols like apu/init, sprite/draw, apu/NOTE_C4",
-          "match": "\\b([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)(/)([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)\\b",
+          "match": "\\b([a-zA-Z_\\-][a-zA-Z0-9_\\-]*)(/)([a-zA-Z_\\-][a-zA-Z0-9_\\-!?]*)\\b",
           "captures": {
             "1": { "name": "entity.name.namespace.tiny16se" },
             "2": { "name": "punctuation.accessor.tiny16se" },
@@ -166,7 +276,7 @@
       "patterns": [
         {
           "name": "variable.other.tiny16se",
-          "match": "[a-zA-Z_\\-][a-zA-Z0-9_\\-]*"
+          "match": "[a-zA-Z_\\-][a-zA-Z0-9_\\-!?]*"
         }
       ]
     },

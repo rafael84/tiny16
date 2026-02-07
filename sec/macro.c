@@ -185,7 +185,8 @@ static AstNode* expand_node(MacroContext* ctx, AstNode* src) {
         break;
 
     case AST_DEFN:
-    case AST_DEFMACRO: expand_array(ctx, &node->as.defn.body, &src->as.defn.body); break;
+    case AST_DEFMACRO:
+    case AST_FN: expand_array(ctx, &node->as.defn.body, &src->as.defn.body); break;
 
     case AST_LET:
         for (size_t i = 0; i < src->as.let.binding_count; i++) {
@@ -196,9 +197,53 @@ static AstNode* expand_node(MacroContext* ctx, AstNode* src) {
         break;
 
     case AST_SET:
+    case AST_SET_BANG:
         subst_name(ctx, node->as.set.var, src->as.set.var);
         node->as.set.value = expand_node(ctx, src->as.set.value);
+        if (src->as.set.target_expr) {
+            node->as.set.target_expr = expand_node(ctx, src->as.set.target_expr);
+        }
         break;
+
+    case AST_VAR:
+        subst_name(ctx, node->as.var.name, src->as.var.name);
+        node->as.var.value = expand_node(ctx, src->as.var.value);
+        break;
+
+    case AST_COND:
+        node->as.cond.clause_count = src->as.cond.clause_count;
+        for (size_t i = 0; i < src->as.cond.clause_count; i++) {
+            node->as.cond.tests[i] = expand_node(ctx, src->as.cond.tests[i]);
+            expand_array(ctx, &node->as.cond.bodies[i], &src->as.cond.bodies[i]);
+        }
+        break;
+
+    case AST_WHEN:
+    case AST_UNLESS:
+        node->as.when_expr.cond = expand_node(ctx, src->as.when_expr.cond);
+        expand_array(ctx, &node->as.when_expr.body, &src->as.when_expr.body);
+        break;
+
+    case AST_FOR:
+        subst_name(ctx, node->as.for_expr.var, src->as.for_expr.var);
+        node->as.for_expr.collection = expand_node(ctx, src->as.for_expr.collection);
+        node->as.for_expr.when_cond =
+            src->as.for_expr.when_cond ? expand_node(ctx, src->as.for_expr.when_cond) : NULL;
+        expand_array(ctx, &node->as.for_expr.body, &src->as.for_expr.body);
+        break;
+
+    case AST_RANGE:
+        node->as.range.start = expand_node(ctx, src->as.range.start);
+        node->as.range.end = expand_node(ctx, src->as.range.end);
+        break;
+
+    case AST_LOGIC_AND:
+    case AST_LOGIC_OR:
+        node->as.binary.left = expand_node(ctx, src->as.binary.left);
+        node->as.binary.right = expand_node(ctx, src->as.binary.right);
+        break;
+
+    case AST_LOGIC_NOT: node->as.unary.operand = expand_node(ctx, src->as.unary.operand); break;
 
     case AST_IF:
         node->as.if_expr.cond = expand_node(ctx, src->as.if_expr.cond);
@@ -225,8 +270,8 @@ static AstNode* expand_node(MacroContext* ctx, AstNode* src) {
 
     case AST_ADD:
     case AST_SUB:
-    case AST_AND:
-    case AST_OR:
+    case AST_BAND:
+    case AST_BOR:
     case AST_XOR:
     case AST_SHL:
     case AST_SHR:
@@ -246,7 +291,7 @@ static AstNode* expand_node(MacroContext* ctx, AstNode* src) {
     case AST_NEG:
     case AST_INC:
     case AST_DEC:
-    case AST_NOT:
+    case AST_BNOT:
     case AST_LNOT:
     case AST_HI:
     case AST_LO:
@@ -270,6 +315,31 @@ static AstNode* expand_node(MacroContext* ctx, AstNode* src) {
             node->as.call.args[i] = expand_node(ctx, src->as.call.args[i]);
         }
         break;
+
+    case AST_FIELD_GET:
+        subst_name(ctx, node->as.field_get.field, src->as.field_get.field);
+        node->as.field_get.record = expand_node(ctx, src->as.field_get.record);
+        break;
+
+    case AST_DEFRECORD: break; // Nothing to expand in record definitions
+
+    case AST_ARRAY:
+        node->as.array_expr.count = expand_node(ctx, src->as.array_expr.count);
+        node->as.array_expr.value = expand_node(ctx, src->as.array_expr.value);
+        break;
+
+    case AST_NTH:
+        node->as.binary.left = expand_node(ctx, src->as.binary.left);
+        node->as.binary.right = expand_node(ctx, src->as.binary.right);
+        break;
+
+    case AST_LEN:
+    case AST_NILP:
+    case AST_ZEROP:
+    case AST_POSP:
+    case AST_NEGP:
+    case AST_CAST_U8:
+    case AST_CAST_I8: node->as.unary.operand = expand_node(ctx, src->as.unary.operand); break;
 
     default: break;
     }

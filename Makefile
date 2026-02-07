@@ -180,9 +180,10 @@ $(BUILDDIR)/%.tiny16: examples/asm/%.asm $(EXAMPLE_INCLUDES) | $(BUILDDIR)
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $< $@
 
 # SE examples: .se -> .asm -> .tiny16
+# -O 2 enables optimizer (constant fold, dead code, etc.) so large examples (e.g. floppy) fit VM limit
 # Depends on includes AND stdlib SE modules (for require statements)
 $(BUILDDIR)/%_se.tiny16: examples/se/%.se $(EXAMPLE_INCLUDES) $(STDLIB_SE) | $(BUILDDIR)
-	$(BUILDDIR)/tiny16-sec$(EXE_EXT) $< $(BUILDDIR)/$*_se.asm
+	$(BUILDDIR)/tiny16-sec$(EXE_EXT) $< $(BUILDDIR)/$*_se.asm -O 2
 	$(BUILDDIR)/tiny16-asm$(EXE_EXT) $(BUILDDIR)/$*_se.asm $@
 
 # PNG -> INC: convert PNG assets to assembly include files

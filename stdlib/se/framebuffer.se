@@ -1,31 +1,29 @@
-; framebuffer - direct pixel manipulation (0xC000-0xFFFF)
+; framebuffer - direct pixel manipulation (v2)
+; Framebuffer: 128x128 pixels at 0xC000-0xFFFF
+; Address = 0xC000 + (y * 128) + x
+; Split: hi = 0xC0 + (y >> 1), lo = ((y & 1) << 7) + x
 (ns framebuffer)
+(require core)
 
 (def FB_BASE 0xC000)
 (def FB_HI (hi FB_BASE))
 
 ; Draw pixel at (x, y) with color
-; Framebuffer layout: 128x128 pixels at 0xC000
-; Address = 0xC000 + (y * 128) + x
-; High byte: 0xC0 + (y / 2)
-; Low byte: ((y & 1) * 128) + x
 (defn draw-pixel (x y color)
-  (let (y-bit (& y 1)
-        addr-lo (if (= y-bit 0) x (+ x 128))
-        addr-hi (+ FB_HI (/ y 2)))
-    (poke addr-hi addr-lo color)))
+  (let (addr-hi (+ FB_HI (>> y 1))
+        addr-lo (+ (if (= (& y 1) 0) 0 128) x))
+    (core/poke addr-hi addr-lo color)))
 
-; Clear framebuffer to color (fast: direct memory write)
-; Framebuffer: 0xC000-0xFFFF (64 pages, 256 bytes each)
+; Clear framebuffer to color
+; Iterates all 64 pages (0xC0-0xFF), 256 bytes each
 (defn clear (color)
-  (let (hi FB_HI
-        lo 0)
-    (while (!= hi 0)
-      (poke hi lo color)
-      (set lo (inc lo))
-      (if (= lo 0)
-          (set hi (inc hi))
-          0))))
+  (let (h FB_HI
+        l 0)
+    (while (!= h 0)
+      (core/poke h l color)
+      (set! l (inc l))
+      (when (= l 0)
+        (set! h (inc h))))))
 
 ; Fill rectangle
 (defn fill-rect (x y w h color)
@@ -34,5 +32,5 @@
       (let (col 0)
         (while (< col w)
           (draw-pixel (+ x col) (+ y row) color)
-          (set col (inc col))))
-      (set row (inc row)))))
+          (set! col (inc col))))
+      (set! row (inc row)))))

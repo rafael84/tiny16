@@ -1,0 +1,201 @@
+; Sokoban - Push crates onto targets
+;
+; Controls:
+; - Arrow keys: Move/push
+; - B: Reset level
+;
+; BUILD:
+;   make examples-se
+;   ./build/tiny16-emu build/sokoban_se.tiny16
+
+(require (core sprite tilemap input ppu palette))
+(import "../examples/includes/tileset.inc")
+
+; =============================================================================
+; Tiles + Palette
+; =============================================================================
+
+(def TILE_BASE 0x5000)
+(def TILE_BYTES 32)
+
+(def TILE_FLOOR 1)
+(def TILE_WALL 2)
+(def TILE_TARGET 3)
+(def TILE_BOX 4)
+(def TILE_BOX_ON_TARGET 5)
+(def TILE_PLAYER 6)
+
+(def COLOR_BG 0x00)
+(def COLOR_FLOOR 0x6D)
+(def COLOR_WALL 0x92)
+(def COLOR_TARGET 0xE0)
+(def COLOR_BOX 0xB1)
+(def COLOR_BOX_ON_TARGET 0xF4)
+(def COLOR_PLAYER 0x1F)
+
+(data str_title (db "SOKOBAN" 0))
+(data str_reset (db "B=RESET" 0))
+(data str_clear (db "CLEAR! B=RESET" 0))
+
+(var player-x 0)
+(var player-y 0)
+(var victory false)
+
+(defn fill-tile (tile value)
+  (for (i (range 0 TILE_BYTES))
+    (let (offset (* tile TILE_BYTES))
+      (core/poke (hi TILE_BASE) (+ (lo TILE_BASE) (+ offset i)) value))))
+
+(defn init-tiles ()
+  (palette/set-color 0 COLOR_BG)
+  (palette/set-color 1 COLOR_FLOOR)
+  (palette/set-color 2 COLOR_WALL)
+  (palette/set-color 3 COLOR_TARGET)
+  (palette/set-color 4 COLOR_BOX)
+  (palette/set-color 5 COLOR_BOX_ON_TARGET)
+  (palette/set-color 6 COLOR_PLAYER)
+
+  (fill-tile TILE_FLOOR 0x11)
+  (fill-tile TILE_WALL 0x22)
+  (fill-tile TILE_TARGET 0x33)
+  (fill-tile TILE_BOX 0x44)
+  (fill-tile TILE_BOX_ON_TARGET 0x55)
+  (fill-tile TILE_PLAYER 0x66))
+
+; =============================================================================
+; UI
+; =============================================================================
+
+(defn draw-ui ()
+  (tilemap/text 4 0 (hi str_title) (lo str_title))
+  (tilemap/text 2 1 (hi str_reset) (lo str_reset)))
+
+(defn show-clear ()
+  (tilemap/fill-row 1 0)
+  (tilemap/text 1 1 (hi str_clear) (lo str_clear)))
+
+; =============================================================================
+; Level Layout
+; =============================================================================
+
+(defn draw-border ()
+  (for (x (range 1 15))
+    (tilemap/put x 2 TILE_WALL)
+    (tilemap/put x 13 TILE_WALL))
+  (for (y (range 2 14))
+    (tilemap/put 1 y TILE_WALL)
+    (tilemap/put 14 y TILE_WALL)))
+
+(defn place-walls ()
+  (for (y (range 4 11))
+    (tilemap/put 6 y TILE_WALL))
+  (for (y (range 6 12))
+    (tilemap/put 10 y TILE_WALL))
+  (for (x (range 4 12))
+    (tilemap/put x 8 TILE_WALL)))
+
+(defn init-level ()
+  (tilemap/clear-all)
+  (tilemap/fill-rect 1 2 14 12 TILE_FLOOR)
+  (draw-border)
+  (place-walls)
+
+  (tilemap/put 12 4 TILE_TARGET)
+  (tilemap/put 3 11 TILE_TARGET)
+
+  (tilemap/put 4 5 TILE_BOX)
+  (tilemap/put 9 10 TILE_BOX)
+
+  (set! player-x 3)
+  (set! player-y 4)
+  (set! victory false)
+
+  (draw-ui))
+
+; =============================================================================
+; Game Logic
+; =============================================================================
+
+(defn set-player (x y)
+  (set! player-x x)
+  (set! player-y y))
+
+(defn try-move (dx dy)
+  (let (x player-x
+        y player-y
+        nx (+ x dx)
+        ny (+ y dy)
+        target (tilemap/get nx ny))
+    (if (= target TILE_WALL)
+        0
+        (if (| (= target TILE_BOX) (= target TILE_BOX_ON_TARGET))
+            (let (bx (+ nx dx)
+                  by (+ ny dy)
+                  beyond (tilemap/get bx by))
+              (if (| (= beyond TILE_FLOOR) (= beyond TILE_TARGET))
+                  (do
+                    (when (= beyond TILE_TARGET)
+                      (tilemap/put bx by TILE_BOX_ON_TARGET))
+                    (when (!= beyond TILE_TARGET)
+                      (tilemap/put bx by TILE_BOX))
+                    (when (= target TILE_BOX_ON_TARGET)
+                      (tilemap/put nx ny TILE_TARGET))
+                    (when (!= target TILE_BOX_ON_TARGET)
+                      (tilemap/put nx ny TILE_FLOOR))
+                    (set-player nx ny)
+                    1)
+                  0))
+            (if (| (= target TILE_FLOOR) (= target TILE_TARGET))
+                (do
+                  (set-player nx ny)
+                  1)
+                0)))))
+
+(defn handle-input (pressed)
+  (let (moved 0)
+    (when (!= (& pressed input/KEY_UP) 0)
+      (set! moved (try-move 0 (- 0 1))))
+    (when (!= (& pressed input/KEY_DOWN) 0)
+      (set! moved (try-move 0 1)))
+    (when (!= (& pressed input/KEY_LEFT) 0)
+      (set! moved (try-move (- 0 1) 0)))
+    (when (!= (& pressed input/KEY_RIGHT) 0)
+      (set! moved (try-move 1 0)))
+    moved))
+
+(defn any-targets ()
+  (let (found 0)
+    (for (y (range 2 14))
+      (for (x (range 1 15))
+        (when (= (tilemap/get x y) TILE_TARGET)
+          (set! found 1))))
+    found))
+
+(defn check-victory ()
+  (when (= victory false)
+    (when (= (any-targets) 0)
+      (set! victory true)
+      (show-clear))))
+
+(defn render-player ()
+  (let (x (* player-x 8)
+        y (* player-y 8))
+    (sprite/draw 0 y x TILE_PLAYER)))
+
+(defn main ()
+  (sprite/hide-all)
+  (init-tiles)
+  (init-level)
+
+  (while 1
+    (core/wait-frame)
+    (let (pressed (input/keys-pressed)
+          moved 0)
+      (when (!= (& pressed input/KEY_B) 0)
+        (init-level))
+      (when (= (& pressed input/KEY_B) 0)
+        (set! moved (handle-input pressed)))
+      (when (!= moved 0)
+        (check-victory)))
+    (render-player)
+    (ppu/render-all)))

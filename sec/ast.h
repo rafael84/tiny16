@@ -8,54 +8,90 @@
 #define SE_MAX_PARAMS     32 // Max function parameters (fixed, small)
 #define SE_MAX_SYMBOL_LEN 64 // Max symbol name length
 
+#define SE_MAX_COND_CLAUSES 32
+
+// Type hints for variables, parameters, and let bindings
+typedef enum {
+    SE_HINT_NONE = 0, // No hint - infer from value
+    SE_HINT_U8,       // ^u8
+    SE_HINT_I8,       // ^i8
+    SE_HINT_U16,      // ^u16
+    SE_HINT_I16,      // ^i16
+} SeTypeHint;
+
+static inline bool se_hint_is_16bit(SeTypeHint hint) {
+    return hint == SE_HINT_U16 || hint == SE_HINT_I16;
+}
+
+static inline bool se_hint_is_signed(SeTypeHint hint) {
+    return hint == SE_HINT_I8 || hint == SE_HINT_I16;
+}
+
 typedef enum {
     // Atoms
-    AST_NUMBER, // literal number
-    AST_STRING, // literal string
-    AST_SYMBOL, // identifier reference
+    AST_NUMBER,  // literal number
+    AST_STRING,  // literal string
+    AST_SYMBOL,  // identifier reference
+    AST_KEYWORD, // :alive, :x
+    AST_NIL,     // nil
+    AST_TRUE,    // true
+    AST_FALSE,   // false
 
     // Special forms
-    AST_DEF,    // (def name value)
-    AST_DEFN,   // (defn name (params) body...)
-    AST_LET,    // (let (bindings) body...)
-    AST_SET,    // (set var value)
-    AST_IF,     // (if cond then else)
-    AST_WHILE,  // (while cond body...)
-    AST_DO,     // (do expr...)
-    AST_DATA,   // (data name [addr] body...)
-    AST_DB,     // (db values...)
-    AST_REPEAT, // (repeat count form)
+    AST_DEF,      // (def name value)
+    AST_DEFN,     // (defn name (params) body...)
+    AST_LET,      // (let (bindings) body...)
+    AST_SET,      // (set var value) - legacy, unused in v2
+    AST_SET_BANG, // (set! target value)
+    AST_VAR,      // (var name value)
+    AST_IF,       // (if cond then else)
+    AST_WHILE,    // (while cond body...)
+    AST_DO,       // (do expr...)
+    AST_COND,     // (cond (test body...)...)
+    AST_WHEN,     // (when cond body...)
+    AST_UNLESS,   // (unless cond body...)
+    AST_FOR,      // (for (binding collection) body...) or (for (binding coll :when cond) body...)
+    AST_RANGE,    // (range start end)
+    AST_DATA,     // (data name [addr] body...) - legacy, unused in v2
+    AST_DB,       // (db values...) - legacy
+    AST_REPEAT,   // (repeat count form) - legacy
 
-    // Primitives
-    AST_ADD, // (+ a b) or (add a b)
-    AST_SUB, // (- a b) or (sub a b)
-    AST_NEG, // (- a) or (neg a)
+    // Primitives - bitwise
+    AST_BAND, // (& a b)
+    AST_BOR,  // (| a b)
+    AST_XOR,  // (^ a b)
+    AST_BNOT, // (~ a)
+    // Primitives - arithmetic
+    AST_ADD, // (+ a b)
+    AST_SUB, // (- a b)
+    AST_NEG, // (- a)
     AST_INC, // (inc a)
     AST_DEC, // (dec a)
-    AST_AND, // (& a b) or (and a b)
-    AST_OR,  // (| a b) or (or a b)
-    AST_XOR, // (^ a b) or (xor a b)
-    AST_NOT, // (~ a) or (not a)
-    AST_SHL, // (<< a b) or (shl a b)
-    AST_SHR, // (>> a b) or (shr a b)
-    AST_MUL, // (* a b) or (mul a b)
-    AST_DIV, // (/ a b) or (div a b)
-    AST_MOD, // (% a b) or (mod a b)
+    AST_SHL, // (<< a b)
+    AST_SHR, // (>> a b)
+    AST_MUL, // (* a b)
+    AST_DIV, // (/ a b)
+    AST_MOD, // (% a b)
+
+    // Logical (short-circuit)
+    AST_LOGIC_AND, // (and expr...)
+    AST_LOGIC_OR,  // (or expr...)
+    AST_LOGIC_NOT, // (not expr)
 
     // Comparisons
-    AST_EQ,   // (= a b) or (eq a b)
-    AST_NE,   // (!= a b) or (ne a b)
-    AST_LT,   // (< a b) or (lt a b)
-    AST_GT,   // (> a b) or (gt a b)
-    AST_LE,   // (<= a b) or (le a b)
-    AST_GE,   // (>= a b) or (ge a b)
-    AST_LNOT, // (! a) or (lnot a)
+    AST_EQ,   // (= a b)
+    AST_NE,   // (!= a b)
+    AST_LT,   // (< a b)
+    AST_GT,   // (> a b)
+    AST_LE,   // (<= a b)
+    AST_GE,   // (>= a b)
+    AST_LNOT, // (! a) - legacy logical not
 
     // Memory
-    AST_LOAD,   // (load addr-expr)
-    AST_STORE,  // (store addr-expr value)
-    AST_ADDR,   // (addr hi lo)
-    AST_ADDR16, // (addr16 value) - 16-bit address, auto-splits to hi/lo
+    AST_LOAD,   // (load addr)
+    AST_STORE,  // (store addr value)
+    AST_ADDR,   // (addr hi lo) - legacy
+    AST_ADDR16, // (addr16 value) - legacy
 
     // Compile-time helpers
     AST_HI, // (hi addr)
@@ -65,11 +101,29 @@ typedef enum {
     AST_CALL, // (func args...)
 
     // Special directives
-    AST_NS,       // (ns name)
-    AST_REQUIRE,  // (require name...)
-    AST_IMPORT,   // (import "filename")
-    AST_ASM,      // (asm "raw assembly...")
-    AST_DEFMACRO, // (defmacro name (params) body...)
+    AST_NS,        // (ns name)
+    AST_REQUIRE,   // (require name...)
+    AST_IMPORT,    // (import "filename")
+    AST_ASM,       // (asm "raw assembly...")
+    AST_DEFMACRO,  // (defmacro name (params) body...)
+    AST_DEFRECORD, // (defrecord name (fields...))
+    AST_FIELD_GET, // (:field record) - keyword accessor read
+    AST_ARRAY,     // (array count value) - fixed-size array
+    AST_NTH,       // (nth array index) - element access
+    AST_LEN,       // (len array) - array length (compile-time)
+
+    // Type predicates (unary, return true/false)
+    AST_NILP,  // (nil? x) - true if x is nil (0xFF)
+    AST_ZEROP, // (zero? x) - true if x is 0
+    AST_POSP,  // (pos? x) - true if x > 0 (signed)
+    AST_NEGP,  // (neg? x) - true if x < 0 (signed, bit 7 set)
+
+    // Anonymous function
+    AST_FN, // (fn (params) body...) - anonymous function, reuses defn layout
+
+    // Type casts (unary)
+    AST_CAST_U8, // (u8 expr) - truncate to 8-bit unsigned
+    AST_CAST_I8, // (i8 expr) - truncate to 8-bit signed
 } AstKind;
 
 const char* ast_kind_name(AstKind kind);
@@ -109,6 +163,7 @@ struct AstNode {
         struct {
             char name[SE_MAX_SYMBOL_LEN];
             char params[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
+            SeTypeHint param_hints[SE_MAX_PARAMS];
             size_t param_count;
             AstNodeArray body;
         } defn;
@@ -117,15 +172,52 @@ struct AstNode {
         struct {
             char vars[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
             AstNode* vals[SE_MAX_PARAMS];
+            SeTypeHint hints[SE_MAX_PARAMS];
             size_t binding_count;
             AstNodeArray body;
         } let;
 
-        // AST_SET: (set var value)
+        // AST_SET / AST_SET_BANG: (set var value) or (set! target value)
+        // For (set! (:field rec) value): var = ":field", target_expr = rec, value = value
         struct {
             char var[SE_MAX_SYMBOL_LEN];
             AstNode* value;
+            AstNode* target_expr; // NULL for simple var, non-NULL for (:field record)
         } set;
+
+        // AST_VAR: (var name value)
+        struct {
+            char name[SE_MAX_SYMBOL_LEN];
+            AstNode* value;
+            SeTypeHint type_hint;
+        } var;
+
+        // AST_COND: (cond (test body...)...)
+        struct {
+            AstNode* tests[SE_MAX_COND_CLAUSES];
+            AstNodeArray bodies[SE_MAX_COND_CLAUSES];
+            size_t clause_count;
+        } cond;
+
+        // AST_WHEN, AST_UNLESS: (when cond body...) - same layout as while_expr
+        struct {
+            AstNode* cond;
+            AstNodeArray body;
+        } when_expr;
+
+        // AST_FOR: (for (binding collection) body...) or with :when
+        struct {
+            char var[SE_MAX_SYMBOL_LEN];
+            AstNode* collection;
+            AstNode* when_cond; /* NULL if no :when */
+            AstNodeArray body;
+        } for_expr;
+
+        // AST_RANGE: (range start end)
+        struct {
+            AstNode* start;
+            AstNode* end;
+        } range;
 
         // AST_IF: (if cond then else)
         struct {
@@ -193,6 +285,32 @@ struct AstNode {
             AstNode* args[SE_MAX_PARAMS];
             size_t arg_count;
         } call;
+
+        // AST_DEFRECORD: (defrecord name (fields...))
+        struct {
+            char name[SE_MAX_SYMBOL_LEN];
+            char fields[SE_MAX_PARAMS][SE_MAX_SYMBOL_LEN];
+            bool field_is_16bit[SE_MAX_PARAMS]; // true if field has ^i16 or ^u16 hint
+            size_t field_count;
+        } defrecord;
+
+        // AST_FIELD_GET: (:field record-expr)
+        struct {
+            char field[SE_MAX_SYMBOL_LEN]; // keyword name including ':'
+            AstNode* record;               // record expression
+        } field_get;
+
+        // AST_ARRAY: (array count value)
+        struct {
+            AstNode* count; // compile-time constant count
+            AstNode* value; // initial value or record constructor
+        } array_expr;
+
+        // AST_NTH: (nth array-expr index-expr)
+        // Reuses binary: left = array, right = index
+
+        // AST_LEN: (len array-expr)
+        // Reuses unary: operand = array
     } as;
 };
 

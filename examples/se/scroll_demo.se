@@ -16,12 +16,10 @@
 ; Determine tile index based on quadrant
 (defn get-quadrant-tile (row col)
   (let (tile 3)
-    (if (>= row 16)
-        (set tile (+ tile 2))
-        0)
-    (if (>= col 16)
-        (set tile (inc tile))
-        0)
+    (when (>= row 16)
+      (set! tile (+ tile 2)))
+    (when (>= col 16)
+      (set! tile (inc tile)))
     tile))
 
 ; Initialize tilemap with visible pattern
@@ -49,24 +47,18 @@
         sx (ppu/get-scroll-x)
         sy (ppu/get-scroll-y))
 
-    (if (!= (& keys KEY_ARROWS) 0)
-        (do
-          (if (input/left)
-              (set sx (- sx SCROLL_SPEED))
-              0)
-          (if (input/right)
-              (set sx (+ sx SCROLL_SPEED))
-              0)
-          (if (input/up)
-              (set sy (- sy SCROLL_SPEED))
-              0)
-          (if (input/down)
-              (set sy (+ sy SCROLL_SPEED))
-              0))
-        ; Auto-scroll if no keys pressed
-        (do
-          (set sx (+ sx 1))
-          (set sy (+ sy 1))))
+    (when (!= (& keys KEY_ARROWS) 0)
+      (when (input/left)
+        (set! sx (- sx SCROLL_SPEED)))
+      (when (input/right)
+        (set! sx (+ sx SCROLL_SPEED)))
+      (when (input/up)
+        (set! sy (- sy SCROLL_SPEED)))
+      (when (input/down)
+        (set! sy (+ sy SCROLL_SPEED))))
+    (when (= (& keys KEY_ARROWS) 0)
+      (set! sx (+ sx 1))
+      (set! sy (+ sy 1)))
 
     (ppu/set-scroll sx sy)))
 

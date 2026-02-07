@@ -9,86 +9,74 @@
 ;   make examples-se
 ;   ./build/tiny16-emu build/demo_se.tiny16
 
-(require (core sprite tilemap math ppu))
+(require (core sprite tilemap ppu))
 (import "../examples/includes/tileset.inc")
 
 (def SPRITE_COUNT 32)
-(def SPRITE_DATA_SIZE 128)
 (def BOUNDARY 120)
 (def MIN_POSITION 10)
 (def MODULO_RANGE 110)
 (def VELOCITY_BASE 1)
-(def INIT_FLAG 0xAA)
 (def TILE_SPRITE 99)
 
-; Sprite data structure (4 bytes per sprite): x, y, vel-x, vel-y
-(defn sprite-data-addr (index offset)
-  (+ (lo sprite_data) (+ (* index 4) offset)))
+(defrecord sprite-info (x y vel-x vel-y))
+
+(var sprites (array 32 (sprite-info 0 0 0 0)))
 
 ; Initialize one sprite with varied position and velocity
 (defn init-one-sprite (i seed)
-  (let (x (+ (math/mod-by (+ seed (* i 7)) MODULO_RANGE) MIN_POSITION)
-        y (+ (math/mod-by (+ seed (* i 11)) MODULO_RANGE) MIN_POSITION)
+  (let (x (+ (% (+ seed (* i 7)) MODULO_RANGE) MIN_POSITION)
+        y (+ (% (+ seed (* i 11)) MODULO_RANGE) MIN_POSITION)
         vel-x (+ VELOCITY_BASE (& (+ seed i) 1))
         vel-y (+ VELOCITY_BASE (& (+ seed (* i 3)) 1)))
-    (poke (hi sprite_data) (sprite-data-addr i 0) x)
-    (poke (hi sprite_data) (sprite-data-addr i 1) y)
-    (poke (hi sprite_data) (sprite-data-addr i 2) vel-x)
-    (poke (hi sprite_data) (sprite-data-addr i 3) vel-y)))
+    (set! (:x (nth sprites i)) x)
+    (set! (:y (nth sprites i)) y)
+    (set! (:vel-x (nth sprites i)) vel-x)
+    (set! (:vel-y (nth sprites i)) vel-y)))
 
 (defn init-sprites ()
   (sprite/hide-all)
   (tilemap/clear-all)
-  (let (seed (core/read-frame)
-        i 0)
-    (while (< i SPRITE_COUNT)
-      (init-one-sprite i seed)
-      (set i (inc i)))))
+  (let (seed (core/read-frame))
+    (for (i (range 0 SPRITE_COUNT))
+      (init-one-sprite i seed))))
 
 ; Update one sprite position and handle bouncing
 (defn update-one-sprite (i)
-  (let (data-hi (hi sprite_data)
-        x (peek data-hi (sprite-data-addr i 0))
-        y (peek data-hi (sprite-data-addr i 1))
-        vx (peek data-hi (sprite-data-addr i 2))
-        vy (peek data-hi (sprite-data-addr i 3)))
+  (let (x (:x (nth sprites i))
+        y (:y (nth sprites i))
+        vx (:vel-x (nth sprites i))
+        vy (:vel-y (nth sprites i)))
 
     ; Update position
-    (set x (+ x vx))
-    (set y (+ y vy))
+    (set! x (+ x vx))
+    (set! y (+ y vy))
 
     ; Bounce on boundaries
-    (if (| (>= x BOUNDARY) (= x 0))
-        (set vx (- 0 vx))
-        0)
-    (if (| (>= y BOUNDARY) (= y 0))
-        (set vy (- 0 vy))
-        0)
+    (when (| (>= x BOUNDARY) (= x 0))
+      (set! vx (- 0 vx)))
+    (when (| (>= y BOUNDARY) (= y 0))
+      (set! vy (- 0 vy)))
 
     ; Store updated values
-    (poke data-hi (sprite-data-addr i 0) x)
-    (poke data-hi (sprite-data-addr i 1) y)
-    (poke data-hi (sprite-data-addr i 2) vx)
-    (poke data-hi (sprite-data-addr i 3) vy)))
+    (set! (:x (nth sprites i)) x)
+    (set! (:y (nth sprites i)) y)
+    (set! (:vel-x (nth sprites i)) vx)
+    (set! (:vel-y (nth sprites i)) vy)))
 
 ; Copy sprite data to OAM for rendering
 (defn render-one-sprite (i)
-  (let (data-hi (hi sprite_data)
-        x (peek data-hi (sprite-data-addr i 0))
-        y (peek data-hi (sprite-data-addr i 1)))
+  (let (x (:x (nth sprites i))
+        y (:y (nth sprites i)))
     (sprite/draw i y x TILE_SPRITE)))
 
 (defn update-sprites ()
-  (let (i 0)
-    (while (< i SPRITE_COUNT)
-      (update-one-sprite i)
-      (set i (inc i)))))
+  (for (i (range 0 SPRITE_COUNT))
+    (update-one-sprite i)))
 
 (defn render-sprites ()
-  (let (i 0)
-    (while (< i SPRITE_COUNT)
-      (render-one-sprite i)
-      (set i (inc i)))))
+  (for (i (range 0 SPRITE_COUNT))
+    (render-one-sprite i)))
 
 (defn main ()
   (init-sprites)
@@ -98,5 +86,3 @@
     (update-sprites)
     (render-sprites)
     (ppu/render-all)))
-
-(data sprite_data (repeat 32 (db 0 0 0 0)))

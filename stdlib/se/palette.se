@@ -1,23 +1,22 @@
-; palette - color palette management
+; palette - color palette management (v2: native store/load)
 (ns palette)
 
 (def PALETTE_BASE 0x9200)
-(def PALETTE_HI (hi PALETTE_BASE))
 
 ; Set palette color at index (0-255)
 ; color: RGB332 format (RRR GGG BB)
 (defn set-color (index color)
-  (poke PALETTE_HI index color))
+  (store (+ PALETTE_BASE index) color))
 
 ; Get palette color at index
 (defn get-color (index)
-  (peek PALETTE_HI index))
+  (load (+ PALETTE_BASE index)))
 
-; Fill entire palette with single color (all 256 colors)
+; Fill entire palette with single color (all 256 entries)
+; Uses wrapping u8 counter: set index 0, then loop 1..255
 (defn fill (color)
-  (let (i 0)
+  (set-color 0 color)
+  (let (i 1)
     (while (!= i 0)
       (set-color i color)
-      (set i (inc i)))
-    ; Handle i=0 case (loop starts and ends at 0)
-    (set-color 0 color)))
+      (set! i (inc i)))))

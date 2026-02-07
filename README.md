@@ -75,7 +75,7 @@ build/tiny16-emu build/demo.tiny16                          # Run
 [`demo.asm`](examples/asm/demo.asm) | [`apu_demo.asm`](examples/asm/apu_demo.asm) | [`input_test.asm`](examples/asm/input_test.asm) | [`scroll_demo.asm`](examples/asm/scroll_demo.asm)
 
 **S-expression:**
-[`floppy.se`](examples/se/floppy.se) | [`demo.se`](examples/se/demo.se) | [`apu_demo.se`](examples/se/apu_demo.se) | [`input_test.se`](examples/se/input_test.se) | [`scroll_demo.se`](examples/se/scroll_demo.se)
+[`floppy.se`](examples/se/floppy.se) | [`demo.se`](examples/se/demo.se) | [`apu_demo.se`](examples/se/apu_demo.se) | [`input_test.se`](examples/se/input_test.se) | [`scroll_demo.se`](examples/se/scroll_demo.se) | [`sokoban.se`](examples/se/sokoban.se)
 
 ## Testing
 

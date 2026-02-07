@@ -5,7 +5,7 @@ Syntax highlighting and go-to-definition for tiny16 assembly (`.asm`) and tiny16
 ## Features
 
 - **Syntax Highlighting**: Full syntax support for both `.asm` and `.se` files
-- **Go to Definition**: Jump to function/constant/data definitions in `.se` files (press `gd`)
+- **Go to Definition**: Jump to function/constant/variable/record/macro definitions in `.se` files (press `gd`)
 - **Zero Dependencies**: Pure Lua/Vimscript implementation
 
 ## Installation
@@ -79,7 +79,7 @@ Or set it manually in Neovim:
 
 When editing a `.se` file:
 
-1. Place cursor on any symbol (function, constant, or data label)
+1. Place cursor on any symbol (function, constant, variable, record, or macro)
 2. Press `gd` to jump to its definition
 3. Press `<C-o>` to jump back
 
@@ -110,12 +110,20 @@ Available commands:
 
 #### SE Language (`tiny16se`)
 
-- Special forms: `def`, `defn`, `let`, `set`, `if`, `while`, `do`, `data`, `db`, `repeat`
+- Special forms: `def`, `defn`, `defmacro`, `defrecord`, `var`, `let`, `fn`, `set!`
+- Control flow: `if`, `cond`, `when`, `unless`, `while`, `for`, `do`
 - Module system: `ns`, `require`, `import`
-- Primitives: arithmetic, bitwise, comparison, memory operations
-- Operator aliases: `+`, `-`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `!=`, `<`, `>`, `<=`, `>=`
-- Function and constant definitions
-- Numbers and strings
+- Logic: `and`, `or`, `not` (short-circuit)
+- Builtins: `inc`, `dec`, `load`, `store`, `hi`, `lo`, `nth`, `len`, `array`, `range`, `asm`
+- Type predicates: `nil?`, `zero?`, `pos?`, `neg?`
+- Type casts: `u8`, `i8`
+- Operators: `+`, `-`, `*`, `/`, `%`, `&`, `|`, `^`, `~`, `<<`, `>>`, `=`, `!=`, `<`, `>`, `<=`, `>=`
+- Keywords: `:alive`, `:dead`, `:x`, etc.
+- Type hints: `^u8`, `^i8`, `^u16`, `^i16`
+- Special literals: `nil`, `true`, `false`
+- Numbers: decimal, hexadecimal, negative, fixed-point (8.8)
+- Strings with escape sequences
+- Namespaced symbols: `apu/init`, `sprite/draw`
 - S-expression parentheses
 - Lisp-style indentation (2 spaces)
 
@@ -127,7 +135,7 @@ The SE filetype plugin enables Lisp-style indentation by default with these sett
 
 - 2-space indentation
 - `lisp` mode for S-expression aware indentation
-- Keywords like `def`, `defn`, `let`, `if`, `while`, `do`, `ns`, `require`, `import` use body indentation
+- Keywords like `def`, `defn`, `defmacro`, `defrecord`, `var`, `let`, `fn`, `if`, `cond`, `when`, `unless`, `while`, `for`, `do`, `ns`, `require`, `import` use body indentation
 
 Override in your config if needed:
 

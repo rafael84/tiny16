@@ -37,7 +37,7 @@ local function parse_file(filepath)
 		end
 
 		-- Match (defn name ...)
-		local defn_name = line:match("^%s*%(%s*defn%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
+		local defn_name = line:match("^%s*%(%s*defn%s+([a-zA-Z_%-][a-zA-Z0-9_%-!?]*)")
 		if defn_name then
 			local col = line:find(defn_name, 1, true) or 1
 			-- Store both unqualified and qualified (ns/name) versions
@@ -58,14 +58,33 @@ local function parse_file(filepath)
 			end
 		end
 
-		-- Match (data name ...)
-		local data_name = line:match("^%s*%(%s*data%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
-		if data_name then
-			local col = line:find(data_name, 1, true) or 1
-			-- Store both unqualified and qualified (ns/name) versions
-			definitions[data_name] = { file = filepath, line = line_num, col = col - 1 }
+		-- Match (defmacro name ...)
+		local macro_name = line:match("^%s*%(%s*defmacro%s+([a-zA-Z_%-][a-zA-Z0-9_%-!?]*)")
+		if macro_name then
+			local col = line:find(macro_name, 1, true) or 1
+			definitions[macro_name] = { file = filepath, line = line_num, col = col - 1 }
 			if current_ns then
-				definitions[current_ns .. "/" .. data_name] = { file = filepath, line = line_num, col = col - 1 }
+				definitions[current_ns .. "/" .. macro_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
+		end
+
+		-- Match (defrecord name ...)
+		local record_name = line:match("^%s*%(%s*defrecord%s+([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
+		if record_name then
+			local col = line:find(record_name, 1, true) or 1
+			definitions[record_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. record_name] = { file = filepath, line = line_num, col = col - 1 }
+			end
+		end
+
+		-- Match (var name ...) - global variables
+		local var_name = line:match("^%s*%(%s*var%s+%^?[a-zA-Z0-9]*%s*([a-zA-Z_%-][a-zA-Z0-9_%-]*)")
+		if var_name then
+			local col = line:find(var_name, 1, true) or 1
+			definitions[var_name] = { file = filepath, line = line_num, col = col - 1 }
+			if current_ns then
+				definitions[current_ns .. "/" .. var_name] = { file = filepath, line = line_num, col = col - 1 }
 			end
 		end
 	end

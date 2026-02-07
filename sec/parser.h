@@ -26,6 +26,7 @@ typedef struct {
     size_t error_line;
     size_t error_column;
     char error_msg[256];
+    int fn_counter; // Counter for generating unique anonymous function names
 } SeParser;
 
 void se_parser_init(SeParser* parser, const char* source, size_t source_len, AstPool* pool);

@@ -1,0 +1,924 @@
+tiny16se Language Specification
+===============================
+
+VERSION
+    tiny16se v2.0
+
+DESCRIPTION
+    tiny16se is a compact S-expression language that compiles to tiny16
+    assembly.
+
+    It draws inspiration from Clojure (keywords, records, keyword-based
+    access), Lua (small type set, pragmatic design), and Scheme
+    (S-expressions, lexical scope, minimal core).
+
+    Compilation Pipeline:
+        Source (.se) -> Parser -> AST -> Optimizer -> Assembly -> Binary
+
+------------------------------------------------------------
+1. LEXICAL CONVENTIONS
+------------------------------------------------------------
+
+Whitespace
+    Space, tab, newline separate tokens.
+
+Comments
+    ";" to end of line.
+
+Tokens
+    "(" , ")"           parentheses
+    number              decimal integer, hex (0x...), or fixed-point (N.N)
+    string              double-quoted UTF-8 (compiler emits bytes)
+    symbol              [^0-9:();\s][^();\s]* (case-sensitive)
+    keyword             ":" followed by [^();\s]+ (e.g. :x, :alive, :state)
+
+Number Literals
+    Decimal:            0, 42, 255
+    Negative:           -1, -128
+    Hexadecimal:        0x00, 0xFF, 0x1234
+    Fixed-point (8.8):  3.5, -2.0, 0.25
+
+    Range inference:
+        0..255           u8
+        -128..-1         i8
+        256..65535        u16
+        -32768..-129     i16
+        N.N              i16 (8.8 fixed-point encoding)
+
+Special Literals
+    nil                 absence of value
+    true                boolean true
+    false               boolean false
+
+Keywords
+    Keywords start with ":" and are compile-time symbols.
+    They are interned as sequential u8 values (starting from 0).
+    Keywords serve two purposes:
+        1. Enum-like values:  :alive, :dead, :waiting, :playing
+        2. Record field accessors:  (:x player), (:hp enemy)
+
+------------------------------------------------------------
+2. SYNTAX
+------------------------------------------------------------
+
+    program     := form*
+    form        := atom | list
+    list        := "(" form* ")"
+    atom        := number | string | symbol | keyword | nil | true | false
+
+------------------------------------------------------------
+3. TYPES
+------------------------------------------------------------
+
+tiny16se has 7 types. The type system is inferred by default —
+the compiler determines types from literals, expressions, and context.
+Optional ^hint annotations override inference when needed.
+
+nil
+    The absence of a value. Represented as a sentinel byte (0xFF).
+    Falsy. Used for "nothing", "not found", "no callback".
+
+        nil                     ; the nil literal
+        (nil? x)                ; test for nil
+
+bool
+    true (1) and false (0).
+
+        true                    ; boolean true
+        false                   ; boolean false
+
+number
+    Integers with automatic width inference.
+
+        42                      ; u8 (fits in 0..255)
+        -3                      ; i8 (fits in -128..-1)
+        1000                    ; u16 (fits in 256..65535)
+        3.5                     ; i16 as 8.8 fixed-point (0x0380)
+
+    Width promotion rules:
+        u8  op u8   -> u8
+        u8  op u16  -> u16 (auto-promote narrower operand)
+        i8  op i8   -> i8
+        i8  op u8   -> i8 (signed wins)
+        i16 op any  -> i16
+
+    Truncation requires an explicit cast:
+        (u8 expr)               ; truncate to 8-bit unsigned
+        (i8 expr)               ; truncate to 8-bit signed
+
+string
+    Immutable byte sequences in the data section. A string value is
+    a 16-bit pointer to null-terminated bytes.
+
+        "hello"                 ; string literal
+        (var title "SOKOBAN")   ; allocates in data section, title is a pointer
+
+    String operations:
+        (len s)                 ; length (compile-time for literals)
+        (nth s i)               ; byte at index i
+
+keyword
+    Compile-time interned symbols. Represented as u8 at runtime.
+
+        :alive                  ; keyword literal
+        (= state :alive)        ; comparison (integer equality)
+        (:x player)             ; field access on records (see Section 7)
+
+function
+    First-class callable values. Represented as 16-bit addresses.
+
+        (fn (x) (+ x 1))       ; anonymous function
+        (var callback nil)      ; function variable (nil = no callback)
+        (set! callback my-fn)   ; assign function reference
+        (callback 10)           ; call through variable
+
+record
+    Compound type with named fields. See Section 7.
+
+array
+    Fixed-size indexed collection. See Section 8.
+
+Type Hints (^hint)
+    Override inference when the compiler cannot deduce the type
+    from the initial value alone.
+
+        (var ^i16 bird-y 0)     ; 0 looks like u8, but needs i16 range
+        (var ^i16 bird-vel 0)   ; will hold negative velocities
+
+        (let (^i16 total 0)     ; let binding with type hint
+          ...)
+
+        (defn update (^i16 x ^i16 y)   ; parameter type hints
+          ...)
+
+    Hint types: u8, i8, u16, i16
+
+------------------------------------------------------------
+4. SEMANTIC MODEL
+------------------------------------------------------------
+
+Evaluation
+    - Lists evaluate as special forms or function calls.
+    - Atoms evaluate to literals or variable values.
+    - Variables declared with (var ...) evaluate to their current value.
+
+Result Convention
+    - u8 expressions leave result in R0 (8-bit).
+    - u16/i16 expressions leave result in R0:R1 (16-bit, R0=high, R1=low).
+
+Return Values
+    Store operations return the stored value:
+        (set! var val)          -> returns val
+        (set! (:field rec) val) -> returns val
+
+    Control flow:
+        (while cond ...)        -> returns nil
+        (when cond ...)         -> returns last body value, or nil if not taken
+        (cond ...)              -> returns matching branch value, or nil
+
+Truthiness
+    nil (0xFF) and false (0x00) are falsy. Everything else is truthy.
+
+    Note: On this 8-bit architecture, false and the number 0 share the
+    same representation (0x00), so 0 is also falsy. This differs from
+    Clojure/Lua where 0 is truthy, but is a pragmatic choice for a
+    CPU without type tags.
+
+        (if nil "yes" "no")     ; -> "no"  (nil = 0xFF is falsy)
+        (if false "yes" "no")   ; -> "no"  (false = 0x00 is falsy)
+        (if 0 "yes" "no")      ; -> "no"  (0 = 0x00 same as false)
+        (if 1 "yes" "no")      ; -> "yes"
+        (if :alive "yes" "no") ; -> "yes"
+
+------------------------------------------------------------
+5. VARIABLES AND SCOPING
+------------------------------------------------------------
+
+Compile-Time Constants
+    (def name expr)
+        Define a compile-time constant. Not a variable — cannot be mutated.
+        The compiler emits "name = expr" in the output assembly.
+
+        (def TILE_WALL 2)
+        (def SCREEN_WIDTH 128)
+
+Global Variables
+    (var name value)
+        Declare a mutable global variable. Allocated in the data section.
+        Type inferred from value, or specified with ^hint.
+
+        (var player-x 0)           ; u8, allocated in data section
+        (var ^i16 bird-y 0)        ; i16, 2 bytes in data section
+        (var title "SOKOBAN")      ; string pointer
+
+    (var name (record-constructor ...))
+        Declare a global variable holding a record instance.
+
+        (var player (entity 10 20 3 :alive))
+
+    (var name (array N value))
+    (var name (array N (record-constructor ...)))
+        Declare a global variable holding an array.
+
+        (var scores (array 4 0))
+        (var enemies (array 8 (enemy 0 0 3 :alive)))
+
+Mutation
+    (set! target value)
+        Assign a new value. Works for variables, record fields, and
+        array elements.
+
+        (set! player-x 10)                      ; variable
+        (set! (:x player) 10)                   ; record field
+        (set! (nth enemies 3) (enemy 0 0 0 :dead)) ; array element
+        (set! (:state (nth enemies 3)) :dead)   ; field of array element
+
+Local Variables
+    (let (var1 val1 var2 val2 ... varN valN) body...)
+        Evaluate bindings left-to-right (each binding can see previous
+        ones). Evaluate body forms sequentially. Returns the value
+        of the last body form.
+
+        Bindings may include ^hints:
+            (let (^i16 total 0
+                  count 10)
+              ...)
+
+Scope
+    - Lexical scoping.
+    - Bindings introduced by parameters, let, fn.
+    - Inner scopes shadow outer bindings.
+    - Parameters accessed via FP + positive offset.
+    - Let-bound locals accessed via R2:R3 - negative offset.
+
+------------------------------------------------------------
+6. SPECIAL FORMS
+------------------------------------------------------------
+
+Definitions
+    (def name expr)                     compile-time constant
+    (defn name (params) body...)        function definition
+    (defmacro name (params) body...)    macro definition
+    (defrecord name (fields))           record type definition
+
+Variables
+    (var name value)            global mutable variable
+    (let (bindings) body...)    local bindings
+    (set! target value)         mutation
+
+Control Flow
+    (if cond then)              conditional, returns nil if not taken
+    (if cond then else)         conditional with else
+    (cond clauses...)           multi-way conditional
+    (when cond body...)         one-armed conditional
+    (unless cond body...)       negated one-armed conditional
+    (while cond body...)        loop
+    (for (sym coll) body...)    iteration (Clojure-style)
+    (do body...)                sequence, returns last value
+
+Logic (short-circuit)
+    (and expr...)               returns first falsy value, or last value
+    (or expr...)                returns first truthy value, or last value
+    (not expr)                  logical negation (returns true/false)
+
+Modules
+    (ns name)                   namespace declaration
+    (require (modules...))      load SE modules
+    (import "filename")         include raw assembly
+
+Low-Level
+    (asm "assembly...")         inline assembly
+
+------------------------------------------------------------
+7. RECORDS
+------------------------------------------------------------
+
+Definition
+    (defrecord name (field1 field2 ... fieldN))
+        Define a record type with named fields. Fields default to u8.
+        Use ^hint for wider types.
+
+        (defrecord pipe (x gap-y passed))
+        (defrecord entity (^i16 x ^i16 y hp state))
+
+    The compiler computes:
+        - Field offsets (based on type widths)
+        - Total record size
+        - Constructor function
+
+    Example layout for (defrecord entity (^i16 x ^i16 y hp state)):
+        Offset 0: x     (i16, 2 bytes)
+        Offset 2: y     (i16, 2 bytes)
+        Offset 4: hp    (u8, 1 byte)
+        Offset 5: state (u8, 1 byte)
+        Total size: 6 bytes
+
+Construction
+    (name val1 val2 ... valN)
+        Positional constructor. Creates a record instance.
+
+        (pipe 0 0 0)
+        (entity 0 0 3 :alive)
+
+    Used in var declarations:
+        (var pipe1 (pipe 0 0 0))
+        (var player (entity 10 20 3 :alive))
+
+Field Access (keyword as accessor)
+    (:field record)
+        Read a field value. The keyword acts as an accessor function.
+
+        (:x player)                 ; -> value of player's x field
+        (:state (nth enemies 2))    ; -> state of enemy at index 2
+
+    (set! (:field record) value)
+        Write a field value.
+
+        (set! (:x player) 15)
+        (set! (:state (nth enemies 3)) :dead)
+
+Compilation
+    Record instances are contiguous bytes in the data section (for globals)
+    or on the stack (for locals). Field access compiles to
+    LOAD/STORE [base + constant_offset], using the offset addressing mode.
+
+    Passing records to functions passes the 16-bit base address.
+
+    (:x player) compiles to:
+        LOADI R6, hi(player)
+        LOADI R7, lo(player)
+        LOAD R0, [R6:R7 + 0]
+
+    (:hp entity) where hp is at offset 4:
+        LOAD R0, [R6:R7 + 4]
+
+    For i16 fields, two bytes are loaded:
+        LOAD R0, [R6:R7 + 0]       ; high byte
+        LOAD R1, [R6:R7 + 1]       ; low byte
+
+------------------------------------------------------------
+8. ARRAYS
+------------------------------------------------------------
+
+Declaration
+    (array count value)
+        Fixed-size array of scalar values.
+
+        (var scores (array 4 0))
+        (var ^i16 coords (array 10 0))
+
+    (array count (constructor ...))
+        Fixed-size array of record instances.
+
+        (var enemies (array 8 (enemy 0 0 3 :alive)))
+
+    Array size is a compile-time constant. Total byte size is
+    count * element_size.
+
+Element Access
+    (nth array index)
+        Access element by index. Returns the element value (for scalars)
+        or a reference (for records).
+
+        (nth scores 0)                      ; -> first score (u8)
+        (nth enemies 2)                     ; -> reference to enemy at index 2
+
+    (set! (nth array index) value)
+        Write element by index.
+
+        (set! (nth scores 0) 99)
+        (set! (nth enemies 3) (enemy 0 0 0 :dead))
+
+    Combined with record access:
+        (:x (nth enemies 0))                ; read field of element
+        (set! (:state (nth enemies 3)) :dead)   ; write field of element
+
+Length
+    (len array)
+        Returns the number of elements (compile-time constant).
+
+        (len enemies)                       ; -> 8
+
+Iteration
+    (for (binding collection) body...)
+        Iterate over elements. Binds each element (or reference for
+        records) to the binding symbol, then evaluates body.
+
+        (for (e enemies)
+          (when (= (:state e) :alive)
+            (update-enemy e)))
+
+    Supports :when filter (evaluated per element, skips if falsy):
+
+        (for (e enemies :when (= (:state e) :alive))
+          (update-enemy e))
+
+    Range iteration with (range start end):
+
+        (for (i (range 0 16))
+          (tilemap/put i 0 TILE_WALL))
+
+Compilation
+    (nth array i) compiles to base + (i * element_size).
+    Element size is known at compile time from the element type.
+
+    For records, nth returns a pointer (base + i * record_size)
+    that can be used with keyword accessors.
+
+    Bounds checking is NOT performed at runtime. Out-of-bounds access
+    is undefined behavior.
+
+------------------------------------------------------------
+9. PRIMITIVES
+------------------------------------------------------------
+
+Arithmetic
+    (+ a b)     add. Left-associative for 3+ args.
+    (- a b)     subtract
+    (- a)       negate
+    (inc a)     increment by 1
+    (dec a)     decrement by 1
+    (* a b)     multiply
+    (/ a b)     divide
+    (% a b)     modulo
+
+    For i16 operands, the compiler emits 16-bit arithmetic with
+    carry/borrow handling automatically.
+
+Bitwise
+    (& a b)     bitwise AND
+    (| a b)     bitwise OR
+    (^ a b)     bitwise XOR
+    (~ a)       bitwise NOT
+    (<< a b)    shift left. b must be compile-time constant.
+    (>> a b)    shift right. b must be compile-time constant.
+                Unsigned types use logical shift; signed use arithmetic shift.
+
+Comparison (return true or false)
+    (= a b)     equal
+    (!= a b)    not equal
+    (< a b)     less than
+    (> a b)     greater than
+    (<= a b)    less or equal
+    (>= a b)    greater or equal
+
+    For signed types, comparisons use signed semantics.
+
+Type Predicates
+    (nil? x)    true if x is nil
+    (zero? x)   true if x is 0
+    (pos? x)    true if x > 0 (signed)
+    (neg? x)    true if x < 0 (signed)
+
+Memory Access
+    (load addr)
+        Load a byte from a 16-bit address. The compiler handles
+        address splitting into R6:R7 automatically.
+
+        (load 0xBF22)               ; read frame counter (MMIO)
+        (load (+ 0xC000 offset))    ; read framebuffer pixel
+
+    (store addr value)
+        Store a byte to a 16-bit address. Returns the stored value.
+
+        (store 0xBF30 1)            ; write PPU control register
+        (store (+ 0xC000 offset) color)  ; write framebuffer pixel
+
+    (hi expr)
+        Upper 8 bits of a 16-bit compile-time expression.
+
+    (lo expr)
+        Lower 8 bits of a 16-bit compile-time expression.
+
+    Memory access is the low-level escape hatch for direct hardware
+    interaction: MMIO registers, framebuffer, tile memory, OAM,
+    APU registers, and any other memory-mapped I/O.
+
+------------------------------------------------------------
+10. CONTROL FLOW
+------------------------------------------------------------
+
+(if cond then)
+(if cond then else)
+    Conditional. Evaluates cond; if truthy, evaluates then; otherwise
+    evaluates else (or returns nil if no else branch).
+
+    (if (= state :dead) (respawn))
+    (if (> hp 0) (fight) (flee))
+
+(cond clause...)
+    Multi-way conditional. Each clause is (test body...).
+    Evaluates tests in order; the first truthy test causes its body
+    to be evaluated. A bare true as the last test acts as a default.
+    Returns nil if no clause matches.
+
+    (cond
+      ((= state :waiting)
+        (show-press-a))
+      ((= state :playing)
+        (update-game)
+        (check-collision))
+      ((= state :dead)
+        (show-game-over))
+      (true
+        (init-game)))
+
+(when cond body...)
+    One-armed conditional. If cond is truthy, evaluates all body forms
+    sequentially and returns the last value. Otherwise returns nil.
+
+    (when (= (:state e) :alive)
+      (update-enemy e)
+      (render-enemy e))
+
+(unless cond body...)
+    Negated when. If cond is falsy, evaluates body.
+
+    (unless initialized
+      (init-game)
+      (set! initialized true))
+
+(while cond body...)
+    Loop. Evaluates body while cond is truthy. Returns nil.
+
+    (while (> (:hp boss) 0)
+      (attack boss))
+
+(for (binding collection) body...)
+    Iterate over a collection. Binds each element to the binding
+    symbol and evaluates body for each. Returns nil.
+
+    (for (e enemies)
+      (update-enemy e)
+      (render-enemy e))
+
+    With :when filter (skips elements where condition is falsy):
+
+    (for (e enemies :when (= (:state e) :alive))
+      (update-enemy e))
+
+    Range iteration:
+
+    (for (y (range 2 14))
+      (tilemap/put 1 y TILE_WALL)
+      (tilemap/put 14 y TILE_WALL))
+
+(do body...)
+    Sequence. Evaluates forms left-to-right, returns last value.
+    Note: defn, let, when, unless, while, and cond clauses all
+    support implicit do (multiple body forms without explicit do).
+
+(and expr...)
+    Short-circuit logical AND. Evaluates left-to-right.
+    Returns the first falsy value, or the last value if all truthy.
+
+    (and (> x 0) (< x SCREEN_WIDTH) (not (solid? x y)))
+
+(or expr...)
+    Short-circuit logical OR. Evaluates left-to-right.
+    Returns the first truthy value, or the last value if all falsy.
+
+    (or (= target :floor) (= target :target-tile))
+
+(not expr)
+    Logical negation. Returns true if expr is falsy, false otherwise.
+
+    (not (nil? callback))
+
+------------------------------------------------------------
+11. FUNCTIONS
+------------------------------------------------------------
+
+Definition
+    (defn name (params) body...)
+        Define a named function. The last body form is the return value.
+
+        (defn double (x)
+          (+ x x))
+
+        (defn update-pipe (p)
+          (let (x (:x p))
+            (set! (:x p) (- x PIPE_SPEED))))
+
+    Parameters default to u8. Use ^hint for other types:
+        (defn set-position (^i16 x ^i16 y)
+          (set! (:x player) x)
+          (set! (:y player) y))
+
+Anonymous Functions
+    (fn (params) body...)
+        Create an anonymous function. Returns a function reference
+        (16-bit address).
+
+        (each enemies (fn (e)
+          (when (= (:state e) :alive)
+            (update-enemy e))))
+
+        (var on-hit (fn () (sfx-play SFX_HIT)))
+
+    Note: fn does NOT capture lexical environment (no closures).
+    Anonymous functions are compiled as top-level functions with
+    generated names. They can only reference global variables,
+    constants, and their own parameters.
+
+First-Class Functions
+    Functions are values (16-bit addresses). They can be stored in
+    variables, passed as arguments, and called through variables.
+
+        (var callback nil)
+        (set! callback my-handler)
+
+        (when callback
+          (callback arg1 arg2))
+
+    Limitations:
+        - No closures (fn does not capture locals)
+        - Function variables are u16 (2 bytes)
+        - Indirect calls emit CALL through address register pair
+
+Calling Convention
+    - Caller saves FP, pushes args right-to-left, CALLs.
+    - Callee sets FP = SP, allocates locals, evaluates body.
+    - Callee restores SP = FP, RETs.
+    - Caller pops args and restores FP.
+    - Result in R0 (u8) or R0:R1 (u16/i16).
+
+Macros
+    (defmacro name (params) body...)
+        Define a compile-time macro. When called, the body is expanded
+        with parameter substitution before codegen.
+
+        Parameter substitution syntax:
+            {param}         replaced with argument symbol
+            {param}_suffix  concatenates argument with suffix
+
+        (defmacro inc! (v)
+          (set! {v} (inc {v})))
+
+        (inc! score)
+        ; expands to: (set! score (inc score))
+
+        Macros are namespaced like functions.
+
+------------------------------------------------------------
+12. MODULES
+------------------------------------------------------------
+
+(ns name)
+(ns name (require (module1 module2 ...)))
+    Declare the current namespace for this file. Top-level
+    definitions are prefixed with "name/". Unqualified references
+    to constants, functions, and data labels are also prefixed
+    unless they resolve to a local binding.
+
+    Optional require forms can be nested inside ns (Clojure-style).
+
+(require module1 module2 ...)
+(require (module1 module2 ...))
+    Load additional .se files. Both styles supported.
+    Each entry resolved by appending ".se" and searching in -I path
+    (default: stdlib/se). Required modules are parsed first.
+    Functions from required modules are accessed with qualified names:
+    module/function.
+
+(import "filename")
+    Include raw assembly or data files. Emits .include directive.
+
+------------------------------------------------------------
+13. PROGRAM STRUCTURE
+------------------------------------------------------------
+
+Top-Level Forms
+    def, defn, defmacro, defrecord, var
+
+Program Entry
+    - SP = 0xBEFF
+    - FP = SP
+    - CALL main
+    - HALT after return
+
+    The function (defn main () ...) is the program entry point.
+
+Example Program
+    (require (core sprite input ppu))
+
+    (defrecord enemy (x y hp state))
+
+    (def TILE_WALL 2)
+    (def MAX_ENEMIES 8)
+
+    (var player (entity 10 20 3 :alive))
+    (var enemies (array MAX_ENEMIES (enemy 0 0 3 :alive)))
+    (var score 0)
+    (var state :waiting)
+
+    (defn update-enemy (e)
+      (when (= (:state e) :alive)
+        (set! (:x e) (+ (:x e) 1))))
+
+    (defn main ()
+      (init)
+      (while true
+        (core/wait-frame)
+        (cond
+          ((= state :waiting) (handle-waiting))
+          ((= state :playing) (update) (render))
+          ((= state :dead) (handle-death)))
+        (ppu/render-all)))
+
+------------------------------------------------------------
+14. CODEGEN & ASSEMBLER INTEGRATION
+------------------------------------------------------------
+
+The compiler emits tiny16 assembly.
+
+Sections
+    section .code for function bodies.
+    section .data for var, defrecord instances, array data, strings.
+    DB for raw bytes.
+    ORG for explicit placement.
+
+Compiler-Emitted Macros
+
+    .macro TEST
+        OR R0, R0
+    .endmacro
+
+    .macro JTRUE target
+        TEST
+        JNZ target
+    .endmacro
+
+    .macro JFALSE target
+        TEST
+        JZ target
+    .endmacro
+
+    .macro JEQ target
+        CMP R0, R1
+        JZ target
+    .endmacro
+
+    .macro JNE target
+        CMP R0, R1
+        JNZ target
+    .endmacro
+
+    .macro JLT target
+        CMP R0, R1
+        JC target
+    .endmacro
+
+    .macro JGE target
+        CMP R0, R1
+        JNC target
+    .endmacro
+
+    .macro JGT target
+        CMP R0, R1
+        JC @skip
+        JZ @skip
+        JMP target
+    @skip:
+    .endmacro
+
+    .macro JLE target
+        CMP R0, R1
+        JC target
+        JZ target
+    .endmacro
+
+Register Allocation
+
+    R0          Result / accumulator / hi byte of u16
+    R1          Right operand / lo byte of u16
+    R2:R3       Let-local base pointer
+    R4:R5       Frame pointer (FP)
+    R6:R7       Address pair for memory operations
+
+Lowering Rules
+
+    TIR                             Assembly
+    -------------------------------------------------------
+    literal N (u8)                  LOADI R0, N
+    literal N (u16)                 LOADI R0, hi(N); LOADI R1, lo(N)
+    nil                             LOADI R0, 0xFF
+    true                            LOADI R0, 1
+    false                           LOADI R0, 0
+    keyword :k                      LOADI R0, <interned value>
+
+    (var x) read (u8)               LOADI R6, hi(x); LOADI R7, lo(x)
+                                    LOAD R0, [R6:R7]
+    (var x) read (u16)              LOADI R6, hi(x); LOADI R7, lo(x)
+                                    LOAD R0, [R6:R7]+; LOAD R1, [R6:R7]
+    (set! x val) (u8)               eval val; addr setup; STORE R0, [R6:R7]
+    (set! x val) (u16)              eval val; addr setup;
+                                    STORE R0, [R6:R7]+; STORE R1, [R6:R7]
+
+    (:field rec) (u8)               eval rec addr; LOAD R0, [R6:R7 + offset]
+    (:field rec) (u16)              eval rec addr;
+                                    LOAD R0, [R6:R7 + offset]
+                                    LOAD R1, [R6:R7 + offset+1]
+    (set! (:field rec) val)         eval val; eval rec addr;
+                                    STORE R0, [R6:R7 + offset]
+
+    (nth arr i) (scalar)            eval i; mul by elem_size; add base; load
+    (nth arr i) (record)            eval i; mul by elem_size; add base;
+                                    result is address in R6:R7
+
+    (load addr)                     split addr into R6:R7; LOAD R0, [R6:R7]
+    (store addr val)                eval val; split addr; STORE R0, [R6:R7]
+
+    parameter x                     LOAD R0, [R4:R5 + offset]
+    let-local x                     LOAD R0, [R2:R3 - offset]
+
+    (add a b) (u8)                  eval a; eval b to R1; ADD R0, R1
+    (sub a b) (u8)                  eval a; eval b to R1; SUB R0, R1
+    (add a b) (u16)                 16-bit add: ADD lo bytes, ADC hi bytes
+    (sub a b) (u16)                 16-bit sub: SUB lo bytes, SBB hi bytes
+
+    (label @name)                   name:
+    (goto @name)                    JMP name
+    (if-goto cond @name)            eval cond; JTRUE name
+    (ifnot-goto cond @name)         eval cond; JFALSE name
+
+    (if-goto (eq a b) @name)        eval a,b; JEQ name
+    (if-goto (lt a b) @name)        eval a,b; JLT name
+    (if-goto (gt a b) @name)        eval a,b; JGT name
+    (if-goto (le a b) @name)        eval a,b; JLE name
+    (if-goto (ge a b) @name)        eval a,b; JGE name
+    (if-goto (ne a b) @name)        eval a,b; JNE name
+
+    (call func args...)             PUSH args; CALL func; adjust SP
+    (return val)                    eval val; RET
+
+    (and a b)                       eval a; JFALSE @done; eval b; @done:
+    (or a b)                        eval a; JTRUE @done; eval b; @done:
+    (nil? x)                        eval x; LOADI R1, 0xFF; JEQ ...
+
+------------------------------------------------------------
+15. OPTIMIZATION PASSES
+------------------------------------------------------------
+
+TRANSFORMATION PASSES
+
+    constant-fold   Evaluate constant expressions at compile time
+        Before: (let* ((t1 (add 5 3))) ...)
+        After:  (let* ((t1 8)) ...)
+
+    constant-prop   Propagate known constant values
+        Before: (let* ((a 10) (b (add a x))) ...)
+        After:  (let* ((a 10) (b (add 10 x))) ...)
+
+    dead-code       Remove unused bindings and unreachable code
+        Before: (let* ((unused (add a b))) x)
+        After:  x
+
+    copy-prop       Eliminate redundant copies
+        Before: (let* ((a 5) (b a) (c (add b x))) ...)
+        After:  (let* ((a 5) (c (add a x))) ...)
+
+    inline          Inline small functions (< 5 bindings, non-recursive)
+        Before: (call double x)
+        After:  (add x x)
+
+    strength-reduce Convert multiply by power of 2 to shifts
+        Before: (let* ((t1 (mul x 8))) ...)
+        After:  (let* ((t1 (shl (shl (shl x))))) ...)
+
+    keyword-intern  Assign integer values to all keywords
+
+    nil-elim        Optimize nil checks
+        (if-goto (nil? x) ...) -> compare with 0xFF
+
+OPTIMIZATION LEVELS
+
+    -O0     No optimization (default)
+    -O1     Basic: constant-fold, constant-prop, dead-code, keyword-intern
+    -O2     Full: all passes
+
+------------------------------------------------------------
+16. ERROR CONDITIONS
+------------------------------------------------------------
+
+Compile-time
+    - Undefined variable or function
+    - Wrong number of arguments
+    - Invalid syntax
+    - Numeric literal out of range for inferred type
+    - Duplicate parameter names
+    - Unknown record type
+    - Unknown field name in keyword access
+    - Type mismatch (u16 assigned to u8 without explicit cast)
+    - Array index out of bounds (when index is compile-time constant)
+
+Runtime (not trapped by generated code)
+    - Stack overflow/underflow
+    - Invalid memory access
+    - Array index out of bounds (when index is runtime value)
+    - Nil dereference (calling nil function, accessing nil record)
+    - Infinite recursion
+
+------------------------------------------------------------
+END OF SPEC
+------------------------------------------------------------

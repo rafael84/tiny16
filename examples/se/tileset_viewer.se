@@ -18,50 +18,37 @@
 (def START_X 32)
 (def START_Y 32)
 
+(var tile-offset 0)
+(var frame-counter 0)
+
 ; Render sprites with tiles starting at offset
 ; Only renders sprites that have non-transparent pixels
 (defn render-sprites (offset)
-  (let (row 0)
-    (while (< row ROWS)
-      (let (col 0)
-        (while (< col COLS)
-          (let (sprite-idx (+ (* row COLS) col)
-                tile-index (+ offset sprite-idx)
-                x (+ START_X (* col TILE_SIZE))
-                y (+ START_Y (* row TILE_SIZE)))
-            (if (< tile-index MAX_TILE_INDEX)
-                (sprite/draw-visible sprite-idx y x tile-index)
-                (sprite/hide sprite-idx)))
-          (set col (inc col))))
-      (set row (inc row)))))
+  (for (row (range 0 ROWS))
+    (for (col (range 0 COLS))
+      (let (sprite-idx (+ (* row COLS) col)
+            tile-index (+ offset sprite-idx)
+            x (+ START_X (* col TILE_SIZE))
+            y (+ START_Y (* row TILE_SIZE)))
+        (if (< tile-index MAX_TILE_INDEX)
+            (sprite/draw-visible sprite-idx y x tile-index)
+            (sprite/hide sprite-idx))))))
 
 (defn main ()
   (sprite/hide-all)
   (render-sprites 0)
-  (poke16 tile_offset 0)
-  (poke16 frame_counter 0)
+  (set! tile-offset 0)
+  (set! frame-counter 0)
 
   (while 1
     (core/wait-frame)
     (ppu/render-sprites-only)
 
     ; Count frames for scrolling
-    (let (counter (peek16 frame_counter))
-      (set counter (inc counter))
-      (poke16 frame_counter counter)
-
-      ; Scroll every SCROLL_SPEED frames
-      (if (>= counter SCROLL_SPEED)
-          (do
-            (poke16 frame_counter 0)
-            (let (offset (peek16 tile_offset))
-              (set offset (inc offset))
-              (if (>= offset MAX_TILE_INDEX)
-                  (set offset 0)
-                  0)
-              (poke16 tile_offset offset)
-              (render-sprites offset)))
-          0))))
-
-(data tile_offset (db 0))
-(data frame_counter (db 0))
+    (set! frame-counter (inc frame-counter))
+    (when (>= frame-counter SCROLL_SPEED)
+      (set! frame-counter 0)
+      (set! tile-offset (inc tile-offset))
+      (when (>= tile-offset MAX_TILE_INDEX)
+        (set! tile-offset 0))
+      (render-sprites tile-offset))))

@@ -7,7 +7,9 @@
 #define BOOLEAN_ARGS BOOLEAN_ARG(help, "-h", "Show help")
 
 #define OPTIONAL_ARGS                                                                              \
-    OPTIONAL_STRING_ARG(search_path, "stdlib/se", "-I", "path", "Search path for required modules")
+    OPTIONAL_STRING_ARG(search_path, "stdlib/se", "-I", "path",                                    \
+                        "Search path for required modules")                                        \
+    OPTIONAL_STRING_ARG(opt_level, "0", "-O", "level", "Optimization level (0, 1, or 2)")
 
 #include "easyargs.h"
 

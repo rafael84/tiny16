@@ -1,56 +1,58 @@
-; core - timing and utilities
+; core - timing, utilities, and low-level memory access (v2)
 (ns core)
 
 (def FRAME_COUNT 0xBF22)
+(var last_frame 0)
 
-; Read current frame count (~60 Hz)
+; Read current frame count (~60 Hz, 8-bit wrapping)
 (defn read-frame ()
-  (peek16 FRAME_COUNT))
+  (load FRAME_COUNT))
 
 ; Wait for next frame (vsync)
 (defn wait-frame ()
-  (let (last (peek16 last_frame)
-        curr (read-frame))
-    (while (= curr last)
-      (set curr (read-frame)))
-    (poke16 last_frame curr)))
+  (set! last_frame (read-frame))
+  (while (= (read-frame) last_frame)
+    0))
 
-(data last_frame (db 0))
+; --- Math utilities ---
 
-; Absolute value
 (defn abs (x)
   (if (< x 0) (- 0 x) x))
 
-; Minimum of two values
 (defn min (a b)
   (if (< a b) a b))
 
-; Maximum of two values
 (defn max (a b)
   (if (> a b) a b))
 
-; Clamp value between min and max
 (defn clamp (val min-val max-val)
   (if (< val min-val)
       min-val
-      (if (> val max-val)
-          max-val
-          val)))
+      (if (> val max-val) max-val val)))
 
-; Sign of a value: -1, 0, or 1
 (defn sign (x)
-  (if (< x 0)
-      (- 0 1)
-      (if (> x 0) 1 0)))
+  (if (< x 0) (- 0 1) (if (> x 0) 1 0)))
 
-(defmacro when (cond body)
-  (if {cond} (do {body}) 0))
+; --- Hi:lo memory access ---
+; For hardware regions where the 16-bit address is naturally split into
+; two 8-bit halves (tilemap pages, framebuffer scanlines, etc.).
+; Use native store/load when the address fits (+ BASE u8_offset).
 
-(defmacro when-not (cond body)
-  (if {cond} 0 (do {body})))
+(defn poke (addr-hi addr-lo val)
+  (asm "LOAD R6, [R4:R5 + 3]")
+  (asm "LOAD R7, [R4:R5 + 4]")
+  (asm "LOAD R0, [R4:R5 + 5]")
+  (asm "STORE R0, [R6:R7]"))
+
+(defn peek (addr-hi addr-lo)
+  (asm "LOAD R6, [R4:R5 + 3]")
+  (asm "LOAD R7, [R4:R5 + 4]")
+  (asm "LOAD R0, [R6:R7]"))
+
+; --- Convenience macros ---
 
 (defmacro inc! (var)
-  (set {var} (inc {var})))
+  (set! {var} (inc {var})))
 
 (defmacro dec! (var)
-  (set {var} (dec {var})))
+  (set! {var} (dec {var})))

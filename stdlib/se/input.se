@@ -1,4 +1,4 @@
-; input - keyboard and mouse
+; input - keyboard and mouse (v2: native load)
 (ns input)
 
 (def MMIO_BASE      0xBF00)
@@ -8,8 +8,7 @@
 (def MOUSE_Y        (+ MMIO_BASE 0x03))
 (def MOUSE_BUTTONS  (+ MMIO_BASE 0x04))
 
-; Key bit mappings (from emulator)
-; Bits: Down, Up, Left, Right, B, A, Start, Select
+; Key bit mappings
 (def KEY_SELECT  0x01)
 (def KEY_START   0x02)
 (def KEY_A       0x04)
@@ -19,11 +18,13 @@
 (def KEY_UP      0x40)
 (def KEY_DOWN    0x80)
 
+; --- Keyboard ---
+
 (defn keys-held ()
-  (peek16 KEYS_HELD))
+  (load KEYS_HELD))
 
 (defn keys-pressed ()
-  (peek16 KEYS_PRESSED))
+  (load KEYS_PRESSED))
 
 (defn key-held (key-mask)
   (!= (& (keys-held) key-mask) 0))
@@ -32,39 +33,29 @@
   (!= (& (keys-pressed) key-mask) 0))
 
 ; Directional checks
-(defn up ()
-  (key-held KEY_UP))
-
-(defn down ()
-  (key-held KEY_DOWN))
-
-(defn left ()
-  (key-held KEY_LEFT))
-
-(defn right ()
-  (key-held KEY_RIGHT))
+(defn up ()    (key-held KEY_UP))
+(defn down ()  (key-held KEY_DOWN))
+(defn left ()  (key-held KEY_LEFT))
+(defn right () (key-held KEY_RIGHT))
 
 ; Get horizontal direction (-1, 0, or 1)
 (defn dir-x ()
-  (if (left)
-      (- 0 1)
-      (if (right) 1 0)))
+  (if (left) (- 0 1) (if (right) 1 0)))
 
 ; Get vertical direction (-1, 0, or 1)
 (defn dir-y ()
-  (if (up)
-      (- 0 1)
-      (if (down) 1 0)))
+  (if (up) (- 0 1) (if (down) 1 0)))
 
-; Mouse
+; --- Mouse ---
+
 (defn mouse-x ()
-  (peek16 MOUSE_X))
+  (load MOUSE_X))
 
 (defn mouse-y ()
-  (peek16 MOUSE_Y))
+  (load MOUSE_Y))
 
 (defn mouse-buttons ()
-  (peek16 MOUSE_BUTTONS))
+  (load MOUSE_BUTTONS))
 
 (defn mouse-left ()
   (!= (& (mouse-buttons) 0x01) 0))

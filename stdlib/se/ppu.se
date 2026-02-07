@@ -1,4 +1,4 @@
-; ppu - display control and scrolling
+; ppu - display control and scrolling (v2: load/store)
 (ns ppu)
 
 (def MMIO_BASE   0xBF00)
@@ -13,30 +13,30 @@
 (def CTRL_DISABLE    0x00)
 
 (defn render-all ()
-  (poke16 PPU_CTRL CTRL_BG_SPRITES))
+  (store PPU_CTRL CTRL_BG_SPRITES))
 
 (defn render-bg-only ()
-  (poke16 PPU_CTRL CTRL_BG_ONLY))
+  (store PPU_CTRL CTRL_BG_ONLY))
 
 (defn render-sprites-only ()
-  (poke16 PPU_CTRL CTRL_SPRITES_ONLY))
+  (store PPU_CTRL CTRL_SPRITES_ONLY))
 
 (defn render-disable ()
-  (poke16 PPU_CTRL CTRL_DISABLE))
+  (store PPU_CTRL CTRL_DISABLE))
 
 ; Background scrolling
 (defn set-scroll (x y)
-  (poke16 PPU_SCROLL_X x)
-  (poke16 PPU_SCROLL_Y y))
+  (store PPU_SCROLL_X x)
+  (store PPU_SCROLL_Y y))
 
 (defn set-scroll-x (x)
-  (poke16 PPU_SCROLL_X x))
+  (store PPU_SCROLL_X x))
 
 (defn set-scroll-y (y)
-  (poke16 PPU_SCROLL_Y y))
+  (store PPU_SCROLL_Y y))
 
 (defn get-scroll-x ()
-  (peek16 PPU_SCROLL_X))
+  (load PPU_SCROLL_X))
 
 (defn get-scroll-y ()
-  (peek16 PPU_SCROLL_Y))
+  (load PPU_SCROLL_Y))
