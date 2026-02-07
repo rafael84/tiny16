@@ -38,6 +38,7 @@ typedef struct {
     int32_t element_size;                // Size of each array element in bytes
     bool is_16bit;                       // True for u16/i16 variables (2 bytes, no record/array)
     bool is_signed;                      // True for i8/i16 variables
+    bool is_data_block; // True for (data ...) blocks — evaluates to address, not value
 } SeDataLabel;
 
 typedef struct {
@@ -55,13 +56,19 @@ typedef struct {
 } SeRecordType;
 
 typedef struct {
+    char name[SE_MAX_SYMBOL_LEN];
+    SeTypeHint param_hints[SE_MAX_PARAMS];
+    size_t param_count;
+} SeFunctionInfo;
+
+typedef struct {
     FILE* output;
     const char* filename;
 
     SeConstant constants[SE_MAX_CONSTANTS];
     size_t constant_count;
 
-    char functions[SE_MAX_FUNCTIONS][SE_MAX_SYMBOL_LEN];
+    SeFunctionInfo functions[SE_MAX_FUNCTIONS];
     size_t function_count;
 
     SeDataLabel data_labels[SE_MAX_DATA_LABELS];

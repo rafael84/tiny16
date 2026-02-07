@@ -196,6 +196,12 @@ void test_optimizer_dead_fn_keeps_transitive(void);
 // hi/lo on data labels (used by floppy, apu_sfx_demo, sokoban)
 void test_codegen_hi_lo_data_label(void);
 
+// hi/lo on runtime 16-bit parameters
+void test_codegen_hi_lo_runtime_16bit(void);
+
+// Auto-promote 8-bit args to 16-bit when callee expects ^u16
+void test_codegen_u16_param_auto_promote(void);
+
 // cond with keywords (used by floppy, v2_minimal)
 void test_codegen_cond_keywords(void);
 
@@ -376,6 +382,8 @@ int main(void) {
     TEST(test_optimizer_dead_fn_elim);
     TEST(test_optimizer_dead_fn_keeps_transitive);
     TEST(test_codegen_hi_lo_data_label);
+    TEST(test_codegen_hi_lo_runtime_16bit);
+    TEST(test_codegen_u16_param_auto_promote);
     TEST(test_codegen_cond_keywords);
     TEST(test_codegen_while_let_counter);
     TEST(test_codegen_for_range);
@@ -2530,8 +2538,9 @@ void test_codegen_nth_record_variable_index(void) {
 // --- data label with set! ---
 
 void test_codegen_data_label_set_bang(void) {
-    // Pattern from floppy's fixed-point: (data bird_y_hi (db 0)) then (set! bird_y_hi 60)
-    const char* input = "(data bird_y_hi (db 0)) "
+    // Pattern from floppy's fixed-point: (var bird_y_hi 0) then (set! bird_y_hi 60)
+    // Scalar variables should use (var ...), not (data ...)
+    const char* input = "(var bird_y_hi 0) "
                         "(defn main () (set! bird_y_hi 60) bird_y_hi)";
     char* output = codegen_to_string(input);
     TEST_ASSERT(output != NULL);
@@ -2693,5 +2702,38 @@ void test_codegen_shl_u8_by_8_is_16bit(void) {
     TEST_ASSERT(strstr(output, "MOV R1, R0") != NULL);
     TEST_ASSERT(strstr(output, "SHL R1") != NULL);     // 16-bit shift uses SHL R1
     TEST_ASSERT(strstr(output, "ADC R0, R0") != NULL); // carry into high byte
+    free(output);
+}
+
+void test_codegen_hi_lo_runtime_16bit(void) {
+    // (hi param) and (lo param) on a ^u16 function parameter must emit
+    // runtime extraction code, not require a compile-time constant.
+    // hi: evaluates param (R0=hi, R1=lo) -> R0 already has hi byte
+    // lo: evaluates param (R0=hi, R1=lo) -> MOV R0, R1
+    const char* input = "(defn use-addr (^u16 addr) (+ (hi addr) (lo addr)))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "use_addr:") != NULL);
+    // lo should emit MOV R0, R1 to extract low byte from 16-bit value
+    TEST_ASSERT(strstr(output, "MOV R0, R1") != NULL);
+    free(output);
+}
+
+void test_codegen_u16_param_auto_promote(void) {
+    // Calling a function with ^u16 params should auto-promote 8-bit args.
+    // When passing an 8-bit constant to a ^u16 parameter, the caller should
+    // emit MOV R1, R0 + LOADI R0, 0 to promote to 16-bit before pushing.
+    const char* input = "(defn callee (^u16 addr len) len) "
+                        "(defn main () (callee 42 5))";
+    char* output = codegen_to_string(input);
+    TEST_ASSERT(output != NULL);
+    TEST_ASSERT(strstr(output, "main:") != NULL);
+    TEST_ASSERT(strstr(output, "CALL callee") != NULL);
+    // The 8-bit arg 42 should be promoted: MOV R1, R0 + LOADI R0, 0
+    // Then PUSH R0 (hi=0) + PUSH R1 (lo=42)
+    // Check that promotion happens (MOV R1, R0 followed by LOADI R0, 0)
+    const char* promo = strstr(output, "MOV R1, R0");
+    TEST_ASSERT(promo != NULL);
+    TEST_ASSERT(strstr(promo, "LOADI R0, 0") != NULL);
     free(output);
 }

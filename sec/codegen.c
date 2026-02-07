@@ -57,9 +57,17 @@ static bool is_constant(SeCodegen* cg, const char* name, int32_t* value) {
 
 __attribute__((unused)) static bool is_function(SeCodegen* cg, const char* name) {
     for (size_t i = 0; i < cg->function_count; i++) {
-        if (strcmp(cg->functions[i], name) == 0) return true;
+        if (strcmp(cg->functions[i].name, name) == 0) return true;
     }
     return false;
+}
+
+// Look up function info by name (returns NULL if not found)
+static SeFunctionInfo* find_function_info(SeCodegen* cg, const char* name) {
+    for (size_t i = 0; i < cg->function_count; i++) {
+        if (strcmp(cg->functions[i].name, name) == 0) return &cg->functions[i];
+    }
+    return NULL;
 }
 
 // Look up a record type definition
@@ -157,7 +165,11 @@ static bool expr_is_16bit(SeCodegen* cg, AstNode* node) {
         if (local) return local->is_16bit;
         // Check data labels
         SeDataLabel* dl = find_data_label(cg, node->as.symbol.name);
-        if (dl) return dl->is_16bit;
+        if (dl) {
+            // Data blocks evaluate to their 16-bit address
+            if (dl->is_data_block) return true;
+            return dl->is_16bit;
+        }
         // Check constants
         int32_t val;
         if (is_constant(cg, node->as.symbol.name, &val)) {
@@ -694,7 +706,11 @@ static void collect_anon_fns(SeCodegen* cg, AstNode* node) {
             set_error(cg, node->line, "too many functions");
             return;
         }
-        strncpy(cg->functions[cg->function_count], node->as.defn.name, SE_MAX_SYMBOL_LEN - 1);
+        strncpy(cg->functions[cg->function_count].name, node->as.defn.name, SE_MAX_SYMBOL_LEN - 1);
+        cg->functions[cg->function_count].param_count = node->as.defn.param_count;
+        for (size_t j = 0; j < node->as.defn.param_count; j++) {
+            cg->functions[cg->function_count].param_hints[j] = node->as.defn.param_hints[j];
+        }
         cg->function_count++;
 
         // Recurse into body (fn can contain nested fn)
@@ -878,7 +894,12 @@ bool se_codegen_collect(SeCodegen* cg, AstProgram* program) {
                 set_error(cg, node->line, "too many functions");
                 return false;
             }
-            strncpy(cg->functions[cg->function_count], node->as.defn.name, SE_MAX_SYMBOL_LEN - 1);
+            strncpy(cg->functions[cg->function_count].name, node->as.defn.name,
+                    SE_MAX_SYMBOL_LEN - 1);
+            cg->functions[cg->function_count].param_count = node->as.defn.param_count;
+            for (size_t j = 0; j < node->as.defn.param_count; j++) {
+                cg->functions[cg->function_count].param_hints[j] = node->as.defn.param_hints[j];
+            }
             cg->function_count++;
         } else if (node->kind == AST_NS || node->kind == AST_REQUIRE ||
                    node->kind == AST_DEFRECORD) {
@@ -928,6 +949,7 @@ bool se_codegen_collect(SeCodegen* cg, AstProgram* program) {
             cg->data_labels[cg->data_label_count].record_type[0] = '\0';
             cg->data_labels[cg->data_label_count].element_count = 0;
             cg->data_labels[cg->data_label_count].element_size = 0;
+            cg->data_labels[cg->data_label_count].is_data_block = true;
             cg->data_label_count++;
 
             // Update current address for next auto-placed data
@@ -1453,13 +1475,19 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         int32_t addr;
         if (is_data_label(cg, node->as.symbol.name, &addr)) {
             SeDataLabel* dl = find_data_label(cg, node->as.symbol.name);
-            emit_line(cg, "LOADI R6, 0x%02X", (addr >> 8) & 0xFF);
-            emit_line(cg, "LOADI R7, 0x%02X", addr & 0xFF);
-            if (dl && dl->is_16bit) {
-                emit_line(cg, "LOAD R0, [R6:R7]+"); // hi byte, auto-increment
-                emit_line(cg, "LOAD R1, [R6:R7]");  // lo byte
+            if (dl && dl->is_data_block) {
+                // Data blocks evaluate to their 16-bit address (R0=hi, R1=lo)
+                emit_line(cg, "LOADI R0, 0x%02X", (addr >> 8) & 0xFF);
+                emit_line(cg, "LOADI R1, 0x%02X", addr & 0xFF);
             } else {
-                emit_line(cg, "LOAD R0, [R6:R7]");
+                emit_line(cg, "LOADI R6, 0x%02X", (addr >> 8) & 0xFF);
+                emit_line(cg, "LOADI R7, 0x%02X", addr & 0xFF);
+                if (dl && dl->is_16bit) {
+                    emit_line(cg, "LOAD R0, [R6:R7]+"); // hi byte, auto-increment
+                    emit_line(cg, "LOAD R1, [R6:R7]");  // lo byte
+                } else {
+                    emit_line(cg, "LOAD R0, [R6:R7]");
+                }
             }
             return;
         }
@@ -2014,8 +2042,12 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             emit_line(cg, "LOADI R0, 0x%02X", (val >> 8) & 0xFF);
         } else if (eval_const(cg, node->as.unary.operand, &val)) {
             emit_line(cg, "LOADI R0, 0x%02X", (val >> 8) & 0xFF);
+        } else if (expr_is_16bit(cg, node->as.unary.operand)) {
+            // Runtime 16-bit value: evaluate -> R0=hi, R1=lo. R0 already has hi byte.
+            emit_expr(cg, node->as.unary.operand);
         } else {
-            set_error(cg, node->line, "hi requires compile-time constant");
+            // Runtime 8-bit value: hi byte is always 0
+            emit_line(cg, "LOADI R0, 0x00");
         }
         break;
     }
@@ -2027,8 +2059,13 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             emit_line(cg, "LOADI R0, 0x%02X", val & 0xFF);
         } else if (eval_const(cg, node->as.unary.operand, &val)) {
             emit_line(cg, "LOADI R0, 0x%02X", val & 0xFF);
+        } else if (expr_is_16bit(cg, node->as.unary.operand)) {
+            // Runtime 16-bit value: evaluate -> R0=hi, R1=lo. Move lo byte to R0.
+            emit_expr(cg, node->as.unary.operand);
+            emit_line(cg, "MOV R0, R1");
         } else {
-            set_error(cg, node->line, "lo requires compile-time constant");
+            // Runtime 8-bit value: lo byte IS the value itself
+            emit_expr(cg, node->as.unary.operand);
         }
         break;
     }
@@ -2694,13 +2731,28 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         emit_line(cg, "PUSH R4");
         emit_line(cg, "PUSH R5");
 
+        // Look up callee param hints for auto-promotion
+        SeFunctionInfo* callee_info = find_function_info(cg, node->as.call.func);
+
         // Push arguments in reverse order
-        // For 16-bit args, push both hi and lo bytes
+        // For 16-bit args, push lo then hi so that hi ends up at the lower
+        // stack address.  The callee reads [FP+offset] -> R0 (hi) and
+        // [FP+offset+1] -> R1 (lo), and since the stack grows downward the
+        // last-pushed byte occupies the lowest address.
+        // Auto-promote 8-bit args to 16-bit when callee expects ^u16
         for (int i = (int)node->as.call.arg_count - 1; i >= 0; i--) {
             emit_expr(cg, node->as.call.args[i]);
-            if (expr_is_16bit(cg, node->as.call.args[i])) {
-                emit_line(cg, "PUSH R0"); // hi byte
-                emit_line(cg, "PUSH R1"); // lo byte
+            bool arg_is_16 = expr_is_16bit(cg, node->as.call.args[i]);
+            bool callee_wants_16 = callee_info && (size_t)i < callee_info->param_count &&
+                                   se_hint_is_16bit(callee_info->param_hints[i]);
+            if (arg_is_16 || callee_wants_16) {
+                if (!arg_is_16) {
+                    // Promote 8-bit to 16-bit: R0 has value, move to R1 (lo), set R0=0 (hi)
+                    emit_line(cg, "MOV R1, R0");
+                    emit_line(cg, "LOADI R0, 0");
+                }
+                emit_line(cg, "PUSH R1"); // lo byte first (higher stack address)
+                emit_line(cg, "PUSH R0"); // hi byte last  (lower stack address = FP+offset)
             } else {
                 emit_line(cg, "PUSH R0");
             }
@@ -2753,11 +2805,14 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             emit_line(cg, "CALL __call_indirect");
         }
 
-        // Pop arguments (accounting for 16-bit args)
+        // Pop arguments (accounting for 16-bit args and auto-promotion)
         for (size_t i = 0; i < node->as.call.arg_count; i++) {
-            if (expr_is_16bit(cg, node->as.call.args[i])) {
-                emit_line(cg, "POP R1"); // lo byte
-                emit_line(cg, "POP R1"); // hi byte
+            bool arg_is_16 = expr_is_16bit(cg, node->as.call.args[i]);
+            bool callee_wants_16 = callee_info && i < callee_info->param_count &&
+                                   se_hint_is_16bit(callee_info->param_hints[i]);
+            if (arg_is_16 || callee_wants_16) {
+                emit_line(cg, "POP R1"); // hi byte (was pushed last)
+                emit_line(cg, "POP R1"); // lo byte (was pushed first)
             } else {
                 emit_line(cg, "POP R1"); // discard into R1
             }

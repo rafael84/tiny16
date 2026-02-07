@@ -135,7 +135,7 @@
 (defn init-audio ()
   (apu/init)
   ; Initialize SFX bank
-  (apu/sfx-init (hi sfx-table) (lo sfx-table) SFX_COUNT))
+  (apu/sfx-init sfx-table SFX_COUNT))
 
 ; =============================================================================
 ; Input Handling
@@ -160,7 +160,7 @@
       (if (= music-on false)
           (do
             (set! music-on true)
-            (apu/music-ch1-play (hi demo-song) (lo demo-song) 0 SONG_LENGTH 1)
+            (apu/music-ch1-play demo-song SONG_LENGTH 1)
             (show-music-status))
           (do
             (set! music-on false)

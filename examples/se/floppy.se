@@ -42,7 +42,6 @@
 
 (def RESTART_DELAY 45)
 
-(var initialized false)
 (var state :waiting)
 (var score 0)
 (var dead-timer 0)
@@ -60,7 +59,7 @@
 (defn start-game ()
   (clear-text)
   (set! state :playing)
-  (apu/music-ch0-play (hi game_music) (lo game_music) 0 96 1))  ; 96 = MUSIC_LENGTH
+  (apu/music-ch0-play game_music 96 1))  ; 96 = MUSIC_LENGTH
 
 (defn die ()
   (set! state :dead)
@@ -327,12 +326,10 @@
   (ppu/render-all))
 
 (defn main ()
-  (unless initialized
-    (apu/init)
-    (apu/sfx-init (hi sfx_table) (lo sfx_table) 3)
-    (init-tilemap)
-    (init-game)
-    (set! initialized true))
+  (apu/init)
+  (apu/sfx-init sfx_table 3)
+  (init-tilemap)
+  (init-game)
 
   (while 1
     (core/wait-frame)
