@@ -2529,8 +2529,7 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
             emit_line(cg, "JNC __L%d", lbl_done);
         }
         if (node->as.for_expr.when_cond) {
-            emit_expr(cg, node->as.for_expr.when_cond);
-            emit_line(cg, "JFALSE __L%d", lbl_continue);
+            emit_branch_false(cg, node->as.for_expr.when_cond, lbl_continue);
         }
         for (size_t i = 0; i < node->as.for_expr.body.count; i++) {
             emit_expr(cg, node->as.for_expr.body.items[i]);
