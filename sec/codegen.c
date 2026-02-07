@@ -1638,6 +1638,7 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
 
     case AST_BNOT:
         emit_expr(cg, node->as.unary.operand);
+        // XOR with 0xFF to flip all bits
         emit_line(cg, "LOADI R1, 0xFF");
         emit_line(cg, "XOR R0, R1");
         break;
@@ -1802,92 +1803,55 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_EQ: {
-        int32_t const_val;
+        int lbl_true = new_label(cg);
+        int lbl_end = new_label(cg);
         if (!expr_is_16bit(cg, node->as.binary.left) &&
-            eval_const(cg, node->as.binary.right, &const_val)) {
-            int lbl_true = new_label(cg);
-            int lbl_end = new_label(cg);
-            emit_expr(cg, node->as.binary.left);
-            emit_line(cg, "LOADI R1, 0x%02X", const_val & 0xFF);
-            emit_line(cg, "CMP R0, R1");
-            emit_line(cg, "JZ __L%d", lbl_true);
-            emit_line(cg, "LOADI R0, 0");
-            emit_line(cg, "JMP __L%d", lbl_end);
-            emit(cg, "__L%d:\n", lbl_true);
-            emit_line(cg, "LOADI R0, 1");
-            emit(cg, "__L%d:\n", lbl_end);
+            !expr_is_16bit(cg, node->as.binary.right)) {
+            emit_cmp_operands(cg, node, false);
         } else {
-            int lbl_true = new_label(cg);
-            int lbl_end = new_label(cg);
             emit_expr(cg, node->as.binary.left);
             emit_line(cg, "PUSH R0");
             emit_expr(cg, node->as.binary.right);
             emit_line(cg, "MOV R1, R0");
             emit_line(cg, "POP R0");
             emit_line(cg, "CMP R0, R1");
-            emit_line(cg, "JZ __L%d", lbl_true);
-            emit_line(cg, "LOADI R0, 0");
-            emit_line(cg, "JMP __L%d", lbl_end);
-            emit(cg, "__L%d:\n", lbl_true);
-            emit_line(cg, "LOADI R0, 1");
-            emit(cg, "__L%d:\n", lbl_end);
         }
+        emit_line(cg, "JZ __L%d", lbl_true);
+        emit_line(cg, "LOADI R0, 0");
+        emit_line(cg, "JMP __L%d", lbl_end);
+        emit(cg, "__L%d:\n", lbl_true);
+        emit_line(cg, "LOADI R0, 1");
+        emit(cg, "__L%d:\n", lbl_end);
         break;
     }
 
     case AST_NE: {
-        int32_t const_val;
+        int lbl_true = new_label(cg);
+        int lbl_end = new_label(cg);
         if (!expr_is_16bit(cg, node->as.binary.left) &&
-            eval_const(cg, node->as.binary.right, &const_val)) {
-            int lbl_true = new_label(cg);
-            int lbl_end = new_label(cg);
-            emit_expr(cg, node->as.binary.left);
-            emit_line(cg, "LOADI R1, 0x%02X", const_val & 0xFF);
-            emit_line(cg, "CMP R0, R1");
-            emit_line(cg, "JNZ __L%d", lbl_true);
-            emit_line(cg, "LOADI R0, 0");
-            emit_line(cg, "JMP __L%d", lbl_end);
-            emit(cg, "__L%d:\n", lbl_true);
-            emit_line(cg, "LOADI R0, 1");
-            emit(cg, "__L%d:\n", lbl_end);
+            !expr_is_16bit(cg, node->as.binary.right)) {
+            emit_cmp_operands(cg, node, false);
         } else {
-            int lbl_true = new_label(cg);
-            int lbl_end = new_label(cg);
             emit_expr(cg, node->as.binary.left);
             emit_line(cg, "PUSH R0");
             emit_expr(cg, node->as.binary.right);
             emit_line(cg, "MOV R1, R0");
             emit_line(cg, "POP R0");
             emit_line(cg, "CMP R0, R1");
-            emit_line(cg, "JNZ __L%d", lbl_true);
-            emit_line(cg, "LOADI R0, 0");
-            emit_line(cg, "JMP __L%d", lbl_end);
-            emit(cg, "__L%d:\n", lbl_true);
-            emit_line(cg, "LOADI R0, 1");
-            emit(cg, "__L%d:\n", lbl_end);
         }
+        emit_line(cg, "JNZ __L%d", lbl_true);
+        emit_line(cg, "LOADI R0, 0");
+        emit_line(cg, "JMP __L%d", lbl_end);
+        emit(cg, "__L%d:\n", lbl_true);
+        emit_line(cg, "LOADI R0, 1");
+        emit(cg, "__L%d:\n", lbl_end);
         break;
     }
 
     case AST_LT: {
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        bool is_sgn =
-            expr_is_signed(cg, node->as.binary.left) || expr_is_signed(cg, node->as.binary.right);
-        emit_expr(cg, node->as.binary.left);
-        emit_line(cg, "PUSH R0");
-        emit_expr(cg, node->as.binary.right);
-        emit_line(cg, "MOV R1, R0");
-        emit_line(cg, "POP R0");
-        if (is_sgn) {
-            // Signed comparison: XOR both with 0x80 to map signed order to unsigned
-            emit_line(cg, "PUSH R6");
-            emit_line(cg, "LOADI R6, 0x80");
-            emit_line(cg, "XOR R0, R6");
-            emit_line(cg, "XOR R1, R6");
-            emit_line(cg, "POP R6");
-        }
-        emit_line(cg, "CMP R0, R1");
+        emit_cmp_operands(cg, node, false);
         emit_line(cg, "JC __L%d", lbl_true);
         emit_line(cg, "LOADI R0, 0");
         emit_line(cg, "JMP __L%d", lbl_end);
@@ -1898,24 +1862,10 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_GT: {
-        // a > b means b < a, so swap and use JC
+        // a > b: swap operands, CMP b,a, then C=1 means b<a (=a>b)
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        bool is_sgn =
-            expr_is_signed(cg, node->as.binary.left) || expr_is_signed(cg, node->as.binary.right);
-        emit_expr(cg, node->as.binary.right); // eval b first
-        emit_line(cg, "PUSH R0");
-        emit_expr(cg, node->as.binary.left); // eval a
-        emit_line(cg, "MOV R1, R0");
-        emit_line(cg, "POP R0");
-        if (is_sgn) {
-            emit_line(cg, "PUSH R6");
-            emit_line(cg, "LOADI R6, 0x80");
-            emit_line(cg, "XOR R0, R6");
-            emit_line(cg, "XOR R1, R6");
-            emit_line(cg, "POP R6");
-        }
-        emit_line(cg, "CMP R0, R1"); // b - a, C if b < a
+        emit_cmp_operands(cg, node, true);
         emit_line(cg, "JC __L%d", lbl_true);
         emit_line(cg, "LOADI R0, 0");
         emit_line(cg, "JMP __L%d", lbl_end);
@@ -1926,27 +1876,11 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_LE: {
-        // a <= b means NOT (a > b) means NOT (b < a)
+        // a <= b: swap -> CMP b,a, JNC (true when b >= a = a <= b)
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        bool is_sgn =
-            expr_is_signed(cg, node->as.binary.left) || expr_is_signed(cg, node->as.binary.right);
-        emit_expr(cg, node->as.binary.left);
-        emit_line(cg, "PUSH R0");
-        emit_expr(cg, node->as.binary.right);
-        emit_line(cg, "MOV R1, R0");
-        emit_line(cg, "POP R0");
-        if (is_sgn) {
-            emit_line(cg, "PUSH R6");
-            emit_line(cg, "LOADI R6, 0x80");
-            emit_line(cg, "XOR R0, R6");
-            emit_line(cg, "XOR R1, R6");
-            emit_line(cg, "POP R6");
-        }
-        emit_line(cg, "CMP R0, R1");
-        // C or Z means <=
-        emit_line(cg, "JC __L%d", lbl_true);
-        emit_line(cg, "JZ __L%d", lbl_true);
+        emit_cmp_operands(cg, node, true);
+        emit_line(cg, "JNC __L%d", lbl_true);
         emit_line(cg, "LOADI R0, 0");
         emit_line(cg, "JMP __L%d", lbl_end);
         emit(cg, "__L%d:\n", lbl_true);
@@ -1956,25 +1890,11 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
     }
 
     case AST_GE: {
-        // a >= b means NOT (a < b)
+        // a >= b: CMP a,b, JNC (true when a >= b, no carry)
         int lbl_true = new_label(cg);
         int lbl_end = new_label(cg);
-        bool is_sgn =
-            expr_is_signed(cg, node->as.binary.left) || expr_is_signed(cg, node->as.binary.right);
-        emit_expr(cg, node->as.binary.left);
-        emit_line(cg, "PUSH R0");
-        emit_expr(cg, node->as.binary.right);
-        emit_line(cg, "MOV R1, R0");
-        emit_line(cg, "POP R0");
-        if (is_sgn) {
-            emit_line(cg, "PUSH R6");
-            emit_line(cg, "LOADI R6, 0x80");
-            emit_line(cg, "XOR R0, R6");
-            emit_line(cg, "XOR R1, R6");
-            emit_line(cg, "POP R6");
-        }
-        emit_line(cg, "CMP R0, R1");
-        emit_line(cg, "JNC __L%d", lbl_true); // no carry = >=
+        emit_cmp_operands(cg, node, false);
+        emit_line(cg, "JNC __L%d", lbl_true);
         emit_line(cg, "LOADI R0, 0");
         emit_line(cg, "JMP __L%d", lbl_end);
         emit(cg, "__L%d:\n", lbl_true);
@@ -2130,21 +2050,22 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
                     set_error(cg, node->line, "cannot resolve record address");
                     break;
                 }
-                emit_expr(cg, node->as.set.value);
-                emit_line(cg, "PUSH R0");
-                if (field->is_16bit) {
-                    emit_line(cg, "PUSH R1");
-                }
-                emit_line(cg, "LOADI R6, 0x%02X", (addr >> 8) & 0xFF);
-                emit_line(cg, "LOADI R7, 0x%02X", addr & 0xFF);
-                if (field->is_16bit) {
-                    emit_line(cg, "POP R1");
-                    emit_line(cg, "POP R0");
+                if (!field->is_16bit && is_simple_operand(cg, node->as.set.value)) {
+                    // Optimized: set up address first, then load value
+                    emit_line(cg, "LOADI R6, 0x%02X", (addr >> 8) & 0xFF);
+                    emit_line(cg, "LOADI R7, 0x%02X", addr & 0xFF);
+                    emit_expr(cg, node->as.set.value);
                     emit_line(cg, "STORE R0, [R6:R7 + %d]", field->offset);
-                    emit_line(cg, "STORE R1, [R6:R7 + %d]", field->offset + 1);
                 } else {
-                    emit_line(cg, "POP R0");
-                    emit_line(cg, "STORE R0, [R6:R7 + %d]", field->offset);
+                    emit_expr(cg, node->as.set.value);
+                    emit_line(cg, "LOADI R6, 0x%02X", (addr >> 8) & 0xFF);
+                    emit_line(cg, "LOADI R7, 0x%02X", addr & 0xFF);
+                    if (field->is_16bit) {
+                        emit_line(cg, "STORE R0, [R6:R7 + %d]", field->offset);
+                        emit_line(cg, "STORE R1, [R6:R7 + %d]", field->offset + 1);
+                    } else {
+                        emit_line(cg, "STORE R0, [R6:R7 + %d]", field->offset);
+                    }
                 }
             } else if (node->as.set.target_expr->kind == AST_NTH) {
                 // (set! (:field (nth arr i)) value) - field of array element
@@ -2722,10 +2643,14 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
 
     case AST_CALL: {
         bool direct = is_function(cg, node->as.call.func);
+        bool save_let_base = (cg->let_depth > 0);
 
-        // Save R2:R3 (let-local base) and R4:R5 (frame pointer) before call
-        emit_line(cg, "PUSH R2");
-        emit_line(cg, "PUSH R3");
+        // Save R2:R3 (let-local base) only when inside a let scope
+        if (save_let_base) {
+            emit_line(cg, "PUSH R2");
+            emit_line(cg, "PUSH R3");
+        }
+        // Always save R4:R5 (frame pointer) - callee will set FP
         emit_line(cg, "PUSH R4");
         emit_line(cg, "PUSH R5");
 
@@ -2801,8 +2726,10 @@ static void emit_expr(SeCodegen* cg, AstNode* node) {
         // Restore R4:R5 and R2:R3
         emit_line(cg, "POP R5");
         emit_line(cg, "POP R4");
-        emit_line(cg, "POP R3");
-        emit_line(cg, "POP R2");
+        if (save_let_base) {
+            emit_line(cg, "POP R3");
+            emit_line(cg, "POP R2");
+        }
         break;
     }
 
